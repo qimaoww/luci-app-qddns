@@ -1,0 +1,17 @@
+[package]
+name = "qddns"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-2.0-only"
+
+[lib]
+name = "qddns"
+path = "src/lib.rs"
+
+[[bin]]
+name = "qddnsctl"
+path = "src/bin/qddnsctl.rs"
+
+[[bin]]
+name = "qddnsd"
+path = "src/bin/qddnsd.rs"

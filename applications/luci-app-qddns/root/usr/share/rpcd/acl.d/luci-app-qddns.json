@@ -1,0 +1,21 @@
+{
+	"luci-app-qddns": {
+		"description": "Grant access to qddns procedures",
+		"read": {
+			"ubus": {
+				"qddns": [ "get_overview", "list_sources", "probe_source", "list_dhcpv6_leases", "list_rules", "get_logs", "get_rule_status" ]
+			},
+			"uci": [ "qddns" ],
+			"file": {
+				"/tmp/odhcpd.leases": [ "read" ],
+				"/usr/bin/qddnsctl": [ "exec" ]
+			}
+		},
+		"write": {
+			"ubus": {
+				"qddns": [ "run_rule", "test_rule" ]
+			},
+			"uci": [ "qddns" ]
+		}
+	}
+}

@@ -1,0 +1,9 @@
+[workspace]
+members = ["qddns"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "GPL-2.0-only"
+version = "0.1.0"
+
