@@ -19,6 +19,27 @@ function is_valid_log_scope(scope) {
 	return match(scope, /^[A-Za-z0-9_.-]+$/) != null;
 }
 
+function is_valid_id(id) {
+	return is_valid_log_scope(id);
+}
+
+function get_source_type(source_id) {
+	let source_type = null;
+
+	uci.foreach('qddns', 'source', function(s) {
+		if (s['.name'] == source_id)
+			source_type = s.type || null;
+	});
+
+	return source_type;
+}
+
+function is_probe_allowed_source_type(source_type) {
+	return source_type == 'local_addr' ||
+		source_type == 'interface' ||
+		source_type == 'dhcpv6_duid';
+}
+
 function has_rule(rule_id) {
 	let found = false;
 
@@ -43,17 +64,13 @@ function safe_unload() {
 }
 
 function exec_json(command) {
-	let p = popen(`${qddns_ctl} ${command} 2>/dev/null`, 'r');
+	let p = popen(`${qddns_ctl} --config /etc/config/qddns ${command} 2>/dev/null`, 'r');
 	if (!p)
 		return null;
 
 	let data = p.read('all');
 	p.close();
 	return data ? json(trim(data)) : null;
-}
-
-function shell_quote(s) {
-	return "'" + replace(s, /'/g, "'\\''") + "'";
 }
 
 function section_to_obj(section) {
@@ -169,7 +186,7 @@ function list_dhcpv6_leases() {
 const methods = {
 	get_overview: {
 		call: function() {
-			let status = exec_json("--config /etc/config/qddns status") || { ok: false };
+			let status = exec_json('status') || { ok: false };
 			let res = {
 				main: {
 					enabled: (uci.get('qddns', 'main', 'enabled') || '1') == '1',
@@ -199,7 +216,24 @@ const methods = {
 	probe_source: {
 		args: { id: 'id' },
 		call: function(req) {
-			let data = exec_json(`--config /etc/config/qddns sources probe ${shell_quote(req.args.id)}`);
+			let id = req.args.id || '';
+
+			if (!is_valid_id(id))
+				return { ok: false, error: 'invalid source id' };
+
+			let source_type = get_source_type(id);
+			if (!source_type) {
+				safe_unload();
+				return { ok: false, error: 'missing source' };
+			}
+
+			if (!is_probe_allowed_source_type(source_type)) {
+				safe_unload();
+				return { ok: false, error: 'probe not allowed for source type' };
+			}
+
+			let data = exec_json(`sources probe ${id}`);
+			safe_unload();
 			return data || { ok: false, error: 'probe failed' };
 		}
 	},
@@ -229,14 +263,32 @@ const methods = {
 	run_rule: {
 		args: { id: 'id' },
 		call: function(req) {
-			return exec_json(`--config /etc/config/qddns rules run ${shell_quote(req.args.id)}`) || { ok: false };
+			let id = req.args.id || '';
+
+			if (!is_valid_id(id) || !has_rule(id)) {
+				safe_unload();
+				return { ok: false, error: 'invalid rule id' };
+			}
+
+			let data = exec_json(`rules run ${id}`) || { ok: false };
+			safe_unload();
+			return data;
 		}
 	},
 
 	test_rule: {
 		args: { id: 'id' },
 		call: function(req) {
-			return exec_json(`--config /etc/config/qddns rules test ${shell_quote(req.args.id)}`) || { ok: false };
+			let id = req.args.id || '';
+
+			if (!is_valid_id(id) || !has_rule(id)) {
+				safe_unload();
+				return { ok: false, error: 'invalid rule id' };
+			}
+
+			let data = exec_json(`rules test ${id}`) || { ok: false };
+			safe_unload();
+			return data;
 		}
 	},
 
@@ -253,7 +305,7 @@ const methods = {
 				return { ok: false, scope: scope, content: '', entries: [], error: 'missing log scope' };
 			}
 
-			let content = exec_json(`--config /etc/config/qddns logs ${shell_quote(scope)}`);
+			let content = exec_json(`logs ${scope}`);
 			safe_unload();
 			return content || { ok: false, scope: scope, content: '', entries: [] };
 		}
@@ -262,7 +314,15 @@ const methods = {
 	get_rule_status: {
 		args: { id: 'id' },
 		call: function(req) {
-			let data = exec_json(`--config /etc/config/qddns rules status ${shell_quote(req.args.id)}`);
+			let id = req.args.id || '';
+
+			if (!is_valid_id(id) || !has_rule(id)) {
+				safe_unload();
+				return { ok: false, error: 'invalid rule id' };
+			}
+
+			let data = exec_json(`rules status ${id}`);
+			safe_unload();
 			return rule_status_to_obj(data);
 		}
 	}

@@ -601,6 +601,9 @@ return view.extend({
 		o = s.option(form.Value, 'force_interval', _('Force interval'));
 		o.datatype = 'uinteger';
 		o.modalonly = true;
+		o = s.option(form.Value, 'retry_count', _('Retry count'));
+		o.datatype = 'uinteger';
+		o.modalonly = true;
 		o = s.option(form.Value, 'retry_backoff', _('Retry backoff'));
 		o.datatype = 'uinteger';
 		o.modalonly = true;

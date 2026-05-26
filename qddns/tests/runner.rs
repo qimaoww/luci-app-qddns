@@ -1,12 +1,14 @@
 use std::collections::BTreeMap;
 use std::net::{IpAddr, Ipv4Addr};
 
-use qddns::config::{Config, ProviderConfig, RuleConfig, SourceConfig};
+use qddns::config::{
+    AddressFamily, Config, ProviderConfig, ProviderKind, RuleConfig, SourceConfig, SourceKind,
+};
 use qddns::error::Result;
 use qddns::provider::{ProviderAdapter, RemoteRecord, SyncOutcome};
 use qddns::runner::{run_rule, should_force_update, SourceAdapter};
 use qddns::source::SourceResolution;
-use qddns::state::RuleState;
+use qddns::state::{RuleResult, RuleState};
 
 struct StaticSource;
 
@@ -59,39 +61,19 @@ fn fixture_config() -> Config {
             "wan4".into(),
             SourceConfig {
                 name: "wan4".into(),
-                source_type: "local_addr".into(),
-                family: Some("ipv4".into()),
-                interface: None,
-                address: Some("1.2.3.4".into()),
-                probe_url: None,
-                script: None,
-                command: None,
-                duid: None,
-                iaid: None,
-                lease_file: None,
-                prefix_filter: None,
-                hostname_hint: None,
+                kind: SourceKind::LocalAddr {
+                    family: Some(AddressFamily::Ipv4),
+                    address: Some("1.2.3.4".into()),
+                },
             },
         )]),
         providers: BTreeMap::from([(
             "cf".into(),
             ProviderConfig {
                 name: "cf".into(),
-                provider_type: "cloudflare".into(),
-                api_token: Some("token".into()),
-                secret_id: None,
-                secret_key: None,
-                access_key_id: None,
-                access_key_secret: None,
-                url: None,
-                method: None,
-                headers_json: None,
-                body_template: None,
-                lookup_url: None,
-                lookup_method: None,
-                lookup_headers_json: None,
-                lookup_json_pointer: None,
-                success_contains: None,
+                kind: ProviderKind::Cloudflare {
+                    api_token: Some("token".into()),
+                },
             },
         )]),
         rules: BTreeMap::from([(
@@ -116,6 +98,22 @@ fn fixture_config() -> Config {
 }
 
 #[test]
+fn initial_run_skips_update_when_remote_matches() {
+    let config = fixture_config();
+    let provider = MemoryProvider {
+        remote: Some("1.2.3.4".into()),
+        ..Default::default()
+    };
+
+    let (report, state) =
+        run_rule(&config, "home", &StaticSource, &provider, None, 200).expect("run succeeds");
+
+    assert!(!report.changed);
+    assert_eq!(state.last_result, Some(RuleResult::Unchanged));
+    assert!(provider.updates.lock().unwrap().is_empty());
+}
+
+#[test]
 fn run_rule_skips_update_when_remote_matches_and_force_interval_not_reached() {
     let config = fixture_config();
     let provider = MemoryProvider {
@@ -131,13 +129,14 @@ fn run_rule_skips_update_when_remote_matches_and_force_interval_not_reached() {
         last_update: Some(100),
         last_check: Some(100),
         next_run: None,
+        retry_attempts: 0,
     };
 
     let (report, state) = run_rule(&config, "home", &StaticSource, &provider, Some(&prior), 200)
         .expect("run succeeds");
     assert_eq!(report.status, "success");
     assert!(!report.changed);
-    assert_eq!(state.last_result.as_deref(), Some("unchanged"));
+    assert_eq!(state.last_result, Some(RuleResult::Unchanged));
     assert!(provider.updates.lock().unwrap().is_empty());
 }
 
@@ -149,8 +148,8 @@ fn run_rule_updates_when_remote_differs() {
         ..Default::default()
     };
 
-    let (report, state) = run_rule(&config, "home", &StaticSource, &provider, None, 400)
-        .expect("run succeeds");
+    let (report, state) =
+        run_rule(&config, "home", &StaticSource, &provider, None, 400).expect("run succeeds");
     assert_eq!(report.status, "success");
     assert!(report.changed);
     assert_eq!(state.remote_ip.as_deref(), Some("1.2.3.4"));
@@ -163,6 +162,7 @@ fn force_update_becomes_true_when_last_update_exceeds_force_interval() {
     let rule = &config.rules["home"];
     let state = RuleState {
         last_update: Some(10),
+        retry_attempts: 0,
         ..Default::default()
     };
 

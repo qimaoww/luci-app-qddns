@@ -19,7 +19,6 @@
   - `interface`
   - `public_probe`
   - `script`
-  - `command`
   - `dhcpv6_duid`
 - Runtime state persistence in `runtime.state`
 - Rule execution state machine with per-rule logs
@@ -42,16 +41,36 @@
 
 ## Runtime requirements
 
-- `curl`
-- `openssl`
-- `date` with `-r <epoch>` support
+- OpenWrt `procd`
+- `ucode`, `ucode-mod-fs`, and `ucode-mod-uci`
+- Rust standard runtime for the target architecture
 
-The OpenWrt package definition pulls these in as `curl`, `openssl-util`, and `coreutils-date`.
+Core HTTP, JSON, HMAC/signing, and UTC timestamp handling are implemented inside the Rust backend. The backend no longer shells out to external network, crypto, or date utilities during normal operation.
+
+## Rust dependencies
+
+The backend intentionally uses small blocking dependencies instead of a large async stack:
+
+- `serde` and `serde_json` for runtime/provider/CLI JSON contracts
+- `ureq` with rustls-backed TLS for blocking HTTP/HTTPS
+- `hmac`, `sha1`, `sha2`, `hex`, and `base64` for provider signing
+- `percent-encoding` for canonical query construction
+- `time` for UTC timestamp formatting
+
+The OpenWrt package does not need runtime dependencies for external HTTP clients, OpenSSL command-line tools, or coreutils date utilities.
+
+## Breaking config notes
+
+Configuration parsing is strict. Unknown options, invalid booleans/numbers, unsupported URL schemes, and missing provider credentials now fail validation with field-path errors such as `provider.cf.api_token: missing`.
+
+Production `custom_http` provider URLs and `public_probe` source URLs must use `http://` or `https://`; `file://` is rejected. The legacy `command` source type is no longer accepted, and LuCI/rpcd source probing is limited to local, interface, and DHCPv6 DUID sources.
 
 ## Verification
 
 ```sh
-cargo test -p qddns
+cd qddns && CARGO_TARGET_DIR=/tmp/qddns-cargo-target cargo test -p qddns -- --nocapture
+cd .. && bash tests/verify.sh
+for f in applications/luci-app-qddns/htdocs/luci-static/resources/view/qddns/*.js; do node --check "$f"; done
+python3 tests/check_acl_boundaries.py
+python3 tests/check_rpcd_redaction.py
 ```
-
-The Rust backend intentionally stays standard-library-only so it can be built in restricted environments without fetching extra crates.

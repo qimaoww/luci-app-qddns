@@ -4,8 +4,8 @@ use std::path::Path;
 use crate::config::Config;
 use crate::daemon;
 use crate::error::{Error, Result};
-use crate::json;
 use crate::state::{runtime_rule_status_json, runtime_status_json};
+use serde_json::json;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cli {
@@ -122,17 +122,20 @@ pub fn run(cli: Cli) -> Result<()> {
         Commands::Status => {
             let config = Config::load_from_path(Path::new(&cli.config))?;
             let runtime = daemon::read_runtime_status(&cli.config).unwrap_or_default();
-            println!("{}", json::stringify(&runtime_status_json(&config, &runtime)));
+            println!("{}", runtime_status_json(&config, &runtime));
             Ok(())
         }
         Commands::Validate => {
             let config = Config::load_from_path(Path::new(&cli.config))?;
             config.validate()?;
             println!(
-                "{{\"ok\":true,\"sources\":{},\"providers\":{},\"rules\":{}}}",
-                config.sources.len(),
-                config.providers.len(),
-                config.rules.len()
+                "{}",
+                json!({
+                    "ok": true,
+                    "sources": config.sources.len(),
+                    "providers": config.providers.len(),
+                    "rules": config.rules.len(),
+                })
             );
             Ok(())
         }
@@ -146,10 +149,7 @@ pub fn run(cli: Cli) -> Result<()> {
         Commands::Rules(RuleCommands::Status { id }) => {
             let config = Config::load_from_path(Path::new(&cli.config))?;
             let runtime = daemon::read_runtime_status(&cli.config)?;
-            println!(
-                "{}",
-                json::stringify(&runtime_rule_status_json(&config, &runtime, &id)?)
-            );
+            println!("{}", runtime_rule_status_json(&config, &runtime, &id)?);
             Ok(())
         }
     }

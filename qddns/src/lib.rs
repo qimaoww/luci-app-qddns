@@ -1,8 +1,8 @@
-pub mod error;
 pub mod cli;
 pub mod config;
 pub mod daemon;
-pub mod json;
+pub mod error;
+pub mod http;
 pub mod logstore;
 pub mod provider;
 pub mod runner;

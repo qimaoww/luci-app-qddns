@@ -1,24 +1,27 @@
-use qddns::config::{ProviderConfig, RuleConfig};
-use qddns::provider::{build_custom_http_request, parse_custom_http_success, RemoteRecord};
+use qddns::config::{CustomHttpConfig, ProviderConfig, ProviderKind, RuleConfig};
+use qddns::provider::{
+    build_custom_http_request, parse_custom_http_success, parse_provider_response_json,
+    RemoteRecord,
+};
 
 fn custom_provider() -> ProviderConfig {
     ProviderConfig {
         name: "custom".into(),
-        provider_type: "custom_http".into(),
-        api_token: None,
-        secret_id: None,
-        secret_key: None,
-        access_key_id: None,
-        access_key_secret: None,
-        url: Some("https://example.com/ddns".into()),
-        method: Some("POST".into()),
-        headers_json: Some("{\"Authorization\":\"Bearer token\",\"Content-Type\":\"application/json\"}".into()),
-        body_template: Some("{\"zone\":\"{{zone}}\",\"record\":\"{{record_name}}\",\"ip\":\"{{ip}}\"}".into()),
-        lookup_url: None,
-        lookup_method: None,
-        lookup_headers_json: None,
-        lookup_json_pointer: None,
-        success_contains: Some("updated".into()),
+        kind: ProviderKind::CustomHttp(CustomHttpConfig {
+            url: Some("https://example.com/ddns".into()),
+            method: Some("POST".into()),
+            headers_json: Some(
+                "{\"Authorization\":\"Bearer token\",\"Content-Type\":\"application/json\"}".into(),
+            ),
+            body_template: Some(
+                "{\"zone\":\"{{zone}}\",\"record\":\"{{record_name}}\",\"ip\":\"{{ip}}\"}".into(),
+            ),
+            lookup_url: None,
+            lookup_method: None,
+            lookup_headers_json: None,
+            lookup_json_pointer: None,
+            success_contains: Some("updated".into()),
+        }),
     }
 }
 
@@ -45,8 +48,8 @@ fn custom_http_request_renders_method_url_headers_and_body() {
     let provider = custom_provider();
     let rule = custom_rule();
 
-    let request = build_custom_http_request(&provider, &rule, "198.51.100.9")
-        .expect("request builds");
+    let request =
+        build_custom_http_request(&provider, &rule, "198.51.100.9").expect("request builds");
 
     assert_eq!(request.method, "POST");
     assert_eq!(request.url, "https://example.com/ddns");
@@ -75,9 +78,23 @@ fn custom_http_request_can_use_remote_record_context() {
         detail: "before".into(),
     };
 
-    let request = build_custom_http_request(&provider, &rule, "198.51.100.9")
-        .expect("request builds");
+    let request =
+        build_custom_http_request(&provider, &rule, "198.51.100.9").expect("request builds");
 
     assert_eq!(remote.record_id.as_deref(), Some("r1"));
     assert!(request.body.contains("198.51.100.9"));
+}
+
+#[test]
+fn rejects_malformed_provider_json() {
+    let secret = "test-secret-123";
+    let err = parse_provider_response_json(&format!("{{\"secret\":\"{secret}\","))
+        .expect_err("malformed provider JSON should fail");
+
+    let text = err.to_string();
+    assert!(
+        text.contains("malformed provider JSON"),
+        "unexpected error: {text}"
+    );
+    assert!(!text.contains(secret), "secret leaked in error: {text}");
 }

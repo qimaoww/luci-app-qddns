@@ -133,9 +133,6 @@ msgstr "公网探测"
 msgid "Script"
 msgstr "脚本"
 
-msgid "Command"
-msgstr "命令"
-
 msgid "Record"
 msgstr "记录"
 
@@ -324,9 +321,6 @@ msgstr "探测 URL"
 
 msgid "Script path"
 msgstr "脚本路径"
-
-msgid "Shell command"
-msgstr "Shell 命令"
 
 msgid "Provider Library"
 msgstr "提供商库"

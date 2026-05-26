@@ -1,23 +1,24 @@
-use std::fs::{self, File};
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::fs;
+use std::path::Path;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
-use crate::config::{Config, ProviderConfig, RuleConfig};
+use crate::config::{Config, ProviderConfig, RuleConfig, SourceKind};
 use crate::error::{Error, Result};
-use crate::json::{self, JsonValue};
+use crate::http::HttpClient;
 use crate::logstore::{append_log, ensure_valid_log_scope, read_logs, LogEntry};
 use crate::provider::{ProviderAdapter, RemoteRecord, ShellProviderAdapter, SyncOutcome};
 use crate::runner::{run_rule, SourceAdapter};
-use crate::source::{resolve_source, SourceResolution};
-use crate::state::{parse_runtime_state, runtime_rule_state, serialize_runtime_state, RuleState, RuntimeState};
+use crate::source::{resolve_source_with_http, SourceResolution};
+use crate::state::{
+    runtime_rule_state, RuleResult, RuleState, RuleStatus, RuntimeState, StateStore,
+};
+use serde_json::json;
 
 const STATE_DIR_MODE: u32 = 0o750;
-const STATE_FILE_MODE: u32 = 0o640;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DaemonOptions {
@@ -35,13 +36,26 @@ pub fn run(options: DaemonOptions) -> Result<()> {
         let mut runtime = load_runtime_state(&config.main.state_dir).unwrap_or_default();
         runtime.daemon_running = false;
         runtime.updated_at = Some(unix_now());
+        let provider_adapter = ShellProviderAdapter::new(config.main.timeout);
+        let mut errors = Vec::new();
         for rule_id in enabled_rule_ids(&config) {
-            let _ = run_rule_once_with_runtime(&config, &mut runtime, &rule_id, &ShellProviderAdapter);
+            if let Err(err) =
+                run_rule_once_with_runtime(&config, &mut runtime, &rule_id, &provider_adapter)
+            {
+                errors.push(format!("{rule_id}: {err}"));
+            }
         }
         runtime.updated_at = Some(unix_now());
         write_runtime_state(&config.main.state_dir, &runtime)?;
         remove_daemon_marker(&config)?;
-        return Ok(());
+        return if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::new(format!(
+                "one or more rules failed: {}",
+                errors.join("; ")
+            )))
+        };
     }
 
     let mut runtime = load_runtime_state(&config.main.state_dir).unwrap_or_default();
@@ -56,6 +70,7 @@ pub fn run(options: DaemonOptions) -> Result<()> {
         let current = Config::load_from_path(Path::new(&options.config))?;
         current.validate()?;
         runtime.daemon_running = true;
+        let provider_adapter = ShellProviderAdapter::new(current.main.timeout);
 
         for rule_id in enabled_rule_ids(&current) {
             let should_run = runtime
@@ -65,7 +80,8 @@ pub fn run(options: DaemonOptions) -> Result<()> {
                 .map(|next| next <= now)
                 .unwrap_or(true);
             if should_run {
-                let _ = run_rule_once_with_runtime(&current, &mut runtime, &rule_id, &ShellProviderAdapter);
+                let _ =
+                    run_rule_once_with_runtime(&current, &mut runtime, &rule_id, &provider_adapter);
             }
         }
 
@@ -79,7 +95,7 @@ pub fn run(options: DaemonOptions) -> Result<()> {
 pub fn list_sources(config_path: &str) -> Result<()> {
     let config = Config::load_from_path(Path::new(config_path))?;
     for (id, source) in config.sources {
-        println!("{id}\t{}", source.source_type);
+        println!("{id}\t{}", source.source_type());
     }
     Ok(())
 }
@@ -90,13 +106,26 @@ pub fn probe_source(config_path: &str, source_id: &str) -> Result<()> {
         .sources
         .get(source_id)
         .ok_or_else(|| Error::new(format!("missing source '{source_id}'")))?;
-    let resolved = resolve_source(source)?;
+    if matches!(
+        &source.kind,
+        SourceKind::Script { .. } | SourceKind::PublicProbe { .. }
+    ) {
+        return Err(Error::new(format!(
+            "probe not allowed for source type '{}'",
+            source.source_type()
+        )));
+    }
+    let http = HttpClient::from_timeout_secs(config.main.timeout);
+    let resolved = resolve_source_with_http(source, &http)?;
     println!(
-        "{{\"ok\":true,\"source\":\"{}\",\"family\":\"{}\",\"address\":\"{}\",\"detail\":\"{}\"}}",
-        source.name,
-        resolved.family,
-        resolved.address,
-        escape_json(&resolved.detail)
+        "{}",
+        json!({
+            "ok": true,
+            "source": source.name,
+            "family": resolved.family,
+            "address": resolved.address.to_string(),
+            "detail": resolved.detail,
+        })
     );
     Ok(())
 }
@@ -104,7 +133,10 @@ pub fn probe_source(config_path: &str, source_id: &str) -> Result<()> {
 pub fn list_rules(config_path: &str) -> Result<()> {
     let config = Config::load_from_path(Path::new(config_path))?;
     for (id, rule) in config.rules {
-        println!("{id}\t{}\t{}\t{}", rule.record_name, rule.record_type, rule.source);
+        println!(
+            "{id}\t{}\t{}\t{}",
+            rule.record_name, rule.record_type, rule.source
+        );
     }
     Ok(())
 }
@@ -113,23 +145,21 @@ pub fn run_rule_once(config_path: &str, rule_id: &str) -> Result<()> {
     let config = Config::load_from_path(Path::new(config_path))?;
     config.validate()?;
     let mut runtime = load_runtime_state(&config.main.state_dir).unwrap_or_default();
-    runtime.daemon_running = false;
-    let result = run_rule_once_with_runtime(&config, &mut runtime, rule_id, &ShellProviderAdapter);
-    runtime.daemon_running = false;
+    let provider_adapter = ShellProviderAdapter::new(config.main.timeout);
+    let result = run_rule_once_with_runtime(&config, &mut runtime, rule_id, &provider_adapter);
     runtime.updated_at = Some(unix_now());
     write_runtime_state(&config.main.state_dir, &runtime)?;
-    remove_daemon_marker(&config)?;
     let report = result?;
     println!(
-        "{{\"ok\":true,\"status\":\"{}\",\"changed\":{},\"current_ip\":\"{}\",\"remote_ip\":{},\"detail\":\"{}\"}}",
-        report.status,
-        if report.changed { "true" } else { "false" },
-        escape_json(&report.current_ip),
-        report
-            .remote_ip
-            .map(|value| format!("\"{}\"", escape_json(&value)))
-            .unwrap_or_else(|| "null".into()),
-        escape_json(&report.detail)
+        "{}",
+        json!({
+            "ok": true,
+            "status": report.status.as_str(),
+            "changed": report.changed,
+            "current_ip": report.current_ip,
+            "remote_ip": report.remote_ip,
+            "detail": report.detail,
+        })
     );
     Ok(())
 }
@@ -165,29 +195,29 @@ pub fn print_logs(config_path: &str, scope: &str) -> Result<()> {
     let entries = read_logs(&config.main.log_dir, Some(scope), 200)?;
     let content = entries
         .iter()
-        .map(|entry| format!("{}\t{}\t{}\t{}", entry.timestamp, entry.level, entry.scope, entry.message))
+        .map(|entry| {
+            format!(
+                "{}\t{}\t{}\t{}",
+                entry.timestamp, entry.level, entry.scope, entry.message
+            )
+        })
         .collect::<Vec<_>>()
         .join("\n");
-    let items = entries
-        .iter()
-        .map(|entry| {
-            JsonValue::Object(std::collections::BTreeMap::from([
-                ("timestamp".into(), JsonValue::Number(entry.timestamp.to_string())),
-                ("level".into(), JsonValue::String(entry.level.clone())),
-                ("scope".into(), JsonValue::String(entry.scope.clone())),
-                ("message".into(), JsonValue::String(entry.message.clone())),
-            ]))
-        })
-        .collect::<Vec<_>>();
-
     println!(
         "{}",
-        json::stringify(&JsonValue::Object(std::collections::BTreeMap::from([
-            ("ok".into(), JsonValue::Bool(true)),
-            ("scope".into(), JsonValue::String(scope.to_string())),
-            ("content".into(), JsonValue::String(content)),
-            ("entries".into(), JsonValue::Array(items)),
-        ])))
+        json!({
+            "ok": true,
+            "scope": scope,
+            "content": content,
+            "entries": entries.iter().map(|entry| {
+                json!({
+                    "timestamp": entry.timestamp,
+                    "level": entry.level,
+                    "scope": entry.scope,
+                    "message": entry.message,
+                })
+            }).collect::<Vec<_>>(),
+        })
     );
     Ok(())
 }
@@ -200,11 +230,12 @@ fn run_rule_once_with_runtime(
 ) -> Result<crate::runner::RunReport> {
     let now = unix_now();
     let prior = runtime.rules.get(rule_id).cloned().unwrap_or_default();
+    let source_adapter = DefaultSourceAdapter::new(config.main.timeout);
 
     let result = run_rule(
         config,
         rule_id,
-        &DefaultSourceAdapter,
+        &source_adapter,
         provider_adapter,
         Some(&prior),
         now,
@@ -223,7 +254,10 @@ fn run_rule_once_with_runtime(
                     scope: rule_id.into(),
                     message: format!(
                         "{} current={} remote={} detail={}",
-                        state.last_result.as_deref().unwrap_or("checked"),
+                        state
+                            .last_result
+                            .map(|result| result.as_str())
+                            .unwrap_or("checked"),
                         state.current_ip.as_deref().unwrap_or("-"),
                         state.remote_ip.as_deref().unwrap_or("-"),
                         report.detail
@@ -233,19 +267,30 @@ fn run_rule_once_with_runtime(
             Ok(report)
         }
         Err(err) => {
+            let prior_retry_attempts = if prior.last_result == Some(RuleResult::Error) {
+                prior.retry_attempts
+            } else {
+                0
+            };
+            let retry_attempts = prior_retry_attempts.saturating_add(1);
+            let next_run = config.rules.get(rule_id).map(|rule| {
+                let delay = if retry_attempts <= rule.retry_count {
+                    rule.retry_backoff
+                } else {
+                    rule.check_interval
+                };
+                now + delay
+            });
             let failed = RuleState {
-                status: "error".into(),
+                status: RuleStatus::Failed,
                 current_ip: prior.current_ip.clone(),
                 remote_ip: prior.remote_ip.clone(),
-                last_result: Some("error".into()),
+                last_result: Some(RuleResult::Error),
                 last_error: Some(err.to_string()),
                 last_update: prior.last_update,
                 last_check: Some(now),
-                next_run: config
-                    .rules
-                    .get(rule_id)
-                    .map(|rule| now + rule.retry_backoff)
-                    .or(Some(now + config.main.poll_interval)),
+                next_run: next_run.or(Some(now + config.main.poll_interval)),
+                retry_attempts,
             };
             runtime.rules.insert(rule_id.to_string(), failed);
             runtime.updated_at = Some(now);
@@ -264,11 +309,21 @@ fn run_rule_once_with_runtime(
     }
 }
 
-struct DefaultSourceAdapter;
+struct DefaultSourceAdapter {
+    http: HttpClient,
+}
+
+impl DefaultSourceAdapter {
+    fn new(timeout_secs: u64) -> Self {
+        Self {
+            http: HttpClient::from_timeout_secs(timeout_secs),
+        }
+    }
+}
 
 impl SourceAdapter for DefaultSourceAdapter {
     fn resolve(&self, source: &crate::config::SourceConfig) -> Result<SourceResolution> {
-        resolve_source(source)
+        resolve_source_with_http(source, &self.http)
     }
 }
 
@@ -309,21 +364,11 @@ fn enabled_rule_ids(config: &Config) -> Vec<String> {
 }
 
 fn write_daemon_marker(config: &Config) -> Result<()> {
-    let marker = Path::new(&config.main.state_dir).join("daemon.status");
-    let mut file = File::create(marker)?;
-    set_file_mode(&file, STATE_FILE_MODE)?;
-    writeln!(file, "running={}", if config.main.enabled { 1 } else { 0 })
-        .map_err(|err| Error::new(err.to_string()))?;
-    Ok(())
+    StateStore::new(&config.main.state_dir).write_daemon_marker(config.main.enabled)
 }
 
 fn remove_daemon_marker(config: &Config) -> Result<()> {
-    let marker = Path::new(&config.main.state_dir).join("daemon.status");
-    match fs::remove_file(marker) {
-        Ok(()) => Ok(()),
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(err) => Err(Error::new(err.to_string())),
-    }
+    StateStore::new(&config.main.state_dir).remove_daemon_marker()
 }
 
 fn append_system_log(log_dir: &str, message: &str) -> Result<()> {
@@ -340,26 +385,11 @@ fn append_system_log(log_dir: &str, message: &str) -> Result<()> {
 }
 
 fn load_runtime_state(state_dir: &str) -> Result<RuntimeState> {
-    let path = state_path(state_dir);
-    if !path.exists() {
-        return Ok(RuntimeState::default());
-    }
-    let text = fs::read_to_string(path)?;
-    parse_runtime_state(&text)
+    StateStore::new(state_dir).read_runtime()
 }
 
 fn write_runtime_state(state_dir: &str, runtime: &RuntimeState) -> Result<()> {
-    ensure_runtime_dir(state_dir)?;
-    let path = state_path(state_dir);
-    let mut file = File::create(path)?;
-    set_file_mode(&file, STATE_FILE_MODE)?;
-    file.write_all(serialize_runtime_state(runtime).as_bytes())
-        .map_err(|err| Error::new(err.to_string()))?;
-    Ok(())
-}
-
-fn state_path(state_dir: &str) -> PathBuf {
-    Path::new(state_dir).join("runtime.state")
+    StateStore::new(state_dir).write_runtime(runtime)
 }
 
 fn unix_now() -> u64 {
@@ -367,14 +397,6 @@ fn unix_now() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0)
-}
-
-fn escape_json(value: &str) -> String {
-    value
-        .replace('\\', "\\\\")
-        .replace('"', "\\\"")
-        .replace('\n', "\\n")
-        .replace('\r', "\\r")
 }
 
 fn ensure_runtime_dir(path: &str) -> Result<()> {
@@ -390,16 +412,5 @@ fn set_dir_mode(path: &str, mode: u32) -> Result<()> {
 
 #[cfg(not(unix))]
 fn set_dir_mode(_path: &str, _mode: u32) -> Result<()> {
-    Ok(())
-}
-
-#[cfg(unix)]
-fn set_file_mode(file: &File, mode: u32) -> Result<()> {
-    file.set_permissions(fs::Permissions::from_mode(mode))?;
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn set_file_mode(_file: &File, _mode: u32) -> Result<()> {
     Ok(())
 }

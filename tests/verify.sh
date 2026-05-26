@@ -7,6 +7,7 @@ VIEW_DIR="$ROOT_DIR/applications/luci-app-qddns/htdocs/luci-static/resources/vie
 MENU_FILE="$ROOT_DIR/applications/luci-app-qddns/root/usr/share/luci/menu.d/luci-app-qddns.json"
 PO_FILE="$ROOT_DIR/applications/luci-app-qddns/po/zh_Hans/qddns.po"
 DEFAULT_CONFIG_FILE="$ROOT_DIR/net/qddns/files/qddns.config"
+export VIEW_DIR
 
 run_step() {
 	name="$1"
@@ -83,8 +84,9 @@ check_rules_table_compactness() {
 	! grep -nF -- "--qddns-rule-form-min" "$VIEW_DIR/rules.js"
 	! grep -nF -- "--qddns-rule-form-max" "$VIEW_DIR/rules.js"
 	python3 - <<'PYEOF'
+import os
 from pathlib import Path
-rules = Path('/home/qimaoaa/qddns-feed/applications/luci-app-qddns/htdocs/luci-static/resources/view/qddns/rules.js').read_text().splitlines()
+rules = Path(os.environ['VIEW_DIR'], 'rules.js').read_text().splitlines()
 fields = ['provider', 'source', 'zone', 'record_name', 'ttl', 'proxied', 'check_interval', 'force_interval', 'retry_backoff']
 for field in fields:
     matches = [i for i, line in enumerate(rules) if "s.option(" in line and f"'{field}'" in line]
@@ -149,8 +151,9 @@ check_rule_wizard() {
 	grep -nF "window.location.reload()" "$VIEW_DIR/rules.js"
 	grep -nF "select.appendChild(E('option', { value: choice.id }, [choice.name || emptyText]))" "$VIEW_DIR/rules.js"
 	python3 - <<'PYEOF'
+import os
 from pathlib import Path
-rules = Path('/home/qimaoaa/qddns-feed/applications/luci-app-qddns/htdocs/luci-static/resources/view/qddns/rules.js').read_text()
+rules = Path(os.environ['VIEW_DIR'], 'rules.js').read_text()
 modal_start = rules.index('showRuleWizardModal: function')
 modal_end = rules.index('renderRuleWizard: function')
 modal = rules[modal_start:modal_end]
@@ -395,7 +398,6 @@ check_name_visible_numeric_hidden_po() {
 		'DHCPv6 DUID' \
 		'Public probe' \
 		'Script' \
-		'Command' \
 		'Status' \
 		'Read current DUID' \
 		'Read current DHCPv6 lease candidates, then choose one to fill the DUID source fields.' \
@@ -417,6 +419,8 @@ check_name_visible_numeric_hidden_po() {
 		'Rule references use the latest saved providers and sources loaded with this page. Save and reload after adding referenced providers or sources on the settings page.'; do
 		grep -nF "msgid \"$msgid\"" "$PO_FILE"
 	done
+	! grep -nF 'msgid "Command"' "$PO_FILE"
+	! grep -nF 'msgid "Shell command"' "$PO_FILE"
 	! grep -nE "can be edited later|renaming referenced sections|changing visible names|rule sections|source sections|provider sections|referenced sections|provider section|internal numeric|内部数字|可见名称稍后可以编辑|重命名被引用|section" "$PO_FILE"
 }
 check_logs_boundary() {
@@ -438,9 +442,74 @@ check_theme_style() {
 
 SELFTEST_STATE_DIR=/tmp/qddns-selftest-state
 SELFTEST_LOG_DIR=/tmp/qddns-selftest-log
+SELFTEST_HTTP_PORT=35353
 rm -rf "$SELFTEST_STATE_DIR" "$SELFTEST_LOG_DIR"
 mkdir -p "$SELFTEST_STATE_DIR" "$SELFTEST_LOG_DIR"
-printf '198.51.100.88\n' > "$SELFTEST_STATE_DIR/lookup.txt"
+
+python3 - "$SELFTEST_STATE_DIR" "$SELFTEST_HTTP_PORT" <<'PYEOF' &
+import http.server
+import pathlib
+import socketserver
+import sys
+
+state_dir = pathlib.Path(sys.argv[1])
+port = int(sys.argv[2])
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def log_message(self, fmt, *args):
+        return
+
+    def do_GET(self):
+        self.handle_request()
+
+    def do_HEAD(self):
+        self.handle_request(head=True)
+
+    def do_POST(self):
+        self.handle_request()
+
+    def do_PUT(self):
+        self.handle_request()
+
+    def handle_request(self, head=False):
+        if self.path.startswith('/lookup'):
+            body = b'198.51.100.88\n'
+            self.send_response(200)
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            if not head:
+                self.wfile.write(body)
+            return
+
+        if self.path.startswith('/update'):
+            length = int(self.headers.get('Content-Length') or '0')
+            data = self.rfile.read(length) if length else b''
+            (state_dir / 'update.txt').write_bytes(data)
+            body = b'{"result":"updated"}'
+            self.send_response(200)
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            if not head:
+                self.wfile.write(body)
+            return
+
+        self.send_response(404)
+        self.send_header('Content-Length', '0')
+        self.end_headers()
+
+class ReuseServer(socketserver.TCPServer):
+    allow_reuse_address = True
+
+with ReuseServer(('127.0.0.1', port), Handler) as httpd:
+    httpd.serve_forever()
+PYEOF
+SELFTEST_HTTP_PID=$!
+cleanup() {
+	kill "$SELFTEST_HTTP_PID" 2>/dev/null || true
+	wait "$SELFTEST_HTTP_PID" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+sleep 1
 
 run_step 'Rust tests' cargo test -p qddns -- --nocapture
 run_step 'Shell init syntax' sh -n "$ROOT_DIR/net/qddns/files/qddns.init"
@@ -476,10 +545,16 @@ run_step 'LuCI list_sources shared RPC guard' grep -nF "const callSources = rpc.
 run_step 'LuCI list_sources settings consumer guard' grep -nF "return qddns.normalizeCatalogState(data[0], data[1]);" "$VIEW_DIR/settings.js"
 run_step 'LuCI list_sources rules consumer guard' grep -nF "return qddns.normalizeCatalogState(data[0], data[1]);" "$VIEW_DIR/rules.js"
 run_step 'ucode secret guard' sh -c "! grep -nE 'api_token: section\.api_token|secret_id: section\.secret_id|secret_key: section\.secret_key|access_key_id: section\.access_key_id|access_key_secret: section\.access_key_secret|headers_json: section\.headers_json|body_template: section\.body_template' '$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc'"
-run_step 'ucode log bridge guard' grep -n 'exec_json(`--config /etc/config/qddns logs' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+run_step 'ucode fixed config bridge guard' grep -n 'popen(`${qddns_ctl} --config /etc/config/qddns ${command} 2>/dev/null`, '\''r'\'')' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+run_step 'ucode no shell quote guard' sh -c "! grep -n 'function shell_quote' '$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc'"
+run_step 'ucode probe type guard' grep -n 'is_probe_allowed_source_type' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+run_step 'ucode probe command/script/public probe deny guard' sh -c "! grep -nE \"source_type == 'command'|source_type == 'script'|source_type == 'public_probe'\" '$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc'"
+run_step 'ucode log bridge guard' grep -n 'exec_json(`logs' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 run_step 'ucode no log path read guard' sh -c "! grep -nE 'log_dir|readlink\(|stat\(|unlink\(|mkdir\(' '$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc'"
 run_step 'acl qddnsctl exec guard' grep -n '"/usr/bin/qddnsctl": \[ "exec" \]' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/acl.d/luci-app-qddns.json"
 run_step 'acl no direct log file guard' check_acl_no_direct_log_file
+run_step 'acl boundary script guard' python3 "$ROOT_DIR/tests/check_acl_boundaries.py"
+run_step 'rpcd redaction script guard' python3 "$ROOT_DIR/tests/check_rpcd_redaction.py"
 run_step 'theme style guard' check_theme_style
 run_step 'Selftest validate' cargo run --quiet --bin qddnsctl -- --config "$ROOT_DIR/tests/selftest.conf" validate
 run_step 'Selftest sources list' sh -c "cargo run --quiet --bin qddnsctl -- --config '$ROOT_DIR/tests/selftest.conf' sources list | grep -qx 'wan4	local_addr'"

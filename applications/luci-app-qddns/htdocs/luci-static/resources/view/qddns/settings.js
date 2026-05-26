@@ -520,10 +520,10 @@ return view.extend({
 		o.placeholder = '/var/run/qddns';
 
 		o = s.option(form.Value, 'poll_interval', _('Poll interval (seconds)'));
-		o.datatype = 'uinteger';
+		o.datatype = 'range(1, 86400)';
 
 		o = s.option(form.Value, 'timeout', _('Default timeout (seconds)'));
-		o.datatype = 'uinteger';
+		o.datatype = 'range(1, 30)';
 
 		o = s.option(form.ListValue, 'log_level', _('Log level'));
 		['error', 'warn', 'info', 'debug', 'trace'].forEach(function(level) { o.value(level); });
@@ -548,10 +548,11 @@ return view.extend({
 		o.value('interface', _('Interface'));
 		o.value('public_probe', _('Public probe'));
 		o.value('script', _('Script'));
-		o.value('command', _('Command'));
 
-		o = s.option(form.Value, 'family', _('Family'));
-		o.placeholder = 'ipv4 / ipv6';
+		o = s.option(form.ListValue, 'family', _('Family'));
+		o.value('', _('Auto'));
+		o.value('ipv4', _('IPv4'));
+		o.value('ipv6', _('IPv6'));
 		this.sourceDhcpv6Options = { family: o };
 		o = s.option(form.Value, 'address', _('Address')); o.depends('type', 'local_addr');
 		o = s.option(form.DummyValue, '_dhcpv6_status', _('Status'));
@@ -572,7 +573,6 @@ return view.extend({
 		o.depends('type', 'interface');
 		o = s.option(form.Value, 'probe_url', _('Probe URL')); o.modalonly = true; o.depends('type', 'public_probe');
 		o = s.option(form.Value, 'script', _('Script path')); o.modalonly = true; o.depends('type', 'script');
-		o = s.option(form.Value, 'command', _('Shell command')); o.modalonly = true; o.depends('type', 'command');
 
 		s = m.section(form.GridSection, 'provider', _('Provider Library'), _('Saved providers become selectable on the rules page after saving and reloading. Names stay editable.'));
 		s.addremove = true;

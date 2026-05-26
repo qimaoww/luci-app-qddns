@@ -19,7 +19,7 @@ define Package/qddns
   SECTION:=net
   CATEGORY:=Network
   TITLE:=General-purpose DDNS platform with DUID-aware IPv6 sources
-  DEPENDS:=$(RUST_ARCH_DEPENDS) +procd +ucode +ucode-mod-fs +ucode-mod-uci +curl +coreutils-date +openssl-util
+  DEPENDS:=$(RUST_ARCH_DEPENDS) +procd +ucode +ucode-mod-fs +ucode-mod-uci
   URL:=https://example.invalid/qddns
 endef
 

@@ -2,10 +2,13 @@ use std::fs;
 use std::net::{IpAddr, Ipv6Addr};
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use qddns::config::Config;
+use qddns::config::{AddressFamily, Config, SourceConfig, SourceKind};
 use qddns::source::resolve_source;
+
+static NEXT_TEMP_ID: AtomicU64 = AtomicU64::new(0);
 
 fn write_file(path: &Path, content: &str) {
     fs::write(path, content).expect("write fixture");
@@ -21,7 +24,9 @@ impl TempDir {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("qddns-test-{unique}"));
+        let seq = NEXT_TEMP_ID.fetch_add(1, Ordering::Relaxed);
+        let path =
+            std::env::temp_dir().join(format!("qddns-test-{}-{unique}-{seq}", std::process::id()));
         fs::create_dir_all(&path).unwrap();
         Self { path }
     }
@@ -83,10 +88,10 @@ config rule 'desktop_ipv6'
     assert_eq!(config.sources.len(), 1);
     assert_eq!(config.providers.len(), 1);
     assert_eq!(config.rules.len(), 1);
-    assert_eq!(
-        config.sources["lan_duid"].prefix_filter.as_deref(),
-        Some("240e:")
-    );
+    let SourceKind::Dhcpv6Duid { prefix_filter, .. } = &config.sources["lan_duid"].kind else {
+        panic!("lan_duid should be dhcpv6_duid");
+    };
+    assert_eq!(prefix_filter.as_deref(), Some("240e:"));
     assert_eq!(config.rules["desktop_ipv6"].record_type, "AAAA");
 }
 
@@ -125,10 +130,7 @@ config rule 'bad_ipv6'
 
     let config = Config::load_from_path(&path).expect("config loads");
     let err = config.validate().expect_err("validation should fail");
-    assert!(
-        err.to_string().contains("AAAA"),
-        "unexpected error: {err}"
-    );
+    assert!(err.to_string().contains("AAAA"), "unexpected error: {err}");
 }
 
 #[test]
@@ -140,23 +142,16 @@ fn duid_source_prefers_matching_prefix_when_multiple_global_addresses_exist() {
         "# br-lan 0001000130555374bcfce78c41cb 6bcfce7 DESKTOP-DVAVJOS 1778918207 30 128 240e:3b2:4e8f:bf40::30/128 2409:8a55:4e29:d250::30/128\n",
     );
 
-    let config = Config::load_from_path(Path::new("/dev/null")).unwrap_or_default();
-    let mut source = config.sources.get("missing").cloned().unwrap_or_else(|| qddns::config::SourceConfig {
+    let source = SourceConfig {
         name: "lan_duid".into(),
-        source_type: "dhcpv6_duid".into(),
-        family: None,
-        interface: None,
-        address: None,
-        probe_url: None,
-        script: None,
-        command: None,
-        duid: Some("0001000130555374bcfce78c41cb".into()),
-        iaid: Some("6bcfce7".into()),
-        lease_file: Some(lease_path.display().to_string()),
-        prefix_filter: Some("240e:".into()),
-        hostname_hint: Some("DESKTOP-DVAVJOS".into()),
-    });
-    source.lease_file = Some(lease_path.display().to_string());
+        kind: SourceKind::Dhcpv6Duid {
+            duid: Some("0001000130555374bcfce78c41cb".into()),
+            iaid: Some("6bcfce7".into()),
+            lease_file: Some(lease_path.display().to_string()),
+            prefix_filter: Some("240e:".into()),
+            hostname_hint: Some("DESKTOP-DVAVJOS".into()),
+        },
+    };
 
     let resolved = resolve_source(&source).expect("duid source resolves");
     assert_eq!(
@@ -174,20 +169,15 @@ fn duid_source_rejects_ambiguous_global_addresses_without_prefix_filter() {
         "# br-lan 0001000130555374bcfce78c41cb 6bcfce7 DESKTOP-DVAVJOS 1778918207 30 128 240e:3b2:4e8f:bf40::30/128 2409:8a55:4e29:d250::30/128\n",
     );
 
-    let source = qddns::config::SourceConfig {
+    let source = SourceConfig {
         name: "lan_duid".into(),
-        source_type: "dhcpv6_duid".into(),
-        family: None,
-        interface: None,
-        address: None,
-        probe_url: None,
-        script: None,
-        command: None,
-        duid: Some("0001000130555374bcfce78c41cb".into()),
-        iaid: Some("6bcfce7".into()),
-        lease_file: Some(lease_path.display().to_string()),
-        prefix_filter: None,
-        hostname_hint: None,
+        kind: SourceKind::Dhcpv6Duid {
+            duid: Some("0001000130555374bcfce78c41cb".into()),
+            iaid: Some("6bcfce7".into()),
+            lease_file: Some(lease_path.display().to_string()),
+            prefix_filter: None,
+            hostname_hint: None,
+        },
     };
 
     let err = resolve_source(&source).expect_err("resolution should fail");
@@ -195,28 +185,6 @@ fn duid_source_rejects_ambiguous_global_addresses_without_prefix_filter() {
         err.to_string().contains("prefix"),
         "unexpected error: {err}"
     );
-}
-
-#[test]
-fn command_source_executes_shell_command_and_returns_ipv4() {
-    let source = qddns::config::SourceConfig {
-        name: "cmd_ip".into(),
-        source_type: "command".into(),
-        family: Some("ipv4".into()),
-        interface: None,
-        address: None,
-        probe_url: None,
-        script: None,
-        command: Some("printf 198.51.100.8".into()),
-        duid: None,
-        iaid: None,
-        lease_file: None,
-        prefix_filter: None,
-        hostname_hint: None,
-    };
-
-    let resolved = resolve_source(&source).expect("command source resolves");
-    assert_eq!(resolved.address, "198.51.100.8".parse::<IpAddr>().unwrap());
 }
 
 #[test]
@@ -232,20 +200,12 @@ fn script_source_runs_local_script_and_returns_ipv6() {
         fs::set_permissions(&script_path, perms).unwrap();
     }
 
-    let source = qddns::config::SourceConfig {
+    let source = SourceConfig {
         name: "script_ip".into(),
-        source_type: "script".into(),
-        family: Some("ipv6".into()),
-        interface: None,
-        address: None,
-        probe_url: None,
-        script: Some(script_path.display().to_string()),
-        command: None,
-        duid: None,
-        iaid: None,
-        lease_file: None,
-        prefix_filter: None,
-        hostname_hint: None,
+        kind: SourceKind::Script {
+            family: Some(AddressFamily::Ipv6),
+            script: Some(script_path.display().to_string()),
+        },
     };
 
     let resolved = resolve_source(&source).expect("script source resolves");
@@ -253,47 +213,13 @@ fn script_source_runs_local_script_and_returns_ipv6() {
 }
 
 #[test]
-fn public_probe_source_reads_file_url_and_extracts_ip() {
-    let temp = TempDir::new();
-    let probe_path = temp.path().join("probe.txt");
-    write_file(&probe_path, "Current IP Address: 203.0.113.44\n");
-
-    let source = qddns::config::SourceConfig {
-        name: "probe_ip".into(),
-        source_type: "public_probe".into(),
-        family: Some("ipv4".into()),
-        interface: None,
-        address: None,
-        probe_url: Some(format!("file://{}", probe_path.display())),
-        script: None,
-        command: None,
-        duid: None,
-        iaid: None,
-        lease_file: None,
-        prefix_filter: None,
-        hostname_hint: None,
-    };
-
-    let resolved = resolve_source(&source).expect("public probe resolves");
-    assert_eq!(resolved.address, "203.0.113.44".parse::<IpAddr>().unwrap());
-}
-
-#[test]
 fn interface_source_resolves_loopback_ipv4() {
-    let source = qddns::config::SourceConfig {
+    let source = SourceConfig {
         name: "loopback".into(),
-        source_type: "interface".into(),
-        family: Some("ipv4".into()),
-        interface: Some("lo".into()),
-        address: None,
-        probe_url: None,
-        script: None,
-        command: None,
-        duid: None,
-        iaid: None,
-        lease_file: None,
-        prefix_filter: None,
-        hostname_hint: None,
+        kind: SourceKind::Interface {
+            family: Some(AddressFamily::Ipv4),
+            interface: Some("lo".into()),
+        },
     };
 
     let resolved = resolve_source(&source).expect("interface source resolves");
