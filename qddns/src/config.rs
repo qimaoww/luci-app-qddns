@@ -70,6 +70,12 @@ pub enum SourceKind {
         prefix_filter: Option<ConfigText>,
         hostname_hint: Option<ConfigText>,
     },
+    Dhcpv6Mac {
+        mac: Option<ConfigText>,
+        lease_file: Option<ConfigText>,
+        prefix_filter: Option<ConfigText>,
+        hostname_hint: Option<ConfigText>,
+    },
 }
 
 impl SourceKind {
@@ -80,6 +86,7 @@ impl SourceKind {
             SourceKind::PublicProbe { .. } => "public_probe",
             SourceKind::Script { .. } => "script",
             SourceKind::Dhcpv6Duid { .. } => "dhcpv6_duid",
+            SourceKind::Dhcpv6Mac { .. } => "dhcpv6_mac",
         }
     }
 
@@ -89,7 +96,9 @@ impl SourceKind {
             | SourceKind::Interface { family, .. }
             | SourceKind::PublicProbe { family, .. }
             | SourceKind::Script { family, .. } => *family,
-            SourceKind::Dhcpv6Duid { .. } => Some(AddressFamily::Ipv6),
+            SourceKind::Dhcpv6Duid { .. } | SourceKind::Dhcpv6Mac { .. } => {
+                Some(AddressFamily::Ipv6)
+            }
         }
     }
 
@@ -616,6 +625,7 @@ const SOURCE_OPTIONS: &[&str] = &[
     "script",
     "duid",
     "iaid",
+    "mac",
     "lease_file",
     "prefix_filter",
     "hostname_hint",
@@ -712,6 +722,12 @@ fn parse_source_kind(
         "dhcpv6_duid" => Ok(SourceKind::Dhcpv6Duid {
             duid: get_string(options, "duid"),
             iaid: get_string(options, "iaid"),
+            lease_file: get_string(options, "lease_file"),
+            prefix_filter: get_string(options, "prefix_filter"),
+            hostname_hint: get_string(options, "hostname_hint"),
+        }),
+        "dhcpv6_mac" => Ok(SourceKind::Dhcpv6Mac {
+            mac: get_string(options, "mac"),
             lease_file: get_string(options, "lease_file"),
             prefix_filter: get_string(options, "prefix_filter"),
             hostname_hint: get_string(options, "hostname_hint"),

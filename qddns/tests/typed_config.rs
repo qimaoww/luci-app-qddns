@@ -85,6 +85,10 @@ config source 'duid'
     option duid '0001000130555374bcfce78c41cb'
     option iaid '6bcfce7'
 
+config source 'mac'
+    option type 'dhcpv6_mac'
+    option mac 'bc:fc:e7:8c:41:cb'
+
 config provider 'cf'
     option type 'cloudflare'
     option api_token 'token'
@@ -117,12 +121,19 @@ config rule 'aaaa_record'
     option record_type 'AAAA'
     option zone 'example.com'
     option record_name 'host'
+
+config rule 'mac_aaaa_record'
+    option provider 'cf'
+    option source 'mac'
+    option record_type 'AAAA'
+    option zone 'example.com'
+    option record_name 'mac-host'
 "#,
     )
     .expect("all variants parse");
 
     config.validate().expect("all variants validate");
-    assert_eq!(config.sources.len(), 5);
+    assert_eq!(config.sources.len(), 6);
     assert_eq!(config.providers.len(), 4);
-    assert_eq!(config.rules.len(), 2);
+    assert_eq!(config.rules.len(), 3);
 }

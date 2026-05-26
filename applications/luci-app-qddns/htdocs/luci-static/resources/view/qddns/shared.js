@@ -6,7 +6,7 @@
 const callOverview = rpc.declare({ object: 'qddns', method: 'get_overview', expect: {} });
 const callRules = rpc.declare({ object: 'qddns', method: 'list_rules', expect: {} });
 const callSources = rpc.declare({ object: 'qddns', method: 'list_sources', expect: { result: [] } });
-const callDhcpv6Leases = rpc.declare({ object: 'qddns', method: 'list_dhcpv6_leases', expect: {} });
+const callDhcpv6Leases = rpc.declare({ object: 'qddns', method: 'list_dhcpv6_leases', params: ['mode'], expect: {} });
 const callProbeSource = rpc.declare({ object: 'qddns', method: 'probe_source', params: ['id'], expect: {} });
 const callRunRule = rpc.declare({ object: 'qddns', method: 'run_rule', params: ['id'], expect: {} });
 const callTestRule = rpc.declare({ object: 'qddns', method: 'test_rule', params: ['id'], expect: {} });

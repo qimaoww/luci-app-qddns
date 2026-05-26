@@ -7,7 +7,9 @@
 			},
 			"uci": [ "qddns" ],
 			"file": {
+				"/tmp/dhcp.leases": [ "read" ],
 				"/tmp/odhcpd.leases": [ "read" ],
+				"/sbin/ip": [ "exec" ],
 				"/usr/bin/qddnsctl": [ "exec" ]
 			}
 		},

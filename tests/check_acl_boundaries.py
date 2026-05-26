@@ -18,8 +18,10 @@ grant = data.get("luci-app-qddns", {})
 read = grant.get("read", {})
 write = grant.get("write", {})
 
-read_ubus = read.get("ubus", {}).get("qddns", [])
-write_ubus = write.get("ubus", {}).get("qddns", [])
+read_ubus_grants = read.get("ubus", {})
+write_ubus_grants = write.get("ubus", {})
+read_ubus = read_ubus_grants.get("qddns", [])
+write_ubus = write_ubus_grants.get("qddns", [])
 if sorted(read_ubus) != sorted([
     "get_overview",
     "list_sources",
@@ -34,9 +36,14 @@ if sorted(read_ubus) != sorted([
 if sorted(write_ubus) != sorted(["run_rule", "test_rule"]):
     fail(f"unexpected write ubus methods: {write_ubus}")
 
+if "luci-rpc" in read_ubus_grants:
+    fail(f"rpcd bridge must not call luci-rpc recursively: {read_ubus_grants.get('luci-rpc')}")
+
 files = read.get("file", {})
 allowed_files = {
+    "/tmp/dhcp.leases": ["read"],
     "/tmp/odhcpd.leases": ["read"],
+    "/sbin/ip": ["exec"],
     "/usr/bin/qddnsctl": ["exec"],
 }
 if files != allowed_files:

@@ -20,6 +20,7 @@
   - `public_probe`
   - `script`
   - `dhcpv6_duid`
+  - `dhcpv6_mac`
 - Runtime state persistence in `runtime.state`
 - Rule execution state machine with per-rule logs
 - Provider adapters for:
@@ -39,9 +40,18 @@
 - Daemon scheduler with `--once` batch run and polling loop
 - LuCI overview console with source probing, rule actions, runtime status, and editable UCI sections
 
+## LAN IPv6 sources
+
+`dhcpv6_duid` keeps the strict DHCPv6 lease lookup path: it matches DUID plus IAID in `/tmp/odhcpd.leases` and returns one public IPv6 address.
+
+`dhcpv6_mac` is a separate MAC-based source. It normalizes MAC addresses, collects candidates from LuCI host hints, `/tmp/odhcpd.leases`, and the IPv6 neighbor table, then deduplicates IPv6 addresses before selection. Only public IPv6 addresses under `2000::/3` are accepted; link-local, ULA, and documentation prefixes are ignored. If a host has more than one public IPv6 address, set `prefix_filter` such as `240e:` or `2409:` to make the choice explicit.
+
+The LuCI MAC picker shows MAC, hostname, interface, and public IPv6 prefixes. It intentionally does not show, request, or return DUID/IAID fields for MAC selection. The picker reads `/tmp/dhcp.leases`, `/tmp/odhcpd.leases`, and the IPv6 neighbor table directly instead of calling `luci-rpc` from inside rpcd.
+
 ## Runtime requirements
 
 - OpenWrt `procd`
+- `ip-full`
 - `ucode`, `ucode-mod-fs`, and `ucode-mod-uci`
 - Rust standard runtime for the target architecture
 
@@ -63,7 +73,7 @@ The OpenWrt package does not need runtime dependencies for external HTTP clients
 
 Configuration parsing is strict. Unknown options, invalid booleans/numbers, unsupported URL schemes, and missing provider credentials now fail validation with field-path errors such as `provider.cf.api_token: missing`.
 
-Production `custom_http` provider URLs and `public_probe` source URLs must use `http://` or `https://`; `file://` is rejected. The legacy `command` source type is no longer accepted, and LuCI/rpcd source probing is limited to local, interface, and DHCPv6 DUID sources.
+Production `custom_http` provider URLs and `public_probe` source URLs must use `http://` or `https://`; `file://` is rejected. The legacy `command` source type is no longer accepted, and LuCI/rpcd source probing is limited to local, interface, DHCPv6 DUID, and MAC sources.
 
 ## Verification
 

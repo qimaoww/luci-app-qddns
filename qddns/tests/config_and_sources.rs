@@ -63,6 +63,11 @@ config source 'lan_duid'
     option iaid '6bcfce7'
     option prefix_filter '240e:'
 
+config source 'lan_mac'
+    option type 'dhcpv6_mac'
+    option mac 'bc-fc-e7-8c-41-cb'
+    option prefix_filter '240e:'
+
 config provider 'cf'
     option type 'cloudflare'
     option api_token 'token'
@@ -85,12 +90,20 @@ config rule 'desktop_ipv6'
 
     let config = Config::load_from_path(&path).expect("config loads");
     assert_eq!(config.main.log_dir, "/tmp/qddns-log");
-    assert_eq!(config.sources.len(), 1);
+    assert_eq!(config.sources.len(), 2);
     assert_eq!(config.providers.len(), 1);
     assert_eq!(config.rules.len(), 1);
     let SourceKind::Dhcpv6Duid { prefix_filter, .. } = &config.sources["lan_duid"].kind else {
         panic!("lan_duid should be dhcpv6_duid");
     };
+    assert_eq!(prefix_filter.as_deref(), Some("240e:"));
+    let SourceKind::Dhcpv6Mac {
+        mac, prefix_filter, ..
+    } = &config.sources["lan_mac"].kind
+    else {
+        panic!("lan_mac should be dhcpv6_mac");
+    };
+    assert_eq!(mac.as_deref(), Some("bc-fc-e7-8c-41-cb"));
     assert_eq!(prefix_filter.as_deref(), Some("240e:"));
     assert_eq!(config.rules["desktop_ipv6"].record_type, "AAAA");
 }
@@ -184,6 +197,32 @@ fn duid_source_rejects_ambiguous_global_addresses_without_prefix_filter() {
     assert!(
         err.to_string().contains("prefix"),
         "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn mac_source_resolves_ipv6_from_duid_link_layer_address() {
+    let temp = TempDir::new();
+    let lease_path = temp.path().join("odhcpd.leases");
+    write_file(
+        &lease_path,
+        "# eth1 0001000130555374bcfce78c41cb 6bcfce7 DESKTOP-DVAVJOS 1779830447 30 128 240e:3b2:4e8a:70a0::30/128 2409:8a55:4e26:6980::30/128\n",
+    );
+
+    let source = SourceConfig {
+        name: "lan_mac".into(),
+        kind: SourceKind::Dhcpv6Mac {
+            mac: Some("BC-FC-E7-8C-41-CB".into()),
+            lease_file: Some(lease_path.display().to_string()),
+            prefix_filter: Some("240e:".into()),
+            hostname_hint: Some("DESKTOP-DVAVJOS".into()),
+        },
+    };
+
+    let resolved = resolve_source(&source).expect("mac source resolves");
+    assert_eq!(
+        resolved.address,
+        IpAddr::V6("240e:3b2:4e8a:70a0::30".parse::<Ipv6Addr>().unwrap())
     );
 }
 

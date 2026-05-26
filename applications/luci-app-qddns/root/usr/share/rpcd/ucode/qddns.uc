@@ -7,6 +7,8 @@ import { cursor } from 'uci';
 
 const uci = cursor();
 const qddns_ctl = '/usr/bin/qddnsctl';
+const ip_cmd = '/sbin/ip';
+const dhcpv4_lease_file = '/tmp/dhcp.leases';
 const dhcpv6_lease_file = '/tmp/odhcpd.leases';
 const dhcpv6_lease_max_bytes = 262144;
 const dhcpv6_lease_max_entries = 64;
@@ -37,7 +39,8 @@ function get_source_type(source_id) {
 function is_probe_allowed_source_type(source_type) {
 	return source_type == 'local_addr' ||
 		source_type == 'interface' ||
-		source_type == 'dhcpv6_duid';
+		source_type == 'dhcpv6_duid' ||
+		source_type == 'dhcpv6_mac';
 }
 
 function has_rule(rule_id) {
@@ -130,22 +133,183 @@ function dhcpv6_prefix_filter(prefixes) {
 	return first ? `${first}:` : null;
 }
 
-function list_dhcpv6_leases() {
+function is_public_ipv6(address) {
+	let first = substr(address || '', 0, 1);
+
+	return match(address || '', /:/) != null &&
+		(first == '2' || first == '3') &&
+		substr(address, 0, 9) != '2001:db8:';
+}
+
+function push_unique(list, value) {
+	if (!value)
+		return;
+
+	for (let index = 0; index < length(list); index++)
+		if (list[index] == value)
+			return;
+
+	push(list, value);
+}
+
+function normalize_dhcpv6_mac(mac) {
+	if (!mac)
+		return null;
+
+	mac = lc(mac);
+	mac = replace(mac, /[:-]/g, '');
+
+	if (length(mac) != 12 || match(mac, /^[0-9a-f]{12}$/) == null)
+		return null;
+
+	return join(':', [
+		substr(mac, 0, 2),
+		substr(mac, 2, 2),
+		substr(mac, 4, 2),
+		substr(mac, 6, 2),
+		substr(mac, 8, 2),
+		substr(mac, 10, 2)
+	]);
+}
+
+function dhcpv6_duid_mac(duid) {
+	if (!duid)
+		return null;
+
+	duid = lc(duid);
+	if (length(duid) < 12 || match(duid, /^[0-9a-f]+$/) == null)
+		return null;
+
+	return normalize_dhcpv6_mac(substr(duid, length(duid) - 12, 12));
+}
+
+function strip_lan_suffix(hostname) {
+	if (!hostname)
+		return null;
+
+	return replace(hostname, /\.lan$/, '');
+}
+
+function host_entry(entries, mac) {
+	if (!mac)
+		return null;
+
+	if (!entries[mac]) {
+		entries[mac] = {
+			mac: mac,
+			hostname: null,
+			ipv4: [],
+			prefixes: [],
+			prefix_filter: null
+		};
+	}
+
+	return entries[mac];
+}
+
+function add_dhcpv4_lease_entries(entries) {
 	let content = '';
-	let leases = [];
 
 	try {
-		content = readfile(dhcpv6_lease_file) || '';
+		content = readfile(dhcpv4_lease_file) || '';
 	}
 	catch (err) {
-		return { ok: true, leases: [], message: 'DHCPv6 lease file is not available' };
+		content = '';
 	}
 
 	if (length(content) > dhcpv6_lease_max_bytes)
 		content = substr(content, 0, dhcpv6_lease_max_bytes);
 
 	for (let line in split(content, '\n')) {
-		if (length(leases) >= dhcpv6_lease_max_entries)
+		line = trim(line || '');
+		if (!line)
+			continue;
+
+		let fields = split(line, /\s+/);
+		if (length(fields) < 4)
+			continue;
+
+		let entry = host_entry(entries, normalize_dhcpv6_mac(fields[1]));
+		if (!entry)
+			continue;
+
+		if (fields[3] && fields[3] != '*')
+			entry.hostname = entry.hostname || strip_lan_suffix(fields[3]);
+
+		push_unique(entry.ipv4, fields[2]);
+	}
+}
+
+function add_dhcpv6_lease_entry(entries, fields, prefixes) {
+	let mac = dhcpv6_duid_mac(fields[2]);
+	let entry = host_entry(entries, mac);
+	if (!entry)
+		return;
+
+	entry.duid = fields[2] || null;
+	entry.iaid = fields[3] || null;
+	entry.interface = fields[1] || null;
+	entry.hostname = entry.hostname || fields[4] || null;
+	entry.lease_file = dhcpv6_lease_file;
+
+	for (let prefix in prefixes)
+		push_unique(entry.prefixes, prefix);
+}
+
+function add_ndp_entries(entries) {
+	let p = popen(`${ip_cmd} -6 neigh show 2>/dev/null`, 'r');
+	if (!p)
+		return;
+
+	let output = p.read('all') || '';
+	p.close();
+
+	for (let line in split(output, '\n')) {
+		line = trim(line || '');
+		if (!line)
+			continue;
+
+		let fields = split(line, /\s+/);
+		let address = fields[0] || '';
+		let lladdr_index = null;
+
+		for (let index = 0; index < length(fields); index++) {
+			if (fields[index] == 'lladdr') {
+				lladdr_index = index;
+				break;
+			}
+		}
+
+		if (lladdr_index == null)
+			continue;
+
+		let mac = normalize_dhcpv6_mac(fields[lladdr_index + 1]);
+		let entry = host_entry(entries, mac);
+		if (!entry || !is_public_ipv6(address))
+			continue;
+
+		entry.interface = entry.interface || fields[2] || null;
+		push_unique(entry.prefixes, `${address}/128`);
+	}
+}
+
+function list_dhcpv6_leases(mode) {
+	let content = '';
+	let entries = {};
+	mode = mode == 'mac' ? 'mac' : 'duid';
+
+	try {
+		content = readfile(dhcpv6_lease_file) || '';
+	}
+	catch (err) {
+		content = '';
+	}
+
+	if (length(content) > dhcpv6_lease_max_bytes)
+		content = substr(content, 0, dhcpv6_lease_max_bytes);
+
+	for (let line in split(content, '\n')) {
+		if (length(keys(entries)) >= dhcpv6_lease_max_entries)
 			break;
 
 		line = trim(line || '');
@@ -162,22 +326,32 @@ function list_dhcpv6_leases() {
 				break;
 
 			let raw = split(fields[field_index], '/')[0] || '';
-			if ((substr(raw, 0, 1) == '2' || substr(raw, 0, 1) == '3') && match(raw, /:/) != null)
+			if (is_public_ipv6(raw))
 				push(prefixes, fields[field_index]);
 		}
 
 		if (!length(prefixes))
 			continue;
 
-		push(leases, {
-			interface: fields[1] || null,
-			duid: fields[2] || null,
-			iaid: fields[3] || null,
-			hostname: fields[4] || null,
-			prefixes: prefixes,
-			prefix_filter: dhcpv6_prefix_filter(prefixes),
-			lease_file: dhcpv6_lease_file
-		});
+		add_dhcpv6_lease_entry(entries, fields, prefixes);
+	}
+
+	add_dhcpv4_lease_entries(entries);
+	add_ndp_entries(entries);
+
+	let leases = [];
+	for (let mac in entries) {
+		let entry = entries[mac];
+		if (!length(entry.prefixes))
+			continue;
+
+		entry.prefix_filter = dhcpv6_prefix_filter(entry.prefixes);
+		if (mode == 'mac') {
+			delete entry.duid;
+			delete entry.iaid;
+			delete entry.lease_file;
+		}
+		push(leases, entry);
 	}
 
 	return { ok: true, leases: leases };
@@ -239,8 +413,9 @@ const methods = {
 	},
 
 	list_dhcpv6_leases: {
-		call: function() {
-			return list_dhcpv6_leases();
+		args: { mode: 'mode' },
+		call: function(req) {
+			return list_dhcpv6_leases(req.args.mode || 'duid');
 		}
 	},
 

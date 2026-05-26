@@ -129,6 +129,9 @@ return view.extend({
 			case 'duid':
 				options.duid = option;
 				break;
+			case 'mac':
+				options.mac = option;
+				break;
 			case 'iaid':
 				options.iaid = option;
 				break;
@@ -145,6 +148,14 @@ return view.extend({
 		});
 
 		return options;
+	},
+
+	isDhcpv6DuidSource: function(sectionId) {
+		return uci.get('qddns', sectionId, 'type') === 'dhcpv6_duid';
+	},
+
+	getDhcpv6LeaseMode: function(sectionId) {
+		return this.isDhcpv6DuidSource(sectionId) ? 'duid' : 'mac';
 	},
 
 	setSourceOptionValue: function(option, sectionId, value) {
@@ -185,24 +196,43 @@ return view.extend({
 
 	fillDhcpv6Lease: function(sectionId, lease, feedback, optionSet) {
 		const options = optionSet || this.sourceDhcpv6Options || {};
+		const isDuidSource = this.isDhcpv6DuidSource(sectionId);
 
 		this.setSourceOptionValue(options.family, sectionId, 'ipv6');
-		this.setSourceOptionValue(options.duid, sectionId, lease?.duid || '');
-		this.setSourceOptionValue(options.iaid, sectionId, lease?.iaid || '');
+		if (isDuidSource) {
+			this.setSourceOptionValue(options.duid, sectionId, lease?.duid || '');
+			this.setSourceOptionValue(options.iaid, sectionId, lease?.iaid || '');
+		} else {
+			this.setSourceOptionValue(options.mac, sectionId, lease?.mac || '');
+		}
 		this.setSourceOptionValue(options.leaseFile, sectionId, lease?.lease_file || '/tmp/odhcpd.leases');
 		this.setSourceOptionValue(options.hostnameHint, sectionId, lease?.hostname || '');
 		this.setSourceOptionValue(options.prefixFilter, sectionId, this.getLeasePrefixFilter(lease));
 
 		if (feedback)
-			feedback.textContent = _('Selected DHCPv6 lease values have been filled. Save the source to keep them.');
+			feedback.textContent = isDuidSource ? _('Selected DHCPv6 lease values have been filled. Save the source to keep them.') : _('Selected LAN host MAC has been filled. Save the source to keep it.');
+	},
+
+	filterDhcpv6Choices: function(sectionId, leases) {
+		const isDuidSource = this.isDhcpv6DuidSource(sectionId);
+
+		return qddns.normalizeList(leases).filter(function(lease) {
+			const prefixes = qddns.normalizeList(lease?.prefixes);
+
+			if (!prefixes.length)
+				return false;
+
+			return isDuidSource ? !!(lease?.duid && lease?.iaid) : !!lease?.mac;
+		});
 	},
 
 	renderDhcpv6LeaseStatus: function(sectionId, optionSet) {
 		this.ensureSettingsStyle();
 
-		const loadButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' }, [_('Read current DUID')]);
+		const isDuidSource = this.isDhcpv6DuidSource(sectionId);
+		const loadButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' }, [isDuidSource ? _('Read current DUID') : _('Read current MAC')]);
 		const results = E('div', { class: 'qddns-dhcpv6-lease-results' }, [
-			E('div', { class: 'cbi-value-description' }, _('Read current DHCPv6 lease candidates, then choose one to fill the DUID source fields.'))
+			E('div', { class: 'cbi-value-description' }, isDuidSource ? _('Read current DHCPv6 lease candidates, then choose one to fill the DUID source fields.') : _('Read current LAN host candidates, then choose one to fill the MAC source fields.'))
 		]);
 
 		loadButton.addEventListener('click', L.bind(function(ev) {
@@ -224,23 +254,28 @@ return view.extend({
 
 	renderDhcpv6LeaseCard: function(sectionId, lease, feedback, optionSet) {
 		const prefixes = qddns.normalizeList(lease?.prefixes);
+		const isDuidSource = this.isDhcpv6DuidSource(sectionId);
+		const identityMeta = isDuidSource ? [
+			this.renderDhcpv6LeaseMeta(_('DUID'), lease?.duid || '-'),
+			this.renderDhcpv6LeaseMeta(_('IAID'), lease?.iaid || '-')
+		] : [
+			this.renderDhcpv6LeaseMeta(_('MAC'), lease?.mac || '-')
+		];
 		const card = E('button', {
 			type: 'button',
 			class: 'qddns-dhcpv6-lease-card',
 			'aria-pressed': 'false',
 			title: _('Fill from this lease')
-		}, [
-			E('span', { class: 'qddns-dhcpv6-lease-card-head' }, [
-				E('span', { class: 'qddns-dhcpv6-lease-title' }, lease?.hostname || _('Unnamed host')),
-				E('span', { class: 'qddns-dhcpv6-lease-action' }, _('Fill from this lease'))
-			]),
-			E('span', { class: 'qddns-dhcpv6-lease-meta' }, [
-				this.renderDhcpv6LeaseMeta(_('DUID'), lease?.duid || '-'),
-				this.renderDhcpv6LeaseMeta(_('IAID'), lease?.iaid || '-'),
-				this.renderDhcpv6LeaseMeta(_('Prefix'), prefixes.length ? prefixes.join(', ') : '-'),
-				this.renderDhcpv6LeaseMeta(_('Interface'), lease?.interface || '-')
-			])
-		]);
+			}, [
+				E('span', { class: 'qddns-dhcpv6-lease-card-head' }, [
+					E('span', { class: 'qddns-dhcpv6-lease-title' }, lease?.hostname || _('Unnamed host')),
+					E('span', { class: 'qddns-dhcpv6-lease-action' }, _('Fill from this lease'))
+				]),
+				E('span', { class: 'qddns-dhcpv6-lease-meta' }, identityMeta.concat([
+					this.renderDhcpv6LeaseMeta(_('Prefix'), prefixes.length ? prefixes.join(', ') : '-'),
+					this.renderDhcpv6LeaseMeta(_('Interface'), lease?.interface || '-')
+				]))
+			]);
 
 		card.addEventListener('click', L.bind(function() {
 			const selected = card.parentNode?.querySelector('.qddns-dhcpv6-lease-card.is-selected');
@@ -259,8 +294,10 @@ return view.extend({
 	},
 
 	renderDhcpv6LeaseResults: function(sectionId, leases, optionSet) {
-		const list = qddns.normalizeList(leases);
-		const feedback = E('div', { class: 'cbi-value-description' }, list.length ? _('Choose a current DUID to fill DUID, IAID, hostname hint, and prefix filter.') : _('No DHCPv6 leases found.'));
+		const list = this.filterDhcpv6Choices(sectionId, leases);
+		const isDuidSource = this.isDhcpv6DuidSource(sectionId);
+		const emptyMessage = isDuidSource ? _('No DHCPv6 leases found.') : _('No LAN hosts with public IPv6 found.');
+		const feedback = E('div', { class: 'cbi-value-description' }, list.length ? (isDuidSource ? _('Choose a current DUID to fill DUID, IAID, hostname hint, and prefix filter.') : _('Choose a current MAC to fill MAC, hostname hint, and prefix filter.')) : emptyMessage);
 
 		if (!list.length)
 			return E('div', { class: 'qddns-dhcpv6-lease-results' }, [feedback]);
@@ -292,18 +329,19 @@ return view.extend({
 
 	handleDhcpv6LeaseLoad: function(ev, sectionId, target, optionSet) {
 		const button = ev.currentTarget;
+		const title = this.isDhcpv6DuidSource(sectionId) ? _('DHCPv6 leases') : _('LAN hosts');
 
 		return qddns.withBusyButton(button, L.bind(function() {
-			return qddns.listDhcpv6Leases().then(L.bind(function(result) {
+			return qddns.listDhcpv6Leases(this.getDhcpv6LeaseMode(sectionId)).then(L.bind(function(result) {
 				if (qddns.isFailedResult(result)) {
-					qddns.showFailureModal(_('DHCPv6 leases'), result, _('Unable to load DHCPv6 leases.'));
+					qddns.showFailureModal(title, result, _('Unable to load host candidates.'));
 					return result;
 				}
 
 				this.showDhcpv6LeaseResults(button, this.renderDhcpv6LeaseResults(sectionId, result.leases, optionSet), target);
 				return result;
 			}, this)).catch(function(err) {
-				qddns.showFailureModal(_('DHCPv6 leases'), { error: qddns.extractResultMessage(err, _('Unable to load DHCPv6 leases.')) }, _('Unable to load DHCPv6 leases.'));
+				qddns.showFailureModal(title, { error: qddns.extractResultMessage(err, _('Unable to load host candidates.')) }, _('Unable to load host candidates.'));
 			});
 		}, this));
 	},
@@ -545,6 +583,7 @@ return view.extend({
 		o = s.option(form.ListValue, 'type', _('Type'));
 		o.value('local_addr', _('Local address'));
 		o.value('dhcpv6_duid', _('DHCPv6 DUID'));
+		o.value('dhcpv6_mac', _('MAC'));
 		o.value('interface', _('Interface'));
 		o.value('public_probe', _('Public probe'));
 		o.value('script', _('Script'));
@@ -559,14 +598,16 @@ return view.extend({
 		o.rawhtml = true;
 		o.modalonly = true;
 		o.depends('type', 'dhcpv6_duid');
+		o.depends('type', 'dhcpv6_mac');
 		o.cfgvalue = function(sectionId) {
 			return viewRef.renderDhcpv6LeaseStatus(sectionId, viewRef.getDhcpv6OptionSet(this.section));
 		};
 		o = s.option(form.Value, 'duid', _('DUID')); this.sourceDhcpv6Options.duid = o; o.modalonly = true; o.depends('type', 'dhcpv6_duid');
 		o = s.option(form.Value, 'iaid', _('IAID')); this.sourceDhcpv6Options.iaid = o; o.modalonly = true; o.depends('type', 'dhcpv6_duid');
-		o = s.option(form.Value, 'lease_file', _('Lease file')); this.sourceDhcpv6Options.leaseFile = o; o.placeholder = '/tmp/odhcpd.leases'; o.modalonly = true; o.depends('type', 'dhcpv6_duid');
-		o = s.option(form.Value, 'prefix_filter', _('Prefix filter')); this.sourceDhcpv6Options.prefixFilter = o; o.placeholder = '240e:'; o.modalonly = true; o.depends('type', 'dhcpv6_duid');
-		o = s.option(form.Value, 'hostname_hint', _('Hostname hint')); this.sourceDhcpv6Options.hostnameHint = o; o.modalonly = true; o.depends('type', 'dhcpv6_duid');
+		o = s.option(form.Value, 'mac', _('MAC')); this.sourceDhcpv6Options.mac = o; o.modalonly = true; o.depends('type', 'dhcpv6_mac');
+		o = s.option(form.Value, 'lease_file', _('Lease file')); this.sourceDhcpv6Options.leaseFile = o; o.placeholder = '/tmp/odhcpd.leases'; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac');
+		o = s.option(form.Value, 'prefix_filter', _('Prefix filter')); this.sourceDhcpv6Options.prefixFilter = o; o.placeholder = '240e:'; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac');
+		o = s.option(form.Value, 'hostname_hint', _('Hostname hint')); this.sourceDhcpv6Options.hostnameHint = o; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac');
 		o = s.option(widgets.DeviceSelect, 'interface', _('Interface'));
 		o.noaliases = true;
 		o.nocreate = true;

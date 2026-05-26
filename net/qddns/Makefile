@@ -3,7 +3,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=qddns
-PKG_VERSION:=0.1.0
+PKG_VERSION:=0.2.0
 PKG_RELEASE:=1
 
 PKG_LICENSE:=GPL-2.0-only
@@ -19,7 +19,7 @@ define Package/qddns
   SECTION:=net
   CATEGORY:=Network
   TITLE:=General-purpose DDNS platform with DUID-aware IPv6 sources
-  DEPENDS:=$(RUST_ARCH_DEPENDS) +procd +ucode +ucode-mod-fs +ucode-mod-uci
+  DEPENDS:=$(RUST_ARCH_DEPENDS) +procd +ip-full +ucode +ucode-mod-fs +ucode-mod-uci
   URL:=https://example.invalid/qddns
 endef
 

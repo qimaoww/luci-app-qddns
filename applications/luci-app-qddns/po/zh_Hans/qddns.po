@@ -301,6 +301,9 @@ msgstr "来源库"
 msgid "DUID"
 msgstr "DUID"
 
+msgid "MAC"
+msgstr "MAC"
+
 msgid "IAID"
 msgstr "IAID"
 
@@ -563,14 +566,26 @@ msgstr "状态"
 msgid "Read current DUID"
 msgstr "读取当前 DUID"
 
+msgid "Read current MAC"
+msgstr "读取当前 MAC"
+
 msgid "Read current DHCPv6 lease candidates, then choose one to fill the DUID source fields."
 msgstr "读取当前 DHCPv6 租约候选项，然后选择一个来填充 DUID 来源字段。"
+
+msgid "Read current LAN host candidates, then choose one to fill the MAC source fields."
+msgstr "读取当前局域网主机候选项，然后选择一个来填充 MAC 来源字段。"
 
 msgid "Choose a current DUID to fill DUID, IAID, hostname hint, and prefix filter."
 msgstr "选择当前 DUID 来填充 DUID、IAID、主机名提示和前缀过滤。"
 
+msgid "Choose a current MAC to fill MAC, hostname hint, and prefix filter."
+msgstr "选择当前 MAC 来填充 MAC、主机名提示和前缀过滤。"
+
 msgid "No DHCPv6 leases found."
 msgstr "未找到 DHCPv6 租约。"
+
+msgid "No LAN hosts with public IPv6 found."
+msgstr "未找到带公网 IPv6 的局域网主机。"
 
 msgid "Fill from this lease"
 msgstr "用此租约填充"
@@ -578,11 +593,17 @@ msgstr "用此租约填充"
 msgid "Selected DHCPv6 lease values have been filled. Save the source to keep them."
 msgstr "已填充所选 DHCPv6 租约值。保存来源后生效。"
 
+msgid "Selected LAN host MAC has been filled. Save the source to keep it."
+msgstr "已填充所选局域网主机 MAC。保存来源后生效。"
+
 msgid "DHCPv6 leases"
 msgstr "DHCPv6 租约"
 
-msgid "Unable to load DHCPv6 leases."
-msgstr "无法加载 DHCPv6 租约。"
+msgid "LAN hosts"
+msgstr "局域网主机"
+
+msgid "Unable to load host candidates."
+msgstr "无法加载主机候选项。"
 
 msgid "Hostname"
 msgstr "主机名"

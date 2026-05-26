@@ -22,6 +22,17 @@ check_required_view_files() {
 	done
 }
 
+check_package_metadata() {
+	grep -nF 'version = "0.2.0"' "$ROOT_DIR/Cargo.toml"
+	grep -nF 'version = "0.2.0"' "$ROOT_DIR/qddns/Cargo.toml"
+	grep -nF 'PKG_VERSION:=0.2.0' "$ROOT_DIR/net/qddns/Makefile"
+	grep -nF '+ip-full' "$ROOT_DIR/net/qddns/Makefile"
+	grep -nF 'PKG_VERSION:=0.2.0' "$ROOT_DIR/applications/luci-app-qddns/Makefile"
+	grep -nF 'dhcpv6_mac' "$ROOT_DIR/README.md"
+	grep -nF 'deduplicates IPv6 addresses' "$ROOT_DIR/README.md"
+	grep -nF 'does not show, request, or return DUID/IAID' "$ROOT_DIR/README.md"
+}
+
 check_view_syntax() {
 	for file in "$VIEW_DIR"/*.js; do
 		node --check "$file"
@@ -277,20 +288,26 @@ check_name_visible_numeric_hidden_ui() {
 }
 
 check_dhcpv6_lease_fill_ui() {
-	grep -nF "const callDhcpv6Leases = rpc.declare({ object: 'qddns', method: 'list_dhcpv6_leases', expect: {} });" "$VIEW_DIR/shared.js"
+	grep -nF "const callDhcpv6Leases = rpc.declare({ object: 'qddns', method: 'list_dhcpv6_leases', params: ['mode'], expect: {} });" "$VIEW_DIR/shared.js"
 	grep -nF "listDhcpv6Leases: callDhcpv6Leases" "$VIEW_DIR/shared.js"
 	grep -nF "handleDhcpv6LeaseLoad" "$VIEW_DIR/settings.js"
 	grep -nF "fillDhcpv6Lease" "$VIEW_DIR/settings.js"
 	grep -nF "setSourceOptionValue" "$VIEW_DIR/settings.js"
 	grep -nF "renderDhcpv6LeaseStatus" "$VIEW_DIR/settings.js"
-	grep -nF "qddns.listDhcpv6Leases()" "$VIEW_DIR/settings.js"
+	grep -nF "qddns.listDhcpv6Leases(this.getDhcpv6LeaseMode(sectionId))" "$VIEW_DIR/settings.js"
+	grep -nF "getDhcpv6LeaseMode" "$VIEW_DIR/settings.js"
 	grep -nF "s.option(form.DummyValue, '_dhcpv6_status', _('Status'))" "$VIEW_DIR/settings.js"
 	grep -nF "_('Read current DUID')" "$VIEW_DIR/settings.js"
+	grep -nF "_('Read current MAC')" "$VIEW_DIR/settings.js"
 	grep -nF "_('Read current DHCPv6 lease candidates, then choose one to fill the DUID source fields.')" "$VIEW_DIR/settings.js"
+	grep -nF "_('Read current LAN host candidates, then choose one to fill the MAC source fields.')" "$VIEW_DIR/settings.js"
 	grep -nF "_('Fill from this lease')" "$VIEW_DIR/settings.js"
 	grep -nF "_('No DHCPv6 leases found.')" "$VIEW_DIR/settings.js"
+	grep -nF "_('No LAN hosts with public IPv6 found.')" "$VIEW_DIR/settings.js"
 	grep -nF "_('Selected DHCPv6 lease values have been filled. Save the source to keep them.')" "$VIEW_DIR/settings.js"
+	grep -nF "_('Selected LAN host MAC has been filled. Save the source to keep it.')" "$VIEW_DIR/settings.js"
 	grep -nF "options.duid" "$VIEW_DIR/settings.js"
+	grep -nF "options.mac" "$VIEW_DIR/settings.js"
 	grep -nF "options.iaid" "$VIEW_DIR/settings.js"
 	grep -nF "options.leaseFile" "$VIEW_DIR/settings.js"
 	grep -nF "options.hostnameHint" "$VIEW_DIR/settings.js"
@@ -300,8 +317,15 @@ check_dhcpv6_lease_fill_ui() {
 	grep -nF "widget.node.setAttribute('data-changed', 'true')" "$VIEW_DIR/settings.js"
 	grep -nF "widget.node.dispatchEvent(new CustomEvent('widget-change', { bubbles: true }))" "$VIEW_DIR/settings.js"
 	grep -nF "getDhcpv6OptionSet" "$VIEW_DIR/settings.js"
+	grep -nF "filterDhcpv6Choices" "$VIEW_DIR/settings.js"
 	grep -nF "qddns-dhcpv6-lease-card" "$VIEW_DIR/settings.js"
 	grep -nF "this.setSourceOptionValue(options.duid, sectionId, lease?.duid || '')" "$VIEW_DIR/settings.js"
+	grep -nF "this.setSourceOptionValue(options.mac, sectionId, lease?.mac || '')" "$VIEW_DIR/settings.js"
+	grep -nF "const identityMeta = isDuidSource ? [" "$VIEW_DIR/settings.js"
+	grep -nF "o.value('dhcpv6_mac', _('MAC'))" "$VIEW_DIR/settings.js"
+	grep -nF "o = s.option(form.Value, 'mac', _('MAC'))" "$VIEW_DIR/settings.js"
+	! grep -nF "o.value('dhcpv6_mac', _('DHCPv6 MAC'))" "$VIEW_DIR/settings.js"
+	! grep -nF "_('Read current DHCPv6 lease candidates, then choose one to fill the MAC source fields.')" "$VIEW_DIR/settings.js"
 	grep -nF "input.dispatchEvent(new Event('input', { bubbles: true }))" "$VIEW_DIR/settings.js"
 	grep -nF "input.dispatchEvent(new Event('change', { bubbles: true }))" "$VIEW_DIR/settings.js"
 	! grep -nF "qddns.renderTableSection(_('DHCPv6 leases')" "$VIEW_DIR/settings.js"
@@ -312,20 +336,44 @@ check_dhcpv6_lease_fill_ui() {
 
 check_dhcpv6_lease_fill_backend() {
 	grep -nF "import { popen, readfile } from 'fs';" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	! grep -nF "import { connect } from 'ubus';" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "const dhcpv4_lease_file = '/tmp/dhcp.leases';" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "const dhcpv6_lease_file = '/tmp/odhcpd.leases';" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "const dhcpv6_lease_max_bytes = 262144;" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "const dhcpv6_lease_max_entries = 64;" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "const dhcpv6_lease_max_prefixes = 8;" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "function list_dhcpv6_leases()" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "DHCPv6 lease file is not available" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "function list_dhcpv6_leases(mode)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "function is_public_ipv6(address)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "let first = substr(address || '', 0, 1);" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "(first == '2' || first == '3')" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	! grep -nF "substr(address, 0, 2) == '2'" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	! grep -nF "substr(address, 0, 2) == '3'" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "function add_dhcpv4_lease_entries(entries)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "readfile(dhcpv4_lease_file)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	! grep -nF "ubus.call('luci-rpc', 'getHostHints')" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "function add_ndp_entries(entries)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "const ip_cmd = '/sbin/ip';" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF -- "-6 neigh show" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "push_unique(entry.prefixes" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "function dhcpv6_duid_mac(duid)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "let mac = dhcpv6_duid_mac(fields[2]);" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "source_type == 'dhcpv6_mac'" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "content = substr(content, 0, dhcpv6_lease_max_bytes)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "length(leases) >= dhcpv6_lease_max_entries" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "length(keys(entries)) >= dhcpv6_lease_max_entries" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "length(prefixes) >= dhcpv6_lease_max_prefixes" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "readfile(dhcpv6_lease_file)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "list_dhcpv6_leases: {" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "return list_dhcpv6_leases();" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "args: { mode: 'mode' }" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "return list_dhcpv6_leases(req.args.mode || 'duid');" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "if (mode == 'mac')" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "delete entry.duid;" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "delete entry.iaid;" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "delete entry.lease_file;" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF '"list_dhcpv6_leases"' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/acl.d/luci-app-qddns.json"
+	! grep -nF '"luci-rpc": [ "getHostHints" ]' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/acl.d/luci-app-qddns.json"
+	grep -nF '"/tmp/dhcp.leases": [ "read" ]' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/acl.d/luci-app-qddns.json"
 	grep -nF '"/tmp/odhcpd.leases": [ "read" ]' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/acl.d/luci-app-qddns.json"
+	grep -nF '"/sbin/ip": [ "exec" ]' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/acl.d/luci-app-qddns.json"
 	! grep -nF "req.args.lease" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	! grep -nF "req.args.path" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 }
@@ -400,13 +448,19 @@ check_name_visible_numeric_hidden_po() {
 		'Script' \
 		'Status' \
 		'Read current DUID' \
+		'Read current MAC' \
 		'Read current DHCPv6 lease candidates, then choose one to fill the DUID source fields.' \
+		'Read current LAN host candidates, then choose one to fill the MAC source fields.' \
 		'Choose a current DUID to fill DUID, IAID, hostname hint, and prefix filter.' \
+		'Choose a current MAC to fill MAC, hostname hint, and prefix filter.' \
 		'Fill from this lease' \
 		'No DHCPv6 leases found.' \
+		'No LAN hosts with public IPv6 found.' \
 		'Selected DHCPv6 lease values have been filled. Save the source to keep them.' \
+		'Selected LAN host MAC has been filled. Save the source to keep it.' \
 		'DHCPv6 leases' \
-		'Unable to load DHCPv6 leases.' \
+		'LAN hosts' \
+		'Unable to load host candidates.' \
 		'Unnamed host' \
 		'Hostname' \
 		'Prefix' \
@@ -513,6 +567,7 @@ sleep 1
 
 run_step 'Rust tests' cargo test -p qddns -- --nocapture
 run_step 'Shell init syntax' sh -n "$ROOT_DIR/net/qddns/files/qddns.init"
+run_step 'Package metadata guard' check_package_metadata
 run_step 'LuCI required view files guard' check_required_view_files
 run_step 'LuCI view syntax' check_view_syntax
 run_step 'LuCI menu parent guard' grep -nF 'admin/services/qddns' "$MENU_FILE"
