@@ -42,11 +42,11 @@
 
 ## LAN IPv6 sources
 
-`dhcpv6_duid` keeps the strict DHCPv6 lease lookup path: it matches DUID plus IAID in `/tmp/odhcpd.leases`, then accepts only public IPv6 candidates that match the configured interface prefix.
+`dhcpv6_duid` keeps the strict DHCPv6 lease lookup path: it matches DUID plus IAID in `/tmp/odhcpd.leases`, then accepts only public IPv6 candidates that match the configured WAN/upstream interface prefix, including delegated route source prefixes.
 
-`dhcpv6_mac` is a separate MAC-based source. It normalizes MAC addresses, collects candidates from `/tmp/odhcpd.leases` and the IPv6 neighbor table, then deduplicates IPv6 addresses before selection. Only public IPv6 addresses under `2000::/3` that match the configured interface prefix are accepted; link-local, ULA, and documentation prefixes are ignored. If a host has more than one matching public IPv6 address, QDDNS selects the first matching candidate deterministically; set `prefix_filter` such as `240e:` or `2409:` only when you want advanced narrowing after interface prefix matching. `prefix_filter` is not a replacement for `interface`.
+`dhcpv6_mac` is a separate MAC-based source. It normalizes MAC addresses, collects candidates from `/tmp/odhcpd.leases` and the IPv6 neighbor table, then deduplicates IPv6 addresses before selection. Only public IPv6 addresses under `2000::/3` that match the configured WAN/upstream interface prefix or delegated route source prefix are accepted; link-local, ULA, and documentation prefixes are ignored. If a host has more than one matching public IPv6 address, QDDNS selects the first matching candidate deterministically; set `prefix_filter` such as `240e:` or `2409:` only when you want advanced narrowing after interface prefix matching. `prefix_filter` is not a replacement for `interface`.
 
-The LuCI MAC picker shows MAC, hostname, LAN IPv4/private IPv4 hints, interface, and public IPv6 prefixes. The LAN IPv4 display helps identify hosts and does not affect DDNS IPv6 validity. It intentionally does not show, request, or return DUID/IAID fields for MAC selection. The picker reads `/tmp/dhcp.leases`, `/tmp/odhcpd.leases`, and the IPv4/IPv6 neighbor tables directly instead of calling `luci-rpc` from inside rpcd.
+The LuCI MAC picker shows MAC, hostname, LAN IPv4/private IPv4 hints, host interface, and public IPv6 prefixes. The LAN IPv4 and host interface display helps identify hosts and does not affect DDNS IPv6 validity; the source `interface` field remains the WAN/upstream interface used for prefix validation. It intentionally does not show, request, or return DUID/IAID fields for MAC selection. The picker reads `/tmp/dhcp.leases`, `/tmp/odhcpd.leases`, and the IPv4/IPv6 neighbor tables directly instead of calling `luci-rpc` from inside rpcd.
 
 ## Runtime requirements
 

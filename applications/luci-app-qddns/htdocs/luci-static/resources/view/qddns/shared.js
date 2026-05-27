@@ -46,6 +46,18 @@ function normalizeList(items) {
 	return Array.isArray(items) ? items : [];
 }
 
+function interfaceRank(name) {
+	const value = String(name || '').toLowerCase();
+
+	if (value.indexOf('pppoe-') === 0 || /(^|[-_.])wan($|[-_.0-9])/.test(value))
+		return 0;
+
+	if (value.indexOf('eth') === 0 || /(^|[-_.])lan($|[-_.0-9])/.test(value))
+		return 1;
+
+	return 2;
+}
+
 function isElement(node, tagName) {
 	return node && node.nodeType === 1 && node.tagName && node.tagName.toLowerCase() === tagName;
 }
@@ -87,6 +99,14 @@ return baseclass.extend({
 			return (typeof item == 'string') ? { name: item } : item;
 		}).filter(function(item) {
 			return item?.name;
+		}).sort(function(left, right) {
+			const leftRank = interfaceRank(left.name);
+			const rightRank = interfaceRank(right.name);
+
+			if (leftRank !== rightRank)
+				return leftRank - rightRank;
+
+			return left.name.localeCompare(right.name);
 		});
 	},
 

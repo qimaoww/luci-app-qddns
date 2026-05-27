@@ -236,12 +236,18 @@ if "const message = qddns.extractResultMessage(result, _('Unable to read source 
     raise SystemExit('rule wizard must show backend draft probe errors instead of replacing them with a generic message')
 if "qddns.listInterfaces()" not in rules or "catalog.interfaces = qddns.normalizeInterfaces(data[3])" not in rules:
     raise SystemExit('rule wizard must load interfaces for the multi-select source field')
+if "function interfaceRank(name)" not in shared or "value.indexOf('pppoe-') === 0" not in shared:
+    raise SystemExit('rule wizard interface list must prioritize WAN/PPPoE choices')
 if "sourceInterface: this.renderWizardInterfaceSelect(data?.catalog?.interfaces)" not in modal:
     raise SystemExit('rule wizard must render the source interface as a multi-select')
 if "control?.multiple" not in rules or "selectedOptions" not in rules:
     raise SystemExit('rule wizard value helper must read multi-selected interfaces')
-if "function setSourceInterfaceValue(value)" not in modal or "setSourceInterfaceValue(lease?.interface || '')" not in modal:
-    raise SystemExit('rule wizard must set lease-picked interfaces through the multi-select helper')
+if "function setSourceInterfaceValue(value)" not in modal:
+    raise SystemExit('rule wizard must keep the source interface multi-select helper')
+if "setSourceInterfaceValue(lease?.interface" in modal:
+    raise SystemExit('rule wizard must not copy LAN host interfaces into the source WAN interface field')
+if "lease?.host_interface" not in modal:
+    raise SystemExit('rule wizard must display LAN host interfaces separately from source WAN interfaces')
 if "nextButton.disabled = stepIndex === 0 && sourceProbe.loading" not in modal:
     raise SystemExit('rule wizard must disable Next while source IP probing is loading')
 if "fields.source?.getAttribute('data-source-ip-error') === '1'" not in rules:
@@ -357,12 +363,12 @@ if source_family.index("section.type == 'dhcpv6_duid' || section.type == 'dhcpv6
 if "sourceCreate.clean = false;" not in save_block or "setEffectiveSource('', sourceData.name || _('Unnamed source'))" not in save_block:
     raise SystemExit('new source wizard must clear stale draft probe cache after a failed reprobe')
 for required_interface_merge in [
-    'interfaces: []',
-    'push_unique(entry.interfaces, fields[1])',
-    'push_unique(entry.interfaces, fields[2])',
-    "entry.interface = join(',', entry.interfaces)",
-    'delete entry.interfaces',
-]:
+	    'interfaces: []',
+	    'push_unique(entry.interfaces, fields[1])',
+	    'push_unique(entry.interfaces, fields[2])',
+	    "entry.host_interface = join(',', entry.interfaces)",
+	    'delete entry.interfaces',
+	]:
     if required_interface_merge not in rpcd:
         raise SystemExit(f'rpcd DHCPv6 lease candidates must preserve multi-interface choices: missing {required_interface_merge}')
 update_source_mode = modal[modal.index('function updateSourceMode()'):modal.index('function renderSummaryRow')]
@@ -495,7 +501,7 @@ if start is None:
     raise SystemExit('source interface DeviceSelect option is missing')
 end = next((i for i in range(start + 1, len(settings)) if '\to = s.option(' in settings[i]), len(settings))
 block = '\n'.join(settings[start:end])
-if "Required for DHCPv6 DUID/MAC sources; selected public IPv6 prefixes are the validity source." not in block:
+if "For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s); delegated public IPv6 prefixes from those interfaces validate LAN host IPv6 addresses." not in block:
     raise SystemExit('source interface modal guidance is missing')
 if 'o.multiple = true;' not in block:
     raise SystemExit('source interface selector must enable multi-select')
@@ -584,8 +590,8 @@ check_dhcpv6_lease_fill_ui() {
 	grep -nF "_('Fill from this lease')" "$VIEW_DIR/settings.js"
 	grep -nF "_('No DHCPv6 leases found.')" "$VIEW_DIR/settings.js"
 	grep -nF "_('No LAN hosts with public IPv6 found.')" "$VIEW_DIR/settings.js"
-	grep -nF "_('Selected DHCPv6 lease values have been filled. Save the source to keep them.')" "$VIEW_DIR/settings.js"
-	grep -nF "_('Selected LAN host MAC has been filled. Save the source to keep it.')" "$VIEW_DIR/settings.js"
+		grep -nF "_('Selected DHCPv6 lease values have been filled. Keep the WAN interface selected separately.')" "$VIEW_DIR/settings.js"
+		grep -nF "_('Selected LAN host MAC has been filled. Keep the WAN interface selected separately.')" "$VIEW_DIR/settings.js"
 	grep -nF "options.duid" "$VIEW_DIR/settings.js"
 	grep -nF "options.mac" "$VIEW_DIR/settings.js"
 	grep -nF "options.iaid" "$VIEW_DIR/settings.js"
@@ -610,7 +616,9 @@ check_dhcpv6_lease_fill_ui() {
 	! grep -nF "grid-template-columns:repeat(auto-fit,minmax(var(--qddns-dhcpv6-card-min),1fr))" "$VIEW_DIR/settings.js"
 	grep -nF "this.setSourceOptionValue(options.duid, sectionId, lease?.duid || '')" "$VIEW_DIR/settings.js"
 	grep -nF "this.setSourceOptionValue(options.mac, sectionId, lease?.mac || '')" "$VIEW_DIR/settings.js"
-	grep -nF "this.setSourceOptionValue(options.interface, sectionId, lease?.interface || '')" "$VIEW_DIR/settings.js"
+		grep -nF "_('Host interface')" "$VIEW_DIR/settings.js"
+		grep -nF "lease?.host_interface || '-'" "$VIEW_DIR/settings.js"
+		! grep -nF "this.setSourceOptionValue(options.interface, sectionId, lease?.interface || '')" "$VIEW_DIR/settings.js"
 	grep -nF "const identityMeta = isDuidSource ? [" "$VIEW_DIR/settings.js"
 	grep -nF "_('LAN IP')" "$VIEW_DIR/settings.js"
 	grep -nF "_('Prefix narrowing')" "$VIEW_DIR/settings.js"
@@ -729,6 +737,7 @@ source = Path('$ROOT_DIR/qddns/src/source.rs').read_text()
 config = Path('$ROOT_DIR/qddns/src/config.rs').read_text()
 rpcd = Path('$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc').read_text()
 settings = Path('$VIEW_DIR/settings.js').read_text()
+rules = Path('$VIEW_DIR/rules.js').read_text()
 for bad in [
     'addr.to_string().starts_with',
     '.to_string().starts_with(prefix)',
@@ -745,8 +754,16 @@ if 'prefix_len' not in source and 'prefix_length' not in source:
     raise SystemExit('source.rs must use parsed IPv6 prefix length')
 if 'interface_prefix_selects_first_matching_candidate_without_prefix_filter' not in source:
     raise SystemExit('source.rs must test automatic selection when multiple candidates match an interface prefix')
+if 'ip -6 route show table all' not in source or 'parse_interface_route_source_ipv6_prefixes' not in source:
+    raise SystemExit('source.rs must include WAN route source prefixes for delegated IPv6 PD matching')
+if 'wan_route_from_prefix_accepts_delegated_pd_candidate' not in source:
+    raise SystemExit('source.rs must test WAN route source prefixes for delegated IPv6 PD matching')
 if 'for prefix in interface_public_ipv6_prefixes(source, iface)?' not in source or 'selected interface prefix set' not in source:
     raise SystemExit('source.rs must merge multi-selected interface prefixes and only fail when all selected interfaces lack public IPv6 prefixes')
+if "lease?.interface" in settings or "lease?.interface" in rules:
+    raise SystemExit('lease cards must not write or display LAN host interfaces as source interface values')
+if 'host_interface' not in rpcd or 'host_interface' not in settings or 'host_interface' not in rules:
+    raise SystemExit('lease cards must expose LAN host interfaces separately from source WAN interfaces')
 if 'fn command_output_with_timeout' not in source or 'SOURCE_COMMAND_TIMEOUT' not in source:
     raise SystemExit('source.rs must bound source subprocess execution')
 if 'source_command_output_times_out_slow_commands' not in source:
@@ -877,23 +894,25 @@ check_name_visible_numeric_hidden_po() {
 		'Read current MAC' \
 		'Read current DHCPv6 lease candidates, then choose one to fill the DUID source fields.' \
 		'Read current LAN host candidates, then choose one to fill the MAC source fields.' \
-		'Choose a current DUID to fill DUID, IAID, interface, and hostname hint.' \
-		'Choose a current MAC to fill MAC, LAN IP identity, interface, and hostname hint.' \
-		'Fill from this lease' \
-		'No DHCPv6 leases found.' \
-		'No LAN hosts with public IPv6 found.' \
-		'Selected DHCPv6 lease values have been filled. Save the source to keep them.' \
-		'Selected LAN host MAC has been filled. Save the source to keep it.' \
-		'DHCPv6 leases' \
-		'LAN hosts' \
-		'Unable to load host candidates.' \
-		'Unnamed host' \
-		'Hostname' \
-		'LAN IP' \
-		'Prefix' \
-		'Prefix narrowing' \
-		'Advanced narrowing after interface prefix matching; it cannot replace the interface.' \
-		'Required for DHCPv6 DUID/MAC sources; selected public IPv6 prefixes are the validity source.' \
+			'Choose a current DUID to fill DUID, IAID, and hostname hint. Keep the WAN interface selected separately.' \
+			'Choose a current MAC to fill MAC, LAN IP identity, and hostname hint. Keep the WAN interface selected separately.' \
+			'Fill from this lease' \
+			'No DHCPv6 leases found.' \
+			'No LAN hosts with public IPv6 found.' \
+			'Selected DHCPv6 lease values have been filled. Keep the WAN interface selected separately.' \
+			'Selected LAN host MAC has been filled. Keep the WAN interface selected separately.' \
+			'DHCPv6 leases' \
+			'LAN hosts' \
+			'Unable to load host candidates.' \
+			'Unnamed host' \
+			'Hostname' \
+			'LAN IP' \
+			'Host interface' \
+			'Prefix' \
+			'Prefix narrowing' \
+			'Advanced narrowing after interface prefix matching; it cannot replace the interface.' \
+			'For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s). Lease cards only fill the LAN host identity.' \
+			'For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s); delegated public IPv6 prefixes from those interfaces validate LAN host IPv6 addresses.' \
 		'DUID' \
 		'IAID' \
 		'Log Output' \

@@ -488,7 +488,7 @@ return view.extend({
 		]);
 		const sourceFamilyField = this.renderWizardField(_('Family'), fields.sourceFamily);
 		const sourceAddressField = this.renderWizardField(_('Address'), fields.sourceAddress);
-		const sourceInterfaceField = this.renderWizardField(_('Interface'), fields.sourceInterface);
+		const sourceInterfaceField = this.renderWizardField(_('Interface'), fields.sourceInterface, _('For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s). Lease cards only fill the LAN host identity.'));
 		const sourceDuidField = this.renderWizardField(_('DUID'), fields.sourceDuid);
 		const sourceIaidField = this.renderWizardField(_('IAID'), fields.sourceIaid);
 		const sourceMacField = this.renderWizardField(_('MAC'), fields.sourceMac);
@@ -858,10 +858,9 @@ return view.extend({
 			}
 			fields.sourceLeaseFile.value = lease?.lease_file || '/tmp/odhcpd.leases';
 			fields.sourceHostnameHint.value = lease?.hostname || '';
-			setSourceInterfaceValue(lease?.interface || '');
 			fields.sourcePrefixFilter.value = '';
 			if (feedbackNode)
-				feedbackNode.textContent = isDuidSource ? _('Selected DHCPv6 lease values have been filled. Save the source to keep them.') : _('Selected LAN host MAC has been filled. Save the source to keep it.');
+				feedbackNode.textContent = isDuidSource ? _('Selected DHCPv6 lease values have been filled. Keep the WAN interface selected separately.') : _('Selected LAN host MAC has been filled. Keep the WAN interface selected separately.');
 			markNewSourceDirty();
 		}
 
@@ -888,7 +887,7 @@ return view.extend({
 				]),
 				E('span', { class: 'qddns-rule-wizard-lease-meta' }, identityMeta.concat([
 					renderLeaseMeta(_('Prefix'), prefixes.length ? prefixes.join('\n') : '-'),
-					renderLeaseMeta(_('Interface'), lease?.interface || '-')
+					renderLeaseMeta(_('Host interface'), lease?.host_interface || '-')
 				]))
 			]);
 
@@ -917,7 +916,7 @@ return view.extend({
 				return isDuidSource ? !!(lease?.duid && lease?.iaid) : !!lease?.mac;
 			});
 			const emptyMessage = isDuidSource ? _('No DHCPv6 leases found.') : _('No LAN hosts with public IPv6 found.');
-			const feedbackNode = E('div', { class: 'cbi-value-description' }, list.length ? (isDuidSource ? _('Choose a current DUID to fill DUID, IAID, interface, and hostname hint.') : _('Choose a current MAC to fill MAC, LAN IP identity, interface, and hostname hint.')) : emptyMessage);
+			const feedbackNode = E('div', { class: 'cbi-value-description' }, list.length ? (isDuidSource ? _('Choose a current DUID to fill DUID, IAID, and hostname hint. Keep the WAN interface selected separately.') : _('Choose a current MAC to fill MAC, LAN IP identity, and hostname hint. Keep the WAN interface selected separately.')) : emptyMessage);
 
 			if (!list.length)
 				return E('div', { class: 'qddns-rule-wizard-lease-results' }, [feedbackNode]);

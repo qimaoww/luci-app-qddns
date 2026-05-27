@@ -437,7 +437,6 @@ function add_dhcpv6_lease_entry(entries, fields, prefixes) {
 	entry.duid = fields[2] || null;
 	entry.iaid = fields[3] || null;
 	push_unique(entry.interfaces, fields[1]);
-	entry.interface = join(',', entry.interfaces);
 	entry.hostname = entry.hostname || fields[4] || null;
 	entry.lease_file = dhcpv6_lease_file;
 
@@ -478,7 +477,6 @@ function add_ndp_entries(entries) {
 			continue;
 
 		push_unique(entry.interfaces, fields[2]);
-		entry.interface = join(',', entry.interfaces);
 		push_unique(entry.prefixes, `${address}/128`);
 	}
 }
@@ -597,7 +595,7 @@ function list_dhcpv6_leases(mode) {
 			delete entry.iaid;
 			delete entry.lease_file;
 		}
-		entry.interface = join(',', entry.interfaces);
+		entry.host_interface = join(',', entry.interfaces);
 		delete entry.interfaces;
 		push(leases, entry);
 	}

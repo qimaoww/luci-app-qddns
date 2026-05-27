@@ -283,8 +283,8 @@ fn run_rule_once_with_runtime(
             });
             let failed = RuleState {
                 status: RuleStatus::Failed,
-                current_ip: prior.current_ip.clone(),
-                remote_ip: prior.remote_ip.clone(),
+                current_ip: None,
+                remote_ip: None,
                 last_result: Some(RuleResult::Error),
                 last_error: Some(err.to_string()),
                 last_update: prior.last_update,

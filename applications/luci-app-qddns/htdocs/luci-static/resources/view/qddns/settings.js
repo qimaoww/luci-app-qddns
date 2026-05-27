@@ -303,7 +303,7 @@ return view.extend({
 				return result;
 
 			if (qddns.isFailedResult(result) || !result.address) {
-				this.setSourceIpStatus(node, _('Unable to read source IP.'), 'negative');
+				this.setSourceIpStatus(node, qddns.extractResultMessage(result, _('Unable to read source IP.')), 'negative');
 				return result;
 			}
 
@@ -363,11 +363,10 @@ return view.extend({
 		}
 		this.setSourceOptionValue(options.leaseFile, sectionId, lease?.lease_file || '/tmp/odhcpd.leases');
 		this.setSourceOptionValue(options.hostnameHint, sectionId, lease?.hostname || '');
-		this.setSourceOptionValue(options.interface, sectionId, lease?.interface || '');
 		this.setSourceOptionValue(options.prefixFilter, sectionId, '');
 
 		if (feedback)
-			feedback.textContent = isDuidSource ? _('Selected DHCPv6 lease values have been filled. Save the source to keep them.') : _('Selected LAN host MAC has been filled. Save the source to keep it.');
+			feedback.textContent = isDuidSource ? _('Selected DHCPv6 lease values have been filled. Keep the WAN interface selected separately.') : _('Selected LAN host MAC has been filled. Keep the WAN interface selected separately.');
 	},
 
 	filterDhcpv6Choices: function(sectionId, leases, optionSet) {
@@ -438,7 +437,7 @@ return view.extend({
 				]),
 				E('span', { class: 'qddns-dhcpv6-lease-meta' }, identityMeta.concat([
 					this.renderDhcpv6LeaseMeta(_('Prefix'), prefixes.length ? prefixes.join('\n') : '-'),
-					this.renderDhcpv6LeaseMeta(_('Interface'), lease?.interface || '-')
+					this.renderDhcpv6LeaseMeta(_('Host interface'), lease?.host_interface || '-')
 				]))
 			]);
 
@@ -462,7 +461,7 @@ return view.extend({
 		const list = this.filterDhcpv6Choices(sectionId, leases, optionSet);
 		const isDuidSource = this.isDhcpv6DuidSource(sectionId, optionSet);
 		const emptyMessage = isDuidSource ? _('No DHCPv6 leases found.') : _('No LAN hosts with public IPv6 found.');
-		const feedback = E('div', { class: 'cbi-value-description' }, list.length ? (isDuidSource ? _('Choose a current DUID to fill DUID, IAID, interface, and hostname hint.') : _('Choose a current MAC to fill MAC, LAN IP identity, interface, and hostname hint.')) : emptyMessage);
+		const feedback = E('div', { class: 'cbi-value-description' }, list.length ? (isDuidSource ? _('Choose a current DUID to fill DUID, IAID, and hostname hint. Keep the WAN interface selected separately.') : _('Choose a current MAC to fill MAC, LAN IP identity, and hostname hint. Keep the WAN interface selected separately.')) : emptyMessage);
 
 		if (!list.length)
 			return E('div', { class: 'qddns-dhcpv6-lease-results' }, [feedback]);
@@ -798,7 +797,7 @@ return view.extend({
 		o = s.option(form.Value, 'lease_file', _('Lease file')); this.sourceDhcpv6Options.leaseFile = o; o.placeholder = '/tmp/odhcpd.leases'; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac'); this.guardSourceOptionWrite(o, 'lease_file');
 		o = s.option(form.Value, 'prefix_filter', _('Prefix narrowing'), _('Advanced narrowing after interface prefix matching; it cannot replace the interface.')); this.sourceDhcpv6Options.prefixFilter = o; o.placeholder = '240e:'; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac'); this.guardSourceOptionWrite(o, 'prefix_filter');
 		o = s.option(form.Value, 'hostname_hint', _('Hostname hint')); this.sourceDhcpv6Options.hostnameHint = o; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac'); this.guardSourceOptionWrite(o, 'hostname_hint');
-		o = s.option(widgets.DeviceSelect, 'interface', _('Interface'), _('Required for DHCPv6 DUID/MAC sources; selected public IPv6 prefixes are the validity source.'));
+		o = s.option(widgets.DeviceSelect, 'interface', _('Interface'), _('For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s); delegated public IPv6 prefixes from those interfaces validate LAN host IPv6 addresses.'));
 		this.sourceDhcpv6Options.interface = o;
 		o.multiple = true;
 		o.cfgvalue = function(sectionId, value) {

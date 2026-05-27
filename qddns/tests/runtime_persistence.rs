@@ -400,6 +400,37 @@ fn manual_run_does_not_touch_daemon_marker() {
 }
 
 #[test]
+fn failed_rule_run_clears_stale_current_and_remote_ip() {
+    let temp = TempDir::new("qddns-runtime-test");
+    let config_path = temp.path().join("qddns.conf");
+    let state_dir = temp.path().join("state");
+    let log_dir = temp.path().join("logs");
+    fs::create_dir_all(&state_dir).unwrap();
+    fs::create_dir_all(&log_dir).unwrap();
+    write_broken_update_config(&config_path, &state_dir, &log_dir);
+    fs::write(
+        state_dir.join("runtime.state"),
+        r#"{"daemon_running":true,"updated_at":100,"rules":{"home":{"status":"success","current_ip":"198.51.100.10","remote_ip":"198.51.100.10","last_result":"unchanged","last_error":null,"last_update":90,"last_check":100,"next_run":130,"retry_attempts":0}}}"#,
+    )
+    .unwrap();
+
+    let _ = daemon::run_rule_once(config_path.to_str().unwrap(), "home");
+    let state_text = fs::read_to_string(state_dir.join("runtime.state")).unwrap();
+    let parsed = qddns::state::parse_runtime_state(&state_text).unwrap();
+    let rule = &parsed.rules["home"];
+
+    assert_eq!(rule.current_ip, None);
+    assert_eq!(rule.remote_ip, None);
+    assert!(
+        rule.last_error
+            .as_deref()
+            .is_some_and(|error| error.contains("missing lookup_url or url")),
+        "unexpected error: {:?}",
+        rule.last_error
+    );
+}
+
+#[test]
 fn retry_count_is_consumed_by_rule_runner() {
     let temp = TempDir::new("qddns-runtime-test");
     let config_path = temp.path().join("qddns.conf");

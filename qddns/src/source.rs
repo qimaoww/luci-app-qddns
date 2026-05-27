@@ -415,7 +415,9 @@ fn interface_public_ipv6_prefixes(source: &SourceConfig, iface: &str) -> Result<
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let prefixes = parse_interface_public_ipv6_prefixes(&stdout);
+    let mut prefixes = parse_interface_public_ipv6_prefixes(&stdout);
+    let route_prefixes = interface_route_source_ipv6_prefixes(iface)?;
+    push_unique_prefixes(&mut prefixes, route_prefixes);
     Ok(prefixes)
 }
 
@@ -436,6 +438,68 @@ fn parse_interface_public_ipv6_prefixes(output: &str) -> Vec<Ipv6Prefix> {
     }
 
     prefixes
+}
+
+fn interface_route_source_ipv6_prefixes(iface: &str) -> Result<Vec<Ipv6Prefix>> {
+    let output = command_output_with_timeout(
+        Command::new("ip").args(["-6", "route", "show", "table", "all"]),
+        SOURCE_COMMAND_TIMEOUT,
+        "ip -6 route show table all",
+    )
+    .map_err(|err| {
+        Error::new(format!(
+            "failed to inspect IPv6 routes for interface '{iface}': {err}"
+        ))
+    })?;
+    if !output.status.success() {
+        return Ok(Vec::new());
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Ok(parse_interface_route_source_ipv6_prefixes(&stdout, iface))
+}
+
+fn parse_interface_route_source_ipv6_prefixes(output: &str, iface: &str) -> Vec<Ipv6Prefix> {
+    let mut prefixes = Vec::new();
+
+    for line in output.lines() {
+        let fields = line.split_whitespace().collect::<Vec<_>>();
+        let Some(dev_index) = fields.iter().position(|field| *field == "dev") else {
+            continue;
+        };
+        if fields.get(dev_index + 1).copied() != Some(iface) {
+            continue;
+        }
+
+        let Some(from_index) = fields.iter().position(|field| *field == "from") else {
+            continue;
+        };
+        let Some(prefix) = fields
+            .get(from_index + 1)
+            .and_then(|value| parse_ipv6_prefix(value))
+        else {
+            continue;
+        };
+        if prefix.prefix_len == 0 || !is_public_ipv6(&prefix.address) {
+            continue;
+        }
+
+        push_unique_prefix(&mut prefixes, prefix);
+    }
+
+    prefixes
+}
+
+fn push_unique_prefixes(prefixes: &mut Vec<Ipv6Prefix>, extra: Vec<Ipv6Prefix>) {
+    for prefix in extra {
+        push_unique_prefix(prefixes, prefix);
+    }
+}
+
+fn push_unique_prefix(prefixes: &mut Vec<Ipv6Prefix>, prefix: Ipv6Prefix) {
+    if !prefixes.contains(&prefix) {
+        prefixes.push(prefix);
+    }
 }
 
 fn parse_ipv6_prefix(input: &str) -> Option<Ipv6Prefix> {
@@ -815,6 +879,30 @@ mod tests {
         assert_eq!(
             selected,
             "240e:3b2:4e8a:70a0::30".parse::<IpAddr>().unwrap()
+        );
+    }
+
+    #[test]
+    fn wan_route_from_prefix_accepts_delegated_pd_candidate() {
+        let mut prefixes = parse_interface_public_ipv6_prefixes(
+            "7: pppoe-wan: <POINTOPOINT,MULTICAST,UP> mtu 1492\n    inet6 240e:3b2:4e8a:7000::2/64 scope global dynamic\n",
+        );
+        prefixes.extend(parse_interface_route_source_ipv6_prefixes(
+            "default from 240e:3b2:4e8a:7000::/60 dev pppoe-wan proto static metric 512 pref medium\n\
+             default from 240e:3b2:4e8a:7000::/60 dev pppoe-wan_cmcc proto static metric 512 pref medium\n\
+             default from all dev pppoe-wan proto static metric 512 pref medium\n",
+            "pppoe-wan",
+        ));
+        let matches = vec![
+            "240e:3b2:4e8a:7001::30".parse::<IpAddr>().unwrap(),
+            "240e:3b2:4e8a:7010::30".parse::<IpAddr>().unwrap(),
+        ];
+
+        let selected = select_lease_address(&matches, &prefixes, None, "MAC").unwrap();
+
+        assert_eq!(
+            selected,
+            "240e:3b2:4e8a:7001::30".parse::<IpAddr>().unwrap()
         );
     }
 
