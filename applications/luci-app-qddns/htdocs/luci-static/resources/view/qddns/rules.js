@@ -29,8 +29,8 @@ const QDDNS_STYLE = [
 		'--qddns-rule-toggle-width:6.5rem;',
 		'--qddns-rule-type-width:8rem;',
 		'--qddns-rule-action-min:10rem;',
-		'--qddns-rule-wizard-width:min(56rem,92vw);',
-		'--qddns-rule-wizard-field-min:16rem;',
+		'--qddns-rule-wizard-width:min(64rem,94vw);',
+		'--qddns-rule-wizard-field-min:18rem;',
 		'--qddns-rule-wizard-meta-label:5.5rem;',
 	'}',
 	'.qddns-rules-page{margin-bottom:var(--qddns-space-4)}',
@@ -59,11 +59,16 @@ const QDDNS_STYLE = [
 	'.qddns-rule-wizard-entry-text{display:grid;gap:var(--qddns-space-1);min-width:16rem;max-width:42rem}',
 	'.qddns-rule-wizard-entry-text h3,.qddns-rule-wizard-entry-text p{margin:0}',
 	'.qddns-rule-wizard-primary{font-size:1rem;font-weight:700;padding:var(--qddns-space-3) var(--qddns-space-4)}',
-	'.qddns-rule-wizard-modal{box-sizing:border-box;display:grid;align-items:stretch;gap:var(--qddns-space-4);width:var(--qddns-rule-wizard-width);max-width:92vw;min-width:min(32rem,92vw);text-align:left}',
+	'.modal.qddns-rule-wizard-dialog{align-items:stretch;width:var(--qddns-rule-wizard-width);max-width:94vw}',
+	'.modal.qddns-rule-wizard-dialog>h4{box-sizing:border-box;width:100%;margin:0 0 var(--qddns-space-3);padding:0;text-align:left;font-size:1.2rem;font-weight:700;line-height:1.3!important}',
+	'.qddns-rule-wizard-modal{box-sizing:border-box;display:grid;align-items:stretch;justify-items:stretch;gap:var(--qddns-space-4);width:100%;max-width:100%;min-width:0;text-align:left;line-height:1.45}',
 	'.qddns-rule-wizard-steps{display:flex;flex-wrap:wrap;gap:var(--qddns-space-2)}',
 	'.qddns-rule-wizard-step{padding:var(--qddns-space-1) var(--qddns-space-2);border:1px solid var(--qddns-border);border-radius:999px;background:var(--qddns-neutral)}',
 	'.qddns-rule-wizard-step.is-active{font-weight:700;background:var(--qddns-surface-strong);border-color:currentColor}',
-	'.qddns-rule-wizard-grid{display:grid;align-items:start;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--qddns-rule-wizard-field-min)),1fr));gap:var(--qddns-space-3);width:100%;min-width:0}',
+	'.qddns-rule-wizard-panel{display:grid;justify-items:stretch;gap:var(--qddns-space-3);width:100%;max-width:100%;min-width:0;justify-self:stretch;text-align:left}',
+	'.qddns-rule-wizard-panel h4{justify-self:start;margin:0;padding:0;text-align:left;font-size:1.05rem;font-weight:700;line-height:1.35!important}',
+	'.qddns-rule-wizard-grid{display:grid;align-items:start;justify-items:stretch;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--qddns-rule-wizard-field-min)),1fr));gap:var(--qddns-space-3);width:100%;min-width:0}',
+	'.qddns-rule-wizard-grid-narrow{grid-template-columns:minmax(0,18rem);max-width:18rem}',
 	'.qddns-rule-wizard-field{display:flex;flex-direction:column;gap:var(--qddns-space-1);min-width:0;text-align:left}',
 	'.qddns-rule-wizard-field label{font-weight:600;line-height:1.35;text-align:left}',
 	'.qddns-rule-wizard-field .cbi-value-description{margin:0;text-align:left}',
@@ -72,27 +77,31 @@ const QDDNS_STYLE = [
 	'.qddns-rule-wizard-source-actions{align-items:center;justify-content:flex-start}',
 	'.qddns-rule-wizard-lease-results{display:grid;justify-items:stretch;gap:var(--qddns-space-2);width:100%;min-width:0;text-align:left}',
 	'.qddns-rule-wizard-lease-list{display:grid;justify-items:stretch;gap:var(--qddns-space-2);width:100%;min-width:0}',
-	'.qddns-rule-wizard-lease-card{appearance:none;box-sizing:border-box;display:grid;justify-items:stretch;gap:var(--qddns-space-2);width:100%;min-width:0;margin:0;padding:var(--qddns-space-2);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);color:inherit;font:inherit;line-height:1.35;text-align:left;cursor:pointer}',
+	'.qddns-rule-wizard-lease-card{appearance:none;box-sizing:border-box;display:grid;align-items:start;justify-items:stretch;justify-content:stretch;gap:var(--qddns-space-2);width:100%!important;min-width:0;margin:0;padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);color:inherit;font:inherit;line-height:1.35;text-align:left!important;text-transform:none;cursor:pointer}',
 	'.qddns-rule-wizard-lease-card:hover,.qddns-rule-wizard-lease-card:focus,.qddns-rule-wizard-lease-card.is-selected{border-color:currentColor;background:var(--qddns-surface-strong)}',
 	'.qddns-rule-wizard-lease-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:var(--qddns-space-2);width:100%;justify-self:stretch;min-width:0;text-align:left}',
-	'.qddns-rule-wizard-lease-title{min-width:0;font-weight:600;text-align:left;overflow-wrap:anywhere}',
+	'.qddns-rule-wizard-lease-title{justify-self:start;min-width:0;font-weight:600;text-align:left;overflow-wrap:anywhere}',
 	'.qddns-rule-wizard-lease-action{justify-self:end;max-width:100%;padding:0.1rem 0.4rem;border-radius:999px;background:var(--qddns-surface-strong);font-size:0.9em;line-height:1.35;opacity:0.85;text-align:center;white-space:nowrap}',
-	'.qddns-rule-wizard-lease-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr));gap:var(--qddns-space-1) var(--qddns-space-2);width:100%;justify-self:stretch;min-width:0;text-align:left}',
+	'.qddns-rule-wizard-lease-meta{display:grid;grid-template-columns:1fr;gap:var(--qddns-space-1);width:100%;justify-self:stretch;min-width:0;text-align:left}',
 	'.qddns-rule-wizard-lease-meta-item{display:grid;grid-template-columns:minmax(var(--qddns-rule-wizard-meta-label),max-content) minmax(0,1fr);gap:var(--qddns-space-1);width:100%;min-width:0;text-align:left;overflow-wrap:break-word;word-break:normal}',
 	'.qddns-rule-wizard-lease-meta-label{min-width:var(--qddns-rule-wizard-meta-label);opacity:0.72}',
-	'.qddns-rule-wizard-lease-meta-value{min-width:0;overflow-wrap:break-word;word-break:normal}',
+	'.qddns-rule-wizard-lease-meta-value{min-width:0;overflow-wrap:anywhere;word-break:normal;white-space:pre-wrap;text-align:left}',
 	'.qddns-rule-wizard-switch{display:flex;align-items:center;gap:var(--qddns-space-2);min-height:2.4rem}',
 	'.qddns-rule-wizard-summary{display:grid;gap:var(--qddns-space-2);padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface-strong)}',
 	'.qddns-rule-wizard-summary-row{display:grid;grid-template-columns:minmax(var(--qddns-rule-wizard-meta-label),max-content) minmax(0,1fr);gap:var(--qddns-space-2);min-width:0;text-align:left}',
 	'.qddns-rule-wizard-summary-label{opacity:0.72}',
 	'.qddns-rule-wizard-summary-value{min-width:0;overflow-wrap:anywhere}',
-	'.qddns-rule-wizard-source-ip{display:inline-block;max-width:100%;overflow-wrap:anywhere}',
+	'.qddns-rule-wizard-source-status{display:grid;justify-items:start;gap:var(--qddns-space-1);box-sizing:border-box;width:100%;min-width:0;padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);text-align:left}',
+	'.qddns-rule-wizard-source-status-label{font-weight:600;line-height:1.35;opacity:0.72;text-align:left}',
+	'.qddns-rule-wizard-source-ip{display:block;max-width:100%;font-weight:700;line-height:1.35;overflow-wrap:anywhere;text-align:left}',
 	'.qddns-rule-wizard-source-ip[data-tone="warning"]{opacity:0.78}',
 	'.qddns-rule-wizard-source-ip[data-tone="negative"]{color:var(--qddns-negative-text)}',
-	'.qddns-rule-wizard-feedback{margin-top:var(--qddns-space-3)}',
+	'.qddns-rule-wizard-feedback{box-sizing:border-box;width:100%;max-width:100%;justify-self:stretch;margin:0;min-height:2.25rem;padding:var(--qddns-space-2) var(--qddns-space-3);border:1px solid transparent;border-radius:var(--qddns-radius-sm);text-align:left}',
+	'.qddns-rule-wizard-feedback[data-source-ip-guide="idle"],.qddns-rule-wizard-feedback[data-source-ip-guide="ready"]{min-height:0;padding:0;border-color:transparent;background:transparent;opacity:0.72}',
+	'.qddns-rule-wizard-feedback.alert-message.warning{border-color:var(--qddns-warning);background:var(--qddns-warning);color:var(--qddns-warning-text)}',
 	'.qddns-rule-wizard-modal .qddns-actions{justify-content:flex-end}',
 	'.qddns-rule-wizard-modal .qddns-rule-wizard-source-actions{justify-content:flex-start}',
-	'.qddns-rule-wizard-footer-actions{justify-content:flex-end}',
+	'.qddns-rule-wizard-footer-actions{width:100%;max-width:100%;justify-self:stretch;justify-content:flex-end}',
 	'.qddns-empty-cell{text-align:center;opacity:0.72;padding:var(--qddns-space-4)}',
 	'.qddns-log-output{margin:0;max-height:20rem;overflow:auto;padding:var(--qddns-space-4);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface-strong);white-space:pre-wrap;word-break:break-word}',
 	'.qddns-badge{display:inline-flex;align-items:center;justify-content:center;min-height:2rem;padding:0 var(--qddns-space-3);border-radius:999px;font-size:0.8125rem;font-weight:600;line-height:1.4;border:1px solid transparent}',
@@ -107,6 +116,7 @@ const QDDNS_STYLE = [
 	'@media (max-width: 768px){',
 		'.qddns-panel{padding:var(--qddns-space-3)}',
 		':root{--qddns-rule-console-min:40rem;--qddns-rule-action-min:8.5rem}',
+		'.qddns-rule-wizard-grid-narrow{max-width:100%}',
 	'}'
 ].join('');
 
@@ -238,7 +248,10 @@ return view.extend({
 	},
 
 	renderWizardSourceIp: function(statusNode) {
-		return this.renderWizardField(_('Source IP'), statusNode);
+		return E('div', { class: 'qddns-rule-wizard-source-status' }, [
+			E('span', { class: 'qddns-rule-wizard-source-status-label' }, _('Source IP')),
+			statusNode
+		]);
 	},
 
 	wizardValue: function(control) {
@@ -301,6 +314,17 @@ return view.extend({
 
 		if (recordType && control)
 			control.value = recordType;
+	},
+
+	inferSourceFamily: function(address, fallback) {
+		const value = String(address || '').trim();
+
+		if (value.indexOf(':') > -1)
+			return 'ipv6';
+		if (value.indexOf('.') > -1)
+			return 'ipv4';
+
+		return String(fallback || '').toLowerCase();
 	},
 
 	setWizardFeedback: function(feedback, message) {
@@ -498,19 +522,19 @@ return view.extend({
 				E('span', { 'data-wizard-step': '1', class: 'qddns-rule-wizard-step' }, _('2. DNS')),
 				E('span', { 'data-wizard-step': '2', class: 'qddns-rule-wizard-step' }, _('3. Confirm'))
 			]),
-			E('div', { 'data-wizard-panel': '0' }, [
+			E('div', { 'data-wizard-panel': '0', class: 'qddns-rule-wizard-panel' }, [
 				E('h4', {}, _('Choose Source IP')),
 				E('div', { class: 'qddns-rule-wizard-grid' }, [
-					this.renderWizardField(_('Source setup'), fields.sourceMode),
-					this.renderWizardSourceIp(sourceIpStatus)
+					this.renderWizardField(_('Source setup'), fields.sourceMode)
 				]),
 				savedSourcePanel,
 				newSourcePanel,
-				E('div', { class: 'qddns-rule-wizard-grid' }, [
+				this.renderWizardSourceIp(sourceIpStatus),
+				E('div', { class: 'qddns-rule-wizard-grid qddns-rule-wizard-grid-narrow' }, [
 					this.renderWizardField(_('Record type'), fields.recordType)
 				])
 			]),
-			E('div', { 'data-wizard-panel': '1', style: 'display:none' }, [
+			E('div', { 'data-wizard-panel': '1', class: 'qddns-rule-wizard-panel', style: 'display:none' }, [
 				E('h4', {}, _('Choose where to update DNS')),
 				E('div', { class: 'qddns-rule-wizard-grid' }, [
 					this.renderWizardField(_('Provider'), fields.provider),
@@ -518,7 +542,7 @@ return view.extend({
 					this.renderWizardField(_('Record name'), fields.recordName)
 				])
 			]),
-			E('div', { 'data-wizard-panel': '2', style: 'display:none' }, [
+			E('div', { 'data-wizard-panel': '2', class: 'qddns-rule-wizard-panel', style: 'display:none' }, [
 				E('h4', {}, _('Confirm and create the rule')),
 				summary,
 				E('p', { class: 'cbi-value-description' }, _('Rule name is generated automatically from the record.')),
@@ -752,8 +776,11 @@ return view.extend({
 				}
 
 				sourceProbe.address = result.address;
-				sourceProbe.family = result.family || '';
-				fields.source.setAttribute('data-probed-family', sourceProbe.family);
+				sourceProbe.family = result.family || viewRef.inferSourceFamily(result.address);
+				if (sourceProbe.family)
+					fields.source.setAttribute('data-probed-family', sourceProbe.family);
+				else
+					fields.source.removeAttribute('data-probed-family');
 				fields.source.removeAttribute('data-source-create-dirty');
 				viewRef.syncWizardRecordType(fields.recordType, sourceProbe.family);
 				setWizardSourceIp(result.address, 'neutral');
@@ -860,7 +887,7 @@ return view.extend({
 					E('span', { class: 'qddns-rule-wizard-lease-action' }, _('Fill from this lease'))
 				]),
 				E('span', { class: 'qddns-rule-wizard-lease-meta' }, identityMeta.concat([
-					renderLeaseMeta(_('Prefix'), prefixes.length ? prefixes.join(', ') : '-'),
+					renderLeaseMeta(_('Prefix'), prefixes.length ? prefixes.join('\n') : '-'),
 					renderLeaseMeta(_('Interface'), lease?.interface || '-')
 				]))
 			]);
@@ -1006,19 +1033,19 @@ return view.extend({
 				return Promise.resolve();
 			}
 
-				const sourceVersion = sourceCreate.version;
+			const sourceVersion = sourceCreate.version;
 
-				return qddns.withBusyButton(saveSourceButton, function() {
-					const sectionId = sourceCreate.id || viewRef.nextNumericSectionId();
-					const sourceOptions = ['family', 'address', 'interface', 'duid', 'iaid', 'mac', 'lease_file', 'hostname_hint', 'prefix_filter'];
-					const setSourceOption = function(option, value) {
-						const normalized = String(value || '').trim();
+			return qddns.withBusyButton(saveSourceButton, function() {
+				const sectionId = sourceCreate.id || viewRef.nextNumericSectionId();
+				const sourceOptions = ['family', 'address', 'interface', 'duid', 'iaid', 'mac', 'lease_file', 'hostname_hint', 'prefix_filter'];
+				const setSourceOption = function(option, value) {
+					const normalized = String(value || '').trim();
 
-						if (normalized) {
-							uci.set('qddns', sectionId, option, normalized);
-						} else if (sourceCreate.id && typeof uci.unset == 'function') {
-							uci.unset('qddns', sectionId, option);
-						}
+					if (normalized) {
+						uci.set('qddns', sectionId, option, normalized);
+					} else if (sourceCreate.id && typeof uci.unset == 'function') {
+						uci.unset('qddns', sectionId, option);
+					}
 				};
 
 				setWizardProbeFeedback(_('Probing source IP...'), 'loading');
@@ -1050,20 +1077,24 @@ return view.extend({
 						return result;
 					}
 
-						if (!sourceCreate.id)
-							uci.add('qddns', 'source', sectionId);
+					const probedFamily = result.family || viewRef.inferSourceFamily(result.address, sourceData.family);
+					if (probedFamily)
+						sourceData.family = probedFamily;
 
-						uci.set('qddns', sectionId, 'name', sourceData.name);
-						uci.set('qddns', sectionId, 'type', sourceData.type);
-						sourceOptions.forEach(function(option) {
-							setSourceOption(option, sourceOptionValue(sourceData, option));
-						});
+					if (!sourceCreate.id)
+						uci.add('qddns', 'source', sectionId);
+
+					uci.set('qddns', sectionId, 'name', sourceData.name);
+					uci.set('qddns', sectionId, 'type', sourceData.type);
+					sourceOptions.forEach(function(option) {
+						setSourceOption(option, sourceOptionValue(sourceData, option));
+					});
 
 					const sourceObject = {
 						id: sectionId,
 						type: sourceData.type,
 						name: sourceData.name,
-						family: sourceData.family || null,
+						family: probedFamily || sourceData.family || null,
 						hint: sourceData.hostnameHint || sourceData.address || sourceData.interfaceName || sourceData.duid || sourceData.iaid || null
 					};
 					const existing = viewRef.findById(sources, sectionId);
@@ -1092,12 +1123,15 @@ return view.extend({
 					sourceCreate.id = sectionId;
 					sourceCreate.clean = true;
 					sourceCreate.address = result.address;
-					sourceCreate.family = result.family || sourceData.family || '';
+					sourceCreate.family = probedFamily || '';
 					sourceProbe.address = result.address;
-					sourceProbe.family = result.family || sourceData.family || '';
+					sourceProbe.family = probedFamily || '';
 					fields.source.removeAttribute('data-source-create-dirty');
 					fields.source.removeAttribute('data-source-ip-error');
-					fields.source.setAttribute('data-probed-family', sourceProbe.family);
+					if (sourceProbe.family)
+						fields.source.setAttribute('data-probed-family', sourceProbe.family);
+					else
+						fields.source.removeAttribute('data-probed-family');
 					setEffectiveSource(sectionId, sourceData.name || _('Unnamed source'));
 					viewRef.syncWizardRecordType(fields.recordType, sourceProbe.family);
 					setWizardSourceIp(result.address, 'neutral');
@@ -1206,7 +1240,7 @@ return view.extend({
 		updateNewSourceFields(true);
 		updateSourceMode();
 		updateButtons();
-		ui.showModal(_('Guided DDNS rule setup'), [modal]);
+		ui.showModal(_('Guided DDNS rule setup'), [modal], 'qddns-rule-wizard-dialog');
 
 		if (launcher)
 			launcher.blur();

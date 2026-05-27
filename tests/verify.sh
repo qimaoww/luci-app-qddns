@@ -247,20 +247,29 @@ if "nextButton.disabled = stepIndex === 0 && sourceProbe.loading" not in modal:
 if "fields.source?.getAttribute('data-source-ip-error') === '1'" not in rules:
     raise SystemExit('rule wizard must block the source step after a failed source IP probe')
 for css in [
-    "--qddns-rule-wizard-width:min(56rem,92vw);",
-    "--qddns-rule-wizard-field-min:16rem;",
+    "--qddns-rule-wizard-width:min(64rem,94vw);",
+    "--qddns-rule-wizard-field-min:18rem;",
     "--qddns-rule-wizard-meta-label:5.5rem;",
-    ".qddns-rule-wizard-modal{box-sizing:border-box;display:grid;align-items:stretch;gap:var(--qddns-space-4);width:var(--qddns-rule-wizard-width);max-width:92vw;min-width:min(32rem,92vw);text-align:left}",
-    ".qddns-rule-wizard-grid{display:grid;align-items:start;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--qddns-rule-wizard-field-min)),1fr));gap:var(--qddns-space-3);width:100%;min-width:0}",
+    ".modal.qddns-rule-wizard-dialog{align-items:stretch;width:var(--qddns-rule-wizard-width);max-width:94vw}",
+    ".modal.qddns-rule-wizard-dialog>h4{box-sizing:border-box;width:100%;margin:0 0 var(--qddns-space-3);padding:0;text-align:left;font-size:1.2rem;font-weight:700;line-height:1.3!important}",
+    ".qddns-rule-wizard-modal{box-sizing:border-box;display:grid;align-items:stretch;justify-items:stretch;gap:var(--qddns-space-4);width:100%;max-width:100%;min-width:0;text-align:left;line-height:1.45}",
+    ".qddns-rule-wizard-panel{display:grid;justify-items:stretch;gap:var(--qddns-space-3);width:100%;max-width:100%;min-width:0;justify-self:stretch;text-align:left}",
+    ".qddns-rule-wizard-panel h4{justify-self:start;margin:0;padding:0;text-align:left;font-size:1.05rem;font-weight:700;line-height:1.35!important}",
+    ".qddns-rule-wizard-grid{display:grid;align-items:start;justify-items:stretch;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--qddns-rule-wizard-field-min)),1fr));gap:var(--qddns-space-3);width:100%;min-width:0}",
+    ".qddns-rule-wizard-grid-narrow{grid-template-columns:minmax(0,18rem);max-width:18rem}",
     ".qddns-rule-wizard-field{display:flex;flex-direction:column;gap:var(--qddns-space-1);min-width:0;text-align:left}",
     ".qddns-rule-wizard-field label{font-weight:600;line-height:1.35;text-align:left}",
     ".qddns-rule-wizard-source-panel{display:grid;justify-items:stretch;gap:var(--qddns-space-3);width:100%;min-width:0;text-align:left}",
     ".qddns-rule-wizard-source-actions{align-items:center;justify-content:flex-start}",
-    ".qddns-rule-wizard-footer-actions{justify-content:flex-end}",
+    ".qddns-rule-wizard-lease-card{appearance:none;box-sizing:border-box;display:grid;align-items:start;justify-items:stretch;justify-content:stretch;gap:var(--qddns-space-2);width:100%!important;min-width:0;margin:0;padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);color:inherit;font:inherit;line-height:1.35;text-align:left!important;text-transform:none;cursor:pointer}",
+    ".qddns-rule-wizard-source-status{display:grid;justify-items:start;gap:var(--qddns-space-1);box-sizing:border-box;width:100%;min-width:0;padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);text-align:left}",
+    ".qddns-rule-wizard-footer-actions{width:100%;max-width:100%;justify-self:stretch;justify-content:flex-end}",
     ".qddns-rule-wizard-summary-row{display:grid;grid-template-columns:minmax(var(--qddns-rule-wizard-meta-label),max-content) minmax(0,1fr);gap:var(--qddns-space-2);min-width:0;text-align:left}",
 ]:
     if css not in rules:
         raise SystemExit(f'rule wizard layout must keep fields/cards aligned: missing {css}')
+if "ui.showModal(_('Guided DDNS rule setup'), [modal], 'qddns-rule-wizard-dialog')" not in modal:
+    raise SystemExit('rule wizard modal title must use the qddns dialog class for left-aligned layout')
 if "E('div', { class: 'qddns-actions qddns-rule-wizard-footer-actions' }" not in modal:
     raise SystemExit('rule wizard modal footer actions must be scoped separately from source actions')
 for required in [
@@ -305,8 +314,14 @@ if save_block.index('qddns.probeSourceDraft(sourceData)') > save_block.index("uc
     raise SystemExit('new source wizard must not stage the source until draft probing succeeds')
 if 'function restoreNewSourceProbe()' not in modal:
     raise SystemExit('rule wizard must restore a clean draft-probed source without using the saved-source probe path')
-if 'sourceCreate.address = result.address' not in save_block or 'sourceCreate.family = result.family' not in save_block:
+if 'sourceCreate.address = result.address' not in save_block or 'sourceCreate.family = probedFamily' not in save_block:
     raise SystemExit('rule wizard must cache the successful draft probe result on the staged new source')
+if "result.family || viewRef.inferSourceFamily(result.address" not in save_block:
+    raise SystemExit('rule wizard must infer A/AAAA family from the probed address when backend omits family')
+if save_block.index('const probedFamily = result.family || viewRef.inferSourceFamily') > save_block.index('sourceOptions.forEach(function(option)'):
+    raise SystemExit('new source wizard must persist the probed family before writing UCI source options')
+if 'sourceData.family = probedFamily' not in save_block:
+    raise SystemExit('new source wizard must store the probed family in the staged source configuration')
 clean_start = modal.index('if (sourceCreate.clean && sourceCreate.id)')
 clean_end = modal.index('} else {', clean_start)
 clean_branch = modal[clean_start:clean_end]
@@ -586,11 +601,11 @@ check_dhcpv6_lease_fill_ui() {
 	grep -nF "getDhcpv6OptionSet" "$VIEW_DIR/settings.js"
 	grep -nF "filterDhcpv6Choices" "$VIEW_DIR/settings.js"
 	grep -nF "qddns-dhcpv6-lease-card" "$VIEW_DIR/settings.js"
-	grep -nF -- "--qddns-dhcpv6-card-min:24rem;" "$VIEW_DIR/settings.js"
-	grep -nF "grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--qddns-dhcpv6-card-min)),1fr))" "$VIEW_DIR/settings.js"
-	grep -nF "overflow-wrap:break-word;word-break:normal" "$VIEW_DIR/settings.js"
+	grep -nF "grid-template-columns:1fr" "$VIEW_DIR/settings.js"
+	grep -nF "overflow-wrap:anywhere;word-break:normal;white-space:pre-wrap;text-align:left" "$VIEW_DIR/settings.js"
 	grep -nF "justify-items:stretch" "$VIEW_DIR/settings.js"
 	grep -nF "width:100%;justify-self:stretch" "$VIEW_DIR/settings.js"
+	! grep -nF -- "--qddns-dhcpv6-card-min" "$VIEW_DIR/settings.js"
 	! grep -nF -- "--qddns-dhcpv6-card-min:10rem;" "$VIEW_DIR/settings.js"
 	! grep -nF "grid-template-columns:repeat(auto-fit,minmax(var(--qddns-dhcpv6-card-min),1fr))" "$VIEW_DIR/settings.js"
 	grep -nF "this.setSourceOptionValue(options.duid, sectionId, lease?.duid || '')" "$VIEW_DIR/settings.js"
@@ -730,6 +745,8 @@ if 'prefix_len' not in source and 'prefix_length' not in source:
     raise SystemExit('source.rs must use parsed IPv6 prefix length')
 if 'interface_prefix_selects_first_matching_candidate_without_prefix_filter' not in source:
     raise SystemExit('source.rs must test automatic selection when multiple candidates match an interface prefix')
+if 'for prefix in interface_public_ipv6_prefixes(source, iface)?' not in source or 'selected interface prefix set' not in source:
+    raise SystemExit('source.rs must merge multi-selected interface prefixes and only fail when all selected interfaces lack public IPv6 prefixes')
 if 'fn command_output_with_timeout' not in source or 'SOURCE_COMMAND_TIMEOUT' not in source:
     raise SystemExit('source.rs must bound source subprocess execution')
 if 'source_command_output_times_out_slow_commands' not in source:

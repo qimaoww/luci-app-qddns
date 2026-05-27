@@ -63,26 +63,27 @@ const QDDNS_SETTINGS_STYLE = [
 		'--qddns-border:rgba(127,127,127,0.24);',
 		'--qddns-surface:rgba(127,127,127,0.08);',
 		'--qddns-surface-strong:rgba(127,127,127,0.14);',
-		'--qddns-dhcpv6-card-min:24rem;',
 	'}',
 	'.qddns-settings-page{margin-bottom:var(--qddns-space-4)}',
 	'.qddns-settings-page .qddns-panel{margin-bottom:var(--qddns-space-4);padding:var(--qddns-space-4);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-md);background:var(--qddns-surface)}',
 	'.qddns-actions{display:flex;flex-wrap:wrap;gap:var(--qddns-space-2);max-width:100%}',
 	'.qddns-actions .cbi-button{margin:0;max-width:100%;white-space:normal}',
 	'.qddns-actions .cbi-button.qddns-busy{opacity:0.7;cursor:progress}',
-	'.qddns-dhcpv6-lease-status{display:grid;gap:var(--qddns-space-2);max-width:100%;min-width:0}',
-	'.qddns-dhcpv6-lease-results{display:grid;gap:var(--qddns-space-2);max-width:100%;min-width:0}',
-	'.qddns-dhcpv6-lease-list{display:grid;justify-items:stretch;gap:var(--qddns-space-2);max-width:100%;min-width:0}',
-	'.qddns-dhcpv6-lease-card{appearance:none;box-sizing:border-box;display:grid;justify-items:stretch;gap:var(--qddns-space-2);width:100%;min-width:0;margin:0;padding:var(--qddns-space-2);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);color:inherit;font:inherit;line-height:1.35;text-align:left;cursor:pointer}',
+	'.qddns-dhcpv6-lease-status{display:grid;gap:var(--qddns-space-2);width:100%;max-width:100%;min-width:0;text-align:left}',
+	'.qddns-dhcpv6-lease-results{display:grid;gap:var(--qddns-space-2);width:100%;max-width:100%;min-width:0;text-align:left}',
+	'.qddns-dhcpv6-lease-list{display:grid;justify-items:stretch;gap:var(--qddns-space-2);width:100%;max-width:100%;min-width:0}',
+	'.qddns-dhcpv6-lease-card{appearance:none;box-sizing:border-box;display:grid;align-items:start;justify-items:stretch;justify-content:stretch;gap:var(--qddns-space-2);width:100%!important;min-width:0;margin:0;padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);color:inherit;font:inherit;line-height:1.35;text-align:left!important;text-transform:none;cursor:pointer}',
 	'.qddns-dhcpv6-lease-card:hover,.qddns-dhcpv6-lease-card:focus,.qddns-dhcpv6-lease-card.is-selected{border-color:currentColor;background:var(--qddns-surface-strong)}',
 	'.qddns-dhcpv6-lease-card-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:var(--qddns-space-2);width:100%;justify-self:stretch;min-width:0;text-align:left}',
 	'.qddns-dhcpv6-lease-title{justify-self:start;min-width:0;font-weight:600;text-align:left;overflow-wrap:anywhere}',
 	'.qddns-dhcpv6-lease-action{justify-self:end;max-width:100%;padding:0.1rem 0.4rem;border-radius:999px;background:var(--qddns-surface-strong);font-size:0.9em;line-height:1.35;opacity:0.85;text-align:center;white-space:nowrap}',
-	'.qddns-dhcpv6-lease-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--qddns-dhcpv6-card-min)),1fr));gap:var(--qddns-space-1) var(--qddns-space-2);width:100%;justify-self:stretch;min-width:0;text-align:left}',
+	'.qddns-dhcpv6-lease-meta{display:grid;grid-template-columns:1fr;gap:var(--qddns-space-1);width:100%;justify-self:stretch;min-width:0;text-align:left}',
 	'.qddns-dhcpv6-lease-meta-item{display:grid;grid-template-columns:minmax(4.75rem,max-content) minmax(0,1fr);gap:var(--qddns-space-1);width:100%;justify-self:stretch;min-width:0;text-align:left;overflow-wrap:break-word;word-break:normal}',
 	'.qddns-dhcpv6-lease-meta-label{min-width:4.75rem;opacity:0.72}',
-	'.qddns-dhcpv6-lease-meta-value{min-width:0;overflow-wrap:break-word;word-break:normal}',
-	'.qddns-source-ip-status{display:inline-block;max-width:100%;overflow-wrap:anywhere}',
+	'.qddns-dhcpv6-lease-meta-value{min-width:0;overflow-wrap:anywhere;word-break:normal;white-space:pre-wrap;text-align:left}',
+	'.qddns-source-ip-probe{display:flex;flex-wrap:wrap;align-items:center;gap:var(--qddns-space-2);max-width:100%;min-width:0}',
+	'.qddns-source-ip-probe .cbi-button{margin:0}',
+	'.qddns-source-ip-status{display:block;max-width:100%;min-width:min(100%,8rem);overflow-wrap:anywhere;text-align:left}',
 	'.qddns-source-ip-status[data-tone="warning"]{opacity:0.78}',
 	'.qddns-source-ip-status[data-tone="negative"]{color:var(--qddns-negative-text,inherit)}',
 	'@media (max-width: 768px){',
@@ -267,7 +268,8 @@ return view.extend({
 	},
 
 	renderSourceIpStatus: function(sectionId, optionSet) {
-		const node = E('span', { class: 'qddns-source-ip-status', 'data-source-ip-status': sectionId }, [_('Loading...')]);
+		const node = E('span', { class: 'qddns-source-ip-status', 'data-source-ip-status': sectionId }, [_('N/A')]);
+		const probeButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' }, [_('Probe')]);
 		const sourceIpProbe = { token: 0 };
 
 		this.bindSourceOptionChange(sectionId, optionSet, L.bind(function() {
@@ -275,8 +277,13 @@ return view.extend({
 			this.setSourceIpStatus(node, _('Save and reload to read updated source IP.'), 'warning');
 		}, this));
 
-		this.updateSourceIpStatus(sectionId, optionSet, node, sourceIpProbe);
-		return node;
+		probeButton.addEventListener('click', L.bind(function() {
+			return qddns.withBusyButton(probeButton, L.bind(function() {
+				return this.updateSourceIpStatus(sectionId, optionSet, node, sourceIpProbe);
+			}, this));
+		}, this));
+
+		return E('span', { class: 'qddns-source-ip-probe' }, [node, probeButton]);
 	},
 
 	updateSourceIpStatus: function(sectionId, optionSet, node, sourceIpProbe) {
@@ -430,7 +437,7 @@ return view.extend({
 					E('span', { class: 'qddns-dhcpv6-lease-action' }, _('Fill from this lease'))
 				]),
 				E('span', { class: 'qddns-dhcpv6-lease-meta' }, identityMeta.concat([
-					this.renderDhcpv6LeaseMeta(_('Prefix'), prefixes.length ? prefixes.join(', ') : '-'),
+					this.renderDhcpv6LeaseMeta(_('Prefix'), prefixes.length ? prefixes.join('\n') : '-'),
 					this.renderDhcpv6LeaseMeta(_('Interface'), lease?.interface || '-')
 				]))
 			]);

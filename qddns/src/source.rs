@@ -389,6 +389,14 @@ fn interfaces_public_ipv6_prefixes(
             }
         }
     }
+    if prefixes.is_empty() {
+        return Err(Error::new(format!(
+            "selected interface prefix set for source '{}' is empty; interfaces {} have no public IPv6 prefix",
+            source.name,
+            format_interface_names(ifaces)
+        )));
+    }
+
     Ok(prefixes)
 }
 
@@ -408,13 +416,6 @@ fn interface_public_ipv6_prefixes(source: &SourceConfig, iface: &str) -> Result<
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let prefixes = parse_interface_public_ipv6_prefixes(&stdout);
-    if prefixes.is_empty() {
-        return Err(Error::new(format!(
-            "interface '{}' for source '{}' has no public IPv6 prefix",
-            iface, source.name
-        )));
-    }
-
     Ok(prefixes)
 }
 
