@@ -554,6 +554,60 @@ msgstr "没有可用来源"
 msgid "Choose the source IP first, then choose the DNS location."
 msgstr "先选择要发布的来源 IP，再选择 DNS 位置。"
 
+msgid "Source setup"
+msgstr "来源设置"
+
+msgid "Create new source"
+msgstr "创建新来源"
+
+msgid "Use saved source"
+msgstr "使用已保存来源"
+
+msgid "Source name"
+msgstr "来源名称"
+
+msgid "Source type"
+msgstr "来源类型"
+
+msgid "Auto"
+msgstr "自动"
+
+msgid "IPv4"
+msgstr "IPv4"
+
+msgid "IPv6"
+msgstr "IPv6"
+
+msgid "Source name is required."
+msgstr "来源名称不能为空。"
+
+msgid "Address is required."
+msgstr "地址不能为空。"
+
+msgid "Interface is required."
+msgstr "接口不能为空。"
+
+msgid "Choose a lease candidate or enter the source values manually."
+msgstr "请选择租约候选项，或手动填写来源值。"
+
+msgid "Save and probe source IP"
+msgstr "保存并探测来源 IP"
+
+msgid "Save and probe source IP before continuing."
+msgstr "继续前请先保存并探测来源 IP。"
+
+msgid "Create or choose a source before continuing."
+msgstr "继续前请先创建或选择来源。"
+
+msgid "Probing source IP..."
+msgstr "正在探测来源 IP..."
+
+msgid "Source IP detected: %s"
+msgstr "已探测到来源 IP：%s"
+
+msgid "Unable to read source IP. Choose another source or fix the source configuration."
+msgstr "无法读取来源 IP。请选择其他来源或修复来源配置。"
+
 msgid "Loading..."
 msgstr "正在读取..."
 

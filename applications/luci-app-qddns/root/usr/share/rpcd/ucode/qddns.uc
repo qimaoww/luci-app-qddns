@@ -2,12 +2,14 @@
 
 'use strict';
 
-import { popen, readfile } from 'fs';
+import { popen, readfile, writefile, unlink } from 'fs';
 import { cursor } from 'uci';
 
 const uci = cursor();
 const qddns_ctl = '/usr/bin/qddnsctl';
 const ip_cmd = '/sbin/ip';
+const draft_probe_config = '/tmp/qddns-luci-source-probe.conf';
+const draft_probe_source_id = 'wizard_probe';
 const dhcpv4_lease_file = '/tmp/dhcp.leases';
 const dhcpv6_lease_file = '/tmp/odhcpd.leases';
 const dhcpv6_lease_max_bytes = 262144;
@@ -66,14 +68,86 @@ function safe_unload() {
 	}
 }
 
-function exec_json(command) {
-	let p = popen(`${qddns_ctl} --config /etc/config/qddns ${command} 2>/dev/null`, 'r');
+function exec_json_with_config(config_path, command) {
+	let p = popen(`${qddns_ctl} --config ${config_path} ${command} 2>/dev/null`, 'r');
 	if (!p)
 		return null;
 
 	let data = p.read('all');
 	p.close();
 	return data ? json(trim(data)) : null;
+}
+
+function exec_json(command) {
+	return exec_json_with_config('/etc/config/qddns', command);
+}
+
+function uci_quote(value) {
+	value = trim(`${value || ''}`);
+
+	if (!value)
+		return null;
+
+	if (match(value, /['\r\n]/) != null)
+		return null;
+
+	return `'${value}'`;
+}
+
+function draft_source_option(name, value) {
+	let quoted = uci_quote(value);
+
+	if (!quoted)
+		return null;
+
+	return `\toption ${name} ${quoted}\n`;
+}
+
+function draft_source_config(req) {
+	let source_type = req.args.type || '';
+	let source_name = req.args.name || 'Wizard source';
+	let lines = [
+		`\nconfig source '${draft_probe_source_id}'\n`
+	];
+
+	if (!is_probe_allowed_source_type(source_type))
+		return null;
+
+	for (let value in [
+		source_name,
+		source_type,
+		req.args.family,
+		req.args.address,
+		req.args.interface,
+		req.args.duid,
+		req.args.iaid,
+		req.args.mac,
+		req.args.lease_file,
+		req.args.hostname_hint,
+		req.args.prefix_filter
+	]) {
+		if (value && uci_quote(value) == null)
+			return null;
+	}
+
+	push(lines, draft_source_option('name', source_name));
+	push(lines, draft_source_option('type', source_type));
+	push(lines, draft_source_option('family', req.args.family));
+	push(lines, draft_source_option('address', req.args.address));
+	push(lines, draft_source_option('interface', req.args.interface));
+	push(lines, draft_source_option('duid', req.args.duid));
+	push(lines, draft_source_option('iaid', req.args.iaid));
+	push(lines, draft_source_option('mac', req.args.mac));
+	push(lines, draft_source_option('lease_file', req.args.lease_file));
+	push(lines, draft_source_option('hostname_hint', req.args.hostname_hint));
+	push(lines, draft_source_option('prefix_filter', req.args.prefix_filter));
+
+	let config = '';
+	for (let line in lines)
+		if (line)
+			config += line;
+
+	return config;
 }
 
 function source_family(section) {
@@ -458,6 +532,53 @@ const methods = {
 			let data = exec_json(`sources probe ${id}`);
 			safe_unload();
 			return data || { ok: false, error: 'probe failed' };
+		}
+	},
+
+	probe_source_draft: {
+		args: {
+			name: 'name',
+			type: 'type',
+			family: 'family',
+			address: 'address',
+			interface: 'interface',
+			duid: 'duid',
+			iaid: 'iaid',
+			mac: 'mac',
+			lease_file: 'lease_file',
+			hostname_hint: 'hostname_hint',
+			prefix_filter: 'prefix_filter'
+		},
+		call: function(req) {
+			let source_config = draft_source_config(req);
+			if (!source_config)
+				return { ok: false, error: 'invalid draft source' };
+
+			let base_config = '';
+			try {
+				base_config = readfile('/etc/config/qddns') || '';
+			}
+			catch (err) {
+				base_config = '';
+			}
+
+			try {
+				writefile(draft_probe_config, base_config + source_config);
+			}
+			catch (err) {
+				return { ok: false, error: 'unable to create draft source probe' };
+			}
+
+			let data = exec_json_with_config(draft_probe_config, `sources probe ${draft_probe_source_id}`) || { ok: false, error: 'probe failed' };
+
+			try {
+				unlink(draft_probe_config);
+			}
+			catch (err) {
+				return data;
+			}
+
+			return data;
 		}
 	},
 

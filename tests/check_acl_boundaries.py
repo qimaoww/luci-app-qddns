@@ -26,6 +26,7 @@ if sorted(read_ubus) != sorted([
     "get_overview",
     "list_sources",
     "probe_source",
+    "probe_source_draft",
     "list_dhcpv6_leases",
     "list_rules",
     "get_logs",

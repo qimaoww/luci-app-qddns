@@ -8,6 +8,7 @@ const callRules = rpc.declare({ object: 'qddns', method: 'list_rules', expect: {
 const callSources = rpc.declare({ object: 'qddns', method: 'list_sources', expect: { result: [] } });
 const callDhcpv6Leases = rpc.declare({ object: 'qddns', method: 'list_dhcpv6_leases', params: ['mode'], expect: {} });
 const callProbeSource = rpc.declare({ object: 'qddns', method: 'probe_source', params: ['id'], expect: {} });
+const callProbeSourceDraft = rpc.declare({ object: 'qddns', method: 'probe_source_draft', params: ['name', 'type', 'family', 'address', 'interface', 'duid', 'iaid', 'mac', 'lease_file', 'hostname_hint', 'prefix_filter'], expect: {} });
 const callRunRule = rpc.declare({ object: 'qddns', method: 'run_rule', params: ['id'], expect: {} });
 const callTestRule = rpc.declare({ object: 'qddns', method: 'test_rule', params: ['id'], expect: {} });
 const callGetLogs = rpc.declare({ object: 'qddns', method: 'get_logs', params: ['scope'], expect: {} });
@@ -54,6 +55,22 @@ return baseclass.extend({
 	listSources: callSources,
 	listDhcpv6Leases: callDhcpv6Leases,
 	probeSource: callProbeSource,
+	probeSourceDraft: function(source) {
+		source = source || {};
+		return callProbeSourceDraft(
+			source.name || '',
+			source.type || '',
+			source.family || '',
+			source.address || '',
+			source.interfaceName || source.interface || '',
+			source.duid || '',
+			source.iaid || '',
+			source.mac || '',
+			source.leaseFile || source.lease_file || '',
+			source.hostnameHint || source.hostname_hint || '',
+			source.prefixFilter || source.prefix_filter || ''
+		);
+	},
 	runRule: callRunRule,
 	testRule: callTestRule,
 	getLogs: callGetLogs,

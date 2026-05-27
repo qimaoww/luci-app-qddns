@@ -141,13 +141,30 @@ check_rule_wizard() {
 	grep -nF "_('Next')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Back')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Choose the source IP first, then choose the DNS location.')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Source setup')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Create new source')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Use saved source')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Save and probe source IP')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Probing source IP...')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Source IP detected: %s')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Unable to read source IP. Choose another source or fix the source configuration.')" "$VIEW_DIR/rules.js"
 	grep -nF "renderWizardSourceIp" "$VIEW_DIR/rules.js"
 	grep -nF "updateWizardSourceProbe" "$VIEW_DIR/rules.js"
+	grep -nF "saveNewSource" "$VIEW_DIR/rules.js"
+	grep -nF "loadWizardLeases" "$VIEW_DIR/rules.js"
 	grep -nF "data-source-ip-status" "$VIEW_DIR/rules.js"
+	grep -nF "data-source-ip-error" "$VIEW_DIR/rules.js"
+	grep -nF "data-source-create-dirty" "$VIEW_DIR/rules.js"
 	grep -nF "sourceProbe.token++" "$VIEW_DIR/rules.js"
 	grep -nF "if (token !== sourceProbe.token)" "$VIEW_DIR/rules.js"
 	grep -nF "isProbeableSourceType" "$VIEW_DIR/rules.js"
 	grep -nF "sourceProbe.loading" "$VIEW_DIR/rules.js"
+	grep -nF "qddns.listDhcpv6Leases(mode)" "$VIEW_DIR/rules.js"
+	grep -nF "qddns.probeSourceDraft(sourceData)" "$VIEW_DIR/rules.js"
+	grep -nF "sourceVersion !== sourceCreate.version" "$VIEW_DIR/rules.js"
+	grep -nF "uci.add('qddns', 'source', sectionId)" "$VIEW_DIR/rules.js"
+	grep -nF "uci.set('qddns', sectionId, 'type', sourceData.type)" "$VIEW_DIR/rules.js"
+	grep -nF "setSourceOption('interface', sourceData.interfaceName)" "$VIEW_DIR/rules.js"
 	grep -nF "fields.source.addEventListener('change'" "$VIEW_DIR/rules.js"
 	grep -nF "fields.recordType.addEventListener('change'" "$VIEW_DIR/rules.js"
 	grep -nF "_('Source IP')" "$VIEW_DIR/rules.js"
@@ -181,13 +198,22 @@ check_rule_wizard() {
 	grep -nF "return uci.save().then(function()" "$VIEW_DIR/rules.js"
 	grep -nF "window.location.reload()" "$VIEW_DIR/rules.js"
 	grep -nF "select.appendChild(E('option', { value: choice.id }, [choice.name || emptyText]))" "$VIEW_DIR/rules.js"
+	grep -nF "probeSourceDraft: function(source)" "$VIEW_DIR/shared.js"
+	grep -nF "probe_source_draft" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF '"probe_source_draft"' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/acl.d/luci-app-qddns.json"
 	python3 - <<'PYEOF'
 import os
 from pathlib import Path
 rules = Path(os.environ['VIEW_DIR'], 'rules.js').read_text()
+shared = Path(os.environ['VIEW_DIR'], 'shared.js').read_text()
+root = Path(os.environ['VIEW_DIR']).parents[4]
+rpcd = Path(root, 'root/usr/share/rpcd/ucode/qddns.uc').read_text()
 modal_start = rules.index('showRuleWizardModal: function')
 modal_end = rules.index('renderRuleWizard: function')
 modal = rules[modal_start:modal_end]
+save_start = modal.index('function saveNewSource()')
+save_end = modal.index('function updateButtons()', save_start)
+save_block = modal[save_start:save_end]
 if 'syncWizardRecordType: function(control, family)' not in rules:
     raise SystemExit('rule wizard must sync A/AAAA from the selected source address family')
 if "normalized === 'ipv6' ? 'AAAA'" not in rules or "normalized === 'ipv4' ? 'A'" not in rules:
@@ -196,6 +222,51 @@ if 'viewRef.syncWizardRecordType(fields.recordType, source?.family)' not in moda
     raise SystemExit('rule wizard must sync record type immediately from saved source family')
 if 'viewRef.syncWizardRecordType(fields.recordType, sourceProbe.family)' not in modal:
     raise SystemExit('rule wizard must sync record type from probed source IP family')
+if "setWizardProbeFeedback(_('Probing source IP...'), 'loading')" not in modal:
+    raise SystemExit('rule wizard must put source IP probe loading into the guide feedback')
+if "setWizardProbeFeedback(_('Source IP detected: %s').format(result.address), 'ready')" not in modal:
+    raise SystemExit('rule wizard must put detected source IP into the guide feedback')
+if "setWizardProbeFeedback(_('Unable to read source IP. Choose another source or fix the source configuration.'), 'error')" not in modal:
+    raise SystemExit('rule wizard must put source IP probe failures into the guide feedback')
+if "nextButton.disabled = stepIndex === 0 && sourceProbe.loading" not in modal:
+    raise SystemExit('rule wizard must disable Next while source IP probing is loading')
+if "fields.source?.getAttribute('data-source-ip-error') === '1'" not in rules:
+    raise SystemExit('rule wizard must block the source step after a failed source IP probe')
+for required in [
+    "sourceMode: E('select'",
+    "E('option', { value: 'new' }, [_('Create new source')])",
+    "E('option', { value: 'saved' }, [_('Use saved source')])",
+    "function saveNewSource()",
+    "function loadWizardLeases()",
+    "qddns.listDhcpv6Leases(mode)",
+    "qddns.probeSourceDraft(sourceData)",
+    "sourceVersion !== sourceCreate.version",
+    "uci.add('qddns', 'source', sectionId)",
+    "uci.set('qddns', sectionId, 'type', sourceData.type)",
+]:
+    if required not in modal:
+        raise SystemExit(f'rule wizard must support full source creation flow: missing {required}')
+if "fields.source?.getAttribute('data-source-create-dirty') === '1'" not in rules:
+    raise SystemExit('rule wizard must block Next when a newly created source has unsaved changes')
+if 'uci.save()' in save_block:
+    raise SystemExit('new source wizard must probe a draft source before staging it, not uci.save before probing')
+if save_block.index('qddns.probeSourceDraft(sourceData)') > save_block.index("uci.add('qddns', 'source', sectionId)"):
+    raise SystemExit('new source wizard must not stage the source until draft probing succeeds')
+if 'function restoreNewSourceProbe()' not in modal:
+    raise SystemExit('rule wizard must restore a clean draft-probed source without using the saved-source probe path')
+if 'sourceCreate.address = result.address' not in save_block or 'sourceCreate.family = result.family' not in save_block:
+    raise SystemExit('rule wizard must cache the successful draft probe result on the staged new source')
+clean_start = modal.index('if (sourceCreate.clean && sourceCreate.id)')
+clean_end = modal.index('} else {', clean_start)
+clean_branch = modal[clean_start:clean_end]
+if 'updateWizardSourceProbe()' in clean_branch:
+    raise SystemExit('rule wizard must not call saved-source probe for a clean staged source that is not saved yet')
+if 'restoreNewSourceProbe()' not in clean_branch:
+    raise SystemExit('rule wizard must restore cached draft probe state when returning to a clean staged source')
+if "method: 'probe_source_draft'" not in shared:
+    raise SystemExit('shared RPC must expose draft source probing')
+if 'writefile(draft_probe_config' not in rpcd or "sources probe ${draft_probe_source_id}" not in rpcd:
+    raise SystemExit('rpcd must probe draft source through a temporary qddns config')
 for field in ["this.renderWizardField(_('Record type')", "this.renderWizardField(_('Provider')", "this.renderWizardField(_('Source')", "this.renderWizardField(_('Zone')", "this.renderWizardField(_('Record name')"]:
     if modal.count(field) != 1:
         raise SystemExit(f'{field} must appear exactly once as a field in the modal wizard')
@@ -437,7 +508,7 @@ PYEOF
 }
 
 check_dhcpv6_lease_fill_backend() {
-	grep -nF "import { popen, readfile } from 'fs';" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "import { popen, readfile, writefile, unlink } from 'fs';" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	! grep -nF "import { connect } from 'ubus';" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "function source_family(section)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "family: source_family(section)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
@@ -588,7 +659,25 @@ check_name_visible_numeric_hidden_po() {
 		'No providers available' \
 		'No sources available' \
 		'Choose the source IP first, then choose the DNS location.' \
+		'Source setup' \
+		'Create new source' \
+		'Use saved source' \
+		'Source name' \
+		'Source type' \
+		'Auto' \
+		'IPv4' \
+		'IPv6' \
+		'Source name is required.' \
+		'Address is required.' \
+		'Interface is required.' \
+		'Choose a lease candidate or enter the source values manually.' \
+		'Save and probe source IP' \
+		'Save and probe source IP before continuing.' \
+		'Create or choose a source before continuing.' \
 		'Source IP' \
+		'Probing source IP...' \
+		'Source IP detected: %s' \
+		'Unable to read source IP. Choose another source or fix the source configuration.' \
 		'Loading...' \
 		'Source IP is still loading.' \
 		'Unable to read source IP.' \
@@ -765,12 +854,12 @@ run_step 'LuCI list_sources shared RPC guard' grep -nF "const callSources = rpc.
 run_step 'LuCI list_sources settings consumer guard' grep -nF "return qddns.normalizeCatalogState(data[0], data[1]);" "$VIEW_DIR/settings.js"
 run_step 'LuCI list_sources rules consumer guard' grep -nF "return qddns.normalizeCatalogState(data[0], data[1]);" "$VIEW_DIR/rules.js"
 run_step 'ucode secret guard' sh -c "! grep -nE 'api_token: section\.api_token|secret_id: section\.secret_id|secret_key: section\.secret_key|access_key_id: section\.access_key_id|access_key_secret: section\.access_key_secret|headers_json: section\.headers_json|body_template: section\.body_template' '$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc'"
-run_step 'ucode fixed config bridge guard' grep -n 'popen(`${qddns_ctl} --config /etc/config/qddns ${command} 2>/dev/null`, '\''r'\'')' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+run_step 'ucode fixed config bridge guard' grep -n "return exec_json_with_config('/etc/config/qddns', command);" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 run_step 'ucode no shell quote guard' sh -c "! grep -n 'function shell_quote' '$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc'"
 run_step 'ucode probe type guard' grep -n 'is_probe_allowed_source_type' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 run_step 'ucode probe command/script/public probe deny guard' sh -c "! grep -nE \"source_type == 'command'|source_type == 'script'|source_type == 'public_probe'\" '$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc'"
 run_step 'ucode log bridge guard' grep -n 'exec_json(`logs' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-run_step 'ucode no log path read guard' sh -c "! grep -nE 'log_dir|readlink\(|stat\(|unlink\(|mkdir\(' '$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc'"
+run_step 'ucode no log path read guard' sh -c "! grep -nE 'log_dir|readlink\(|stat\(|mkdir\(' '$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc'"
 run_step 'acl qddnsctl exec guard' grep -n '"/usr/bin/qddnsctl": \[ "exec" \]' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/acl.d/luci-app-qddns.json"
 run_step 'acl no direct log file guard' check_acl_no_direct_log_file
 run_step 'acl boundary script guard' python3 "$ROOT_DIR/tests/check_acl_boundaries.py"

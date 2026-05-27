@@ -64,6 +64,19 @@ const QDDNS_STYLE = [
 	'.qddns-rule-wizard-field{display:flex;flex-direction:column;gap:var(--qddns-space-1)}',
 	'.qddns-rule-wizard-field label{font-weight:600}',
 	'.qddns-rule-wizard-field .cbi-input-text,.qddns-rule-wizard-field .cbi-input-select{width:100%;max-width:100%}',
+	'.qddns-rule-wizard-source-panel{display:grid;gap:var(--qddns-space-3)}',
+	'.qddns-rule-wizard-source-actions{align-items:center}',
+	'.qddns-rule-wizard-lease-results{display:grid;gap:var(--qddns-space-2);min-width:0}',
+	'.qddns-rule-wizard-lease-list{display:grid;gap:var(--qddns-space-2);min-width:0}',
+	'.qddns-rule-wizard-lease-card{appearance:none;box-sizing:border-box;display:grid;justify-items:stretch;gap:var(--qddns-space-2);width:100%;min-width:0;margin:0;padding:var(--qddns-space-2);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);color:inherit;font:inherit;line-height:1.35;text-align:left;cursor:pointer}',
+	'.qddns-rule-wizard-lease-card:hover,.qddns-rule-wizard-lease-card:focus,.qddns-rule-wizard-lease-card.is-selected{border-color:currentColor;background:var(--qddns-surface-strong)}',
+	'.qddns-rule-wizard-lease-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:var(--qddns-space-2);min-width:0;text-align:left}',
+	'.qddns-rule-wizard-lease-title{min-width:0;font-weight:600;text-align:left;overflow-wrap:anywhere}',
+	'.qddns-rule-wizard-lease-action{justify-self:end;max-width:100%;padding:0.1rem 0.4rem;border-radius:999px;background:var(--qddns-surface-strong);font-size:0.9em;line-height:1.35;opacity:0.85;text-align:center;white-space:nowrap}',
+	'.qddns-rule-wizard-lease-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr));gap:var(--qddns-space-1) var(--qddns-space-2);min-width:0;text-align:left}',
+	'.qddns-rule-wizard-lease-meta-item{display:grid;grid-template-columns:minmax(4.75rem,max-content) minmax(0,1fr);gap:var(--qddns-space-1);min-width:0;overflow-wrap:break-word;word-break:normal}',
+	'.qddns-rule-wizard-lease-meta-label{min-width:4.75rem;opacity:0.72}',
+	'.qddns-rule-wizard-lease-meta-value{min-width:0;overflow-wrap:break-word;word-break:normal}',
 	'.qddns-rule-wizard-switch{display:flex;align-items:center;gap:var(--qddns-space-2);min-height:2.4rem}',
 	'.qddns-rule-wizard-summary{display:grid;gap:var(--qddns-space-2);padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface-strong)}',
 	'.qddns-rule-wizard-summary p{margin:0}',
@@ -215,6 +228,14 @@ return view.extend({
 		return String(option?.textContent || fallback || '').trim();
 	},
 
+	wizardSourceId: function(fields) {
+		return String(fields.source?.getAttribute('data-wizard-source-id') || this.wizardValue(fields.source)).trim();
+	},
+
+	wizardSourceLabel: function(fields) {
+		return String(fields.source?.getAttribute('data-wizard-source-label') || this.wizardSelectedText(fields.source, _('Unnamed source'))).trim();
+	},
+
 	wizardRuleName: function(recordName, zone, recordType) {
 		return '%s.%s %s'.format(recordName, zone, recordType);
 	},
@@ -267,16 +288,26 @@ return view.extend({
 		this.resetWizardFeedback(feedback);
 
 		if (stepIndex === 0) {
-			const source = this.wizardValue(fields.source);
+			const source = this.wizardSourceId(fields);
 			const recordType = this.wizardValue(fields.recordType) || 'A';
 
 			if (!source) {
-				this.setWizardFeedback(feedback, _('Source is required.'));
+				this.setWizardFeedback(feedback, _('Create or choose a source before continuing.'));
+				return false;
+			}
+
+			if (fields.source?.getAttribute('data-source-create-dirty') === '1') {
+				this.setWizardFeedback(feedback, _('Save and probe source IP before continuing.'));
 				return false;
 			}
 
 			if (fields.source?.getAttribute('data-source-ip-loading') === '1') {
 				this.setWizardFeedback(feedback, _('Source IP is still loading.'));
+				return false;
+			}
+
+			if (fields.source?.getAttribute('data-source-ip-error') === '1') {
+				this.setWizardFeedback(feedback, _('Unable to read source IP. Choose another source or fix the source configuration.'));
 				return false;
 			}
 
@@ -297,7 +328,7 @@ return view.extend({
 
 	createRuleFromWizard: function(fields, feedback, button) {
 		const provider = this.wizardValue(fields.provider);
-		const source = this.wizardValue(fields.source);
+		const source = this.wizardSourceId(fields);
 		const zone = this.wizardValue(fields.zone);
 		const recordName = this.wizardValue(fields.recordName);
 		const recordType = this.wizardValue(fields.recordType) || 'A';
@@ -350,6 +381,30 @@ return view.extend({
 		const sources = qddns.sortNamedItems(data?.catalog?.sources || []);
 		const viewRef = this;
 		const fields = {
+			sourceMode: E('select', { class: 'cbi-input-select' }, [
+				E('option', { value: 'new' }, [_('Create new source')]),
+				E('option', { value: 'saved' }, [_('Use saved source')])
+			]),
+			sourceName: E('input', { type: 'text', class: 'cbi-input-text', placeholder: _('Source name') }),
+			sourceType: E('select', { class: 'cbi-input-select' }, [
+				E('option', { value: 'local_addr' }, [_('Local address')]),
+				E('option', { value: 'interface' }, [_('Interface')]),
+				E('option', { value: 'dhcpv6_duid' }, [_('DHCPv6 DUID')]),
+				E('option', { value: 'dhcpv6_mac' }, [_('MAC')])
+			]),
+			sourceFamily: E('select', { class: 'cbi-input-select' }, [
+				E('option', { value: '' }, [_('Auto')]),
+				E('option', { value: 'ipv4' }, [_('IPv4')]),
+				E('option', { value: 'ipv6' }, [_('IPv6')])
+			]),
+			sourceAddress: E('input', { type: 'text', class: 'cbi-input-text', placeholder: '198.51.100.10' }),
+			sourceInterface: E('input', { type: 'text', class: 'cbi-input-text', placeholder: 'wan6' }),
+			sourceDuid: E('input', { type: 'text', class: 'cbi-input-text' }),
+			sourceIaid: E('input', { type: 'text', class: 'cbi-input-text' }),
+			sourceMac: E('input', { type: 'text', class: 'cbi-input-text', placeholder: 'aa:bb:cc:dd:ee:ff' }),
+			sourceLeaseFile: E('input', { type: 'text', class: 'cbi-input-text', value: '/tmp/odhcpd.leases' }),
+			sourceHostnameHint: E('input', { type: 'text', class: 'cbi-input-text' }),
+			sourcePrefixFilter: E('input', { type: 'text', class: 'cbi-input-text', placeholder: '240e:' }),
 			recordType: E('select', { class: 'cbi-input-select' }, [
 				E('option', { value: 'A' }, ['A']),
 				E('option', { value: 'AAAA' }, ['AAAA'])
@@ -362,12 +417,51 @@ return view.extend({
 		};
 		const sourceIpStatus = E('span', { class: 'qddns-rule-wizard-source-ip', 'data-source-ip-status': 'wizard' }, [_('Loading...')]);
 		const sourceProbe = { token: 0, address: '', family: '', detail: '', loading: false };
+		const sourceCreate = { id: '', clean: false, version: 0, address: '', family: '', detail: '' };
 		const feedback = E('div', { class: 'cbi-value-description qddns-rule-wizard-feedback' }, _('Choose the source IP first, then choose the DNS location.'));
+		const sourceLeaseButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' }, [_('Read current DUID')]);
+		const sourceLeaseResults = E('div', { class: 'qddns-rule-wizard-lease-results' });
+		const saveSourceButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' }, [_('Save and probe source IP')]);
 		const saveButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-add' }, [_('Add DDNS rule')]);
 		const previousButton = E('button', { type: 'button', class: 'btn cbi-button' }, [_('Back')]);
 		const nextButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' }, [_('Next')]);
 		const summary = E('div', { class: 'qddns-rule-wizard-summary' });
 		let stepIndex = 0;
+		fields.source.value = '';
+
+		const savedSourcePanel = E('div', { class: 'qddns-rule-wizard-source-panel', 'data-source-panel': 'saved' }, [
+			this.renderWizardField(_('Source'), fields.source)
+		]);
+		const sourceFamilyField = this.renderWizardField(_('Family'), fields.sourceFamily);
+		const sourceAddressField = this.renderWizardField(_('Address'), fields.sourceAddress);
+		const sourceInterfaceField = this.renderWizardField(_('Interface'), fields.sourceInterface);
+		const sourceDuidField = this.renderWizardField(_('DUID'), fields.sourceDuid);
+		const sourceIaidField = this.renderWizardField(_('IAID'), fields.sourceIaid);
+		const sourceMacField = this.renderWizardField(_('MAC'), fields.sourceMac);
+		const sourceLeaseFileField = this.renderWizardField(_('Lease file'), fields.sourceLeaseFile);
+		const sourceHostnameHintField = this.renderWizardField(_('Hostname hint'), fields.sourceHostnameHint);
+		const sourcePrefixFilterField = this.renderWizardField(_('Prefix narrowing'), fields.sourcePrefixFilter, _('Advanced narrowing after interface prefix matching; it cannot replace the interface.'));
+		const sourceLeasePanel = E('div', { class: 'qddns-rule-wizard-source-panel', 'data-source-panel': 'lease' }, [
+			E('div', { class: 'qddns-actions qddns-rule-wizard-source-actions' }, [sourceLeaseButton]),
+			sourceLeaseResults
+		]);
+		const newSourcePanel = E('div', { class: 'qddns-rule-wizard-source-panel', 'data-source-panel': 'new' }, [
+			E('div', { class: 'qddns-rule-wizard-grid' }, [
+				this.renderWizardField(_('Source name'), fields.sourceName),
+				this.renderWizardField(_('Source type'), fields.sourceType),
+				sourceFamilyField,
+				sourceAddressField,
+				sourceInterfaceField,
+				sourceDuidField,
+				sourceIaidField,
+				sourceMacField,
+				sourceLeaseFileField,
+				sourceHostnameHintField,
+				sourcePrefixFilterField
+			]),
+			sourceLeasePanel,
+			E('div', { class: 'qddns-actions qddns-rule-wizard-source-actions' }, [saveSourceButton])
+		]);
 		const modal = E('div', { class: 'qddns-rule-wizard-modal' }, [
 			E('div', { class: 'qddns-rule-wizard-steps' }, [
 				E('span', { 'data-wizard-step': '0', class: 'qddns-rule-wizard-step is-active' }, _('1. Source')),
@@ -377,9 +471,13 @@ return view.extend({
 			E('div', { 'data-wizard-panel': '0' }, [
 				E('h4', {}, _('Choose Source IP')),
 				E('div', { class: 'qddns-rule-wizard-grid' }, [
-					this.renderWizardField(_('Source'), fields.source),
-					this.renderWizardField(_('Record type'), fields.recordType),
+					this.renderWizardField(_('Source setup'), fields.sourceMode),
 					this.renderWizardSourceIp(sourceIpStatus)
+				]),
+				savedSourcePanel,
+				newSourcePanel,
+				E('div', { class: 'qddns-rule-wizard-grid' }, [
+					this.renderWizardField(_('Record type'), fields.recordType)
 				])
 			]),
 			E('div', { 'data-wizard-panel': '1', style: 'display:none' }, [
@@ -407,17 +505,148 @@ return view.extend({
 			sourceIpStatus.setAttribute('data-tone', tone || 'neutral');
 		}
 
+		function setWizardProbeFeedback(message, tone) {
+			feedback.textContent = message || _('Choose the source IP first, then choose the DNS location.');
+			feedback.classList.toggle('alert-message', tone === 'loading' || tone === 'error' || tone === 'warning');
+			feedback.classList.toggle('warning', tone === 'loading' || tone === 'error' || tone === 'warning');
+			feedback.setAttribute('data-source-ip-guide', tone || 'idle');
+		}
+
+		function currentSourceMode() {
+			return fields.sourceMode.value || 'new';
+		}
+
+		function isDhcpv6SourceType(sourceType) {
+			return sourceType === 'dhcpv6_duid' || sourceType === 'dhcpv6_mac';
+		}
+
+		function effectiveSourceId() {
+			return String(fields.source.getAttribute('data-wizard-source-id') || viewRef.wizardValue(fields.source) || '').trim();
+		}
+
+		function setEffectiveSource(sourceId, label) {
+			fields.source.setAttribute('data-wizard-source-id', sourceId || '');
+			fields.source.setAttribute('data-wizard-source-label', label || '');
+			if (sourceId && fields.source.value !== sourceId)
+				fields.source.value = sourceId;
+		}
+
+		function resetSourceProbe(message, tone) {
+			sourceProbe.token++;
+			sourceProbe.address = '';
+			sourceProbe.family = '';
+			sourceProbe.detail = '';
+			sourceProbe.loading = false;
+			fields.source.removeAttribute('data-probed-family');
+			fields.source.removeAttribute('data-source-ip-loading');
+			fields.source.removeAttribute('data-source-ip-error');
+			setWizardSourceIp(_('N/A'), 'neutral');
+			setWizardProbeFeedback(message || _('Choose the source IP first, then choose the DNS location.'), tone || 'idle');
+			updateButtons();
+			if (stepIndex === 2)
+				updateWizardSummary();
+		}
+
+		function markNewSourceDirty(message) {
+			sourceCreate.clean = false;
+			sourceCreate.version++;
+			sourceCreate.address = '';
+			sourceCreate.family = '';
+			sourceCreate.detail = '';
+			fields.source.setAttribute('data-source-create-dirty', '1');
+			setEffectiveSource('', viewRef.wizardValue(fields.sourceName) || _('Unnamed source'));
+			resetSourceProbe(message || _('Save and probe source IP before continuing.'), 'warning');
+		}
+
+		function resetLeaseResults() {
+			const isDuidSource = fields.sourceType.value === 'dhcpv6_duid';
+
+			sourceLeaseButton.replaceChildren(isDuidSource ? _('Read current DUID') : _('Read current MAC'));
+			sourceLeaseResults.replaceChildren(E('div', { class: 'cbi-value-description' }, isDuidSource ? _('Read current DHCPv6 lease candidates, then choose one to fill the DUID source fields.') : _('Read current LAN host candidates, then choose one to fill the MAC source fields.')));
+		}
+
+		function updateNewSourceFields(skipDirty) {
+			const sourceType = fields.sourceType.value;
+			const isDuidSource = sourceType === 'dhcpv6_duid';
+			const isMacSource = sourceType === 'dhcpv6_mac';
+			const isDhcpv6Source = isDuidSource || isMacSource;
+
+			sourceFamilyField.style.display = isDhcpv6Source ? 'none' : '';
+			sourceAddressField.style.display = sourceType === 'local_addr' ? '' : 'none';
+			sourceInterfaceField.style.display = sourceType === 'interface' || isDhcpv6Source ? '' : 'none';
+			sourceDuidField.style.display = isDuidSource ? '' : 'none';
+			sourceIaidField.style.display = isDuidSource ? '' : 'none';
+			sourceMacField.style.display = isMacSource ? '' : 'none';
+			sourceLeaseFileField.style.display = isDhcpv6Source ? '' : 'none';
+			sourceHostnameHintField.style.display = isDhcpv6Source ? '' : 'none';
+			sourcePrefixFilterField.style.display = isDhcpv6Source ? '' : 'none';
+			sourceLeasePanel.style.display = isDhcpv6Source ? '' : 'none';
+			if (isDhcpv6Source)
+				fields.sourceFamily.value = 'ipv6';
+			resetLeaseResults();
+			if (!skipDirty)
+				markNewSourceDirty();
+		}
+
+		function restoreNewSourceProbe() {
+			sourceProbe.token++;
+			sourceProbe.address = sourceCreate.address || '';
+			sourceProbe.family = sourceCreate.family || '';
+			sourceProbe.detail = sourceCreate.detail || '';
+			sourceProbe.loading = false;
+			fields.source.removeAttribute('data-source-create-dirty');
+			fields.source.removeAttribute('data-source-ip-loading');
+			fields.source.removeAttribute('data-source-ip-error');
+			if (sourceProbe.family)
+				fields.source.setAttribute('data-probed-family', sourceProbe.family);
+			else
+				fields.source.removeAttribute('data-probed-family');
+			viewRef.syncWizardRecordType(fields.recordType, sourceProbe.family);
+			if (sourceProbe.address) {
+				setWizardSourceIp(sourceProbe.address, 'neutral');
+				setWizardProbeFeedback(_('Source IP detected: %s').format(sourceProbe.address), 'ready');
+			} else {
+				setWizardSourceIp(_('N/A'), 'neutral');
+				setWizardProbeFeedback(_('Save and probe source IP before continuing.'), 'warning');
+			}
+			if (stepIndex === 2)
+				updateWizardSummary();
+		}
+
+		function updateSourceMode() {
+			const useNewSource = currentSourceMode() === 'new';
+
+			savedSourcePanel.style.display = useNewSource ? 'none' : '';
+			newSourcePanel.style.display = useNewSource ? '' : 'none';
+			saveSourceButton.style.display = useNewSource && stepIndex === 0 ? '' : 'none';
+			if (useNewSource) {
+				fields.source.value = sourceCreate.id || '';
+				if (sourceCreate.clean && sourceCreate.id) {
+					fields.source.removeAttribute('data-source-create-dirty');
+					setEffectiveSource(sourceCreate.id, viewRef.wizardValue(fields.sourceName) || _('Unnamed source'));
+					restoreNewSourceProbe();
+				} else {
+					markNewSourceDirty();
+				}
+			} else {
+				fields.source.removeAttribute('data-source-create-dirty');
+				setEffectiveSource(viewRef.wizardValue(fields.source), viewRef.wizardSelectedText(fields.source, _('Unnamed source')));
+				updateWizardSourceProbe();
+			}
+			updateButtons();
+		}
+
 		function updateWizardSummary() {
 			summary.replaceChildren(
 				E('p', {}, '%s: %s.%s (%s)'.format(_('Record'), viewRef.wizardValue(fields.recordName) || '-', viewRef.wizardValue(fields.zone) || '-', viewRef.wizardValue(fields.recordType) || 'A')),
-				E('p', {}, '%s: %s'.format(_('Source'), viewRef.wizardSelectedText(fields.source, _('Unnamed source')))),
+				E('p', {}, '%s: %s'.format(_('Source'), viewRef.wizardSourceLabel(fields))),
 				E('p', {}, '%s: %s'.format(_('Source IP'), sourceProbe.address || sourceIpStatus.textContent || _('N/A'))),
 				E('p', {}, '%s: %s'.format(_('Provider'), viewRef.wizardSelectedText(fields.provider, _('Unnamed provider'))))
 			);
 		}
 
 		function updateWizardSourceProbe() {
-			const sourceId = viewRef.wizardValue(fields.source);
+			const sourceId = effectiveSourceId();
 			sourceProbe.token++;
 			const token = sourceProbe.token;
 			sourceProbe.address = '';
@@ -426,9 +655,12 @@ return view.extend({
 			sourceProbe.loading = false;
 			fields.source.removeAttribute('data-probed-family');
 			fields.source.removeAttribute('data-source-ip-loading');
+			fields.source.removeAttribute('data-source-ip-error');
 
 			if (!sourceId) {
 				setWizardSourceIp(_('N/A'), 'neutral');
+				setWizardProbeFeedback(currentSourceMode() === 'new' ? _('Save and probe source IP before continuing.') : _('Choose the source IP first, then choose the DNS location.'), currentSourceMode() === 'new' ? 'warning' : 'idle');
+				updateButtons();
 				if (stepIndex === 2)
 					updateWizardSummary();
 				return Promise.resolve();
@@ -437,7 +669,10 @@ return view.extend({
 			const source = viewRef.findById(sources, sourceId);
 			viewRef.syncWizardRecordType(fields.recordType, source?.family);
 			if (!viewRef.isProbeableSourceType(source?.type)) {
-				setWizardSourceIp(_('N/A'), 'neutral');
+				fields.source.setAttribute('data-source-ip-error', '1');
+				setWizardSourceIp(_('Unable to read source IP.'), 'negative');
+				setWizardProbeFeedback(_('Unable to read source IP. Choose another source or fix the source configuration.'), 'error');
+				updateButtons();
 				if (stepIndex === 2)
 					updateWizardSummary();
 				return Promise.resolve();
@@ -446,6 +681,8 @@ return view.extend({
 			sourceProbe.loading = true;
 			fields.source.setAttribute('data-source-ip-loading', '1');
 			setWizardSourceIp(_('Loading...'), 'neutral');
+			setWizardProbeFeedback(_('Probing source IP...'), 'loading');
+			updateButtons();
 			if (stepIndex === 2)
 				updateWizardSummary();
 
@@ -456,7 +693,10 @@ return view.extend({
 				sourceProbe.loading = false;
 				fields.source.removeAttribute('data-source-ip-loading');
 				if (qddns.isFailedResult(result) || !result.address) {
+					fields.source.setAttribute('data-source-ip-error', '1');
 					setWizardSourceIp(_('Unable to read source IP.'), 'negative');
+					setWizardProbeFeedback(_('Unable to read source IP. Choose another source or fix the source configuration.'), 'error');
+					updateButtons();
 					if (stepIndex === 2)
 						updateWizardSummary();
 					return result;
@@ -466,8 +706,11 @@ return view.extend({
 				sourceProbe.family = result.family || '';
 				sourceProbe.detail = result.detail || '';
 				fields.source.setAttribute('data-probed-family', sourceProbe.family);
+				fields.source.removeAttribute('data-source-create-dirty');
 				viewRef.syncWizardRecordType(fields.recordType, sourceProbe.family);
 				setWizardSourceIp(result.address, 'neutral');
+				setWizardProbeFeedback(_('Source IP detected: %s').format(result.address), 'ready');
+				updateButtons();
 				if (stepIndex === 2)
 					updateWizardSummary();
 				return result;
@@ -481,9 +724,280 @@ return view.extend({
 				sourceProbe.loading = false;
 				fields.source.removeAttribute('data-probed-family');
 				fields.source.removeAttribute('data-source-ip-loading');
+				fields.source.setAttribute('data-source-ip-error', '1');
 				setWizardSourceIp(sourceProbe.detail, 'negative');
+				setWizardProbeFeedback(_('Unable to read source IP. Choose another source or fix the source configuration.'), 'error');
+				updateButtons();
 				if (stepIndex === 2)
 					updateWizardSummary();
+			});
+		}
+
+		function renderLeaseMeta(label, value) {
+			return E('span', { class: 'qddns-rule-wizard-lease-meta-item' }, [
+				E('span', { class: 'qddns-rule-wizard-lease-meta-label' }, label + ': '),
+				E('span', { class: 'qddns-rule-wizard-lease-meta-value' }, value || '-')
+			]);
+		}
+
+		function fillWizardLease(lease, feedbackNode) {
+			const isDuidSource = fields.sourceType.value === 'dhcpv6_duid';
+			const ipv4 = qddns.normalizeList(lease?.ipv4);
+
+			fields.sourceFamily.value = 'ipv6';
+			if (!viewRef.wizardValue(fields.sourceName))
+				fields.sourceName.value = lease?.hostname || (isDuidSource ? _('DHCPv6 DUID') : (lease?.mac || _('MAC')));
+			if (isDuidSource) {
+				fields.sourceDuid.value = lease?.duid || '';
+				fields.sourceIaid.value = lease?.iaid || '';
+			} else {
+				fields.sourceMac.value = lease?.mac || '';
+				if (!viewRef.wizardValue(fields.sourceName) && ipv4.length)
+					fields.sourceName.value = ipv4[0];
+			}
+			fields.sourceLeaseFile.value = lease?.lease_file || '/tmp/odhcpd.leases';
+			fields.sourceHostnameHint.value = lease?.hostname || '';
+			fields.sourceInterface.value = lease?.interface || '';
+			fields.sourcePrefixFilter.value = '';
+			if (feedbackNode)
+				feedbackNode.textContent = isDuidSource ? _('Selected DHCPv6 lease values have been filled. Save the source to keep them.') : _('Selected LAN host MAC has been filled. Save the source to keep it.');
+			markNewSourceDirty();
+		}
+
+		function renderLeaseCard(lease, feedbackNode) {
+			const prefixes = qddns.normalizeList(lease?.prefixes);
+			const ipv4 = qddns.normalizeList(lease?.ipv4);
+			const isDuidSource = fields.sourceType.value === 'dhcpv6_duid';
+			const identityMeta = isDuidSource ? [
+				renderLeaseMeta(_('DUID'), lease?.duid || '-'),
+				renderLeaseMeta(_('IAID'), lease?.iaid || '-')
+			] : [
+				renderLeaseMeta(_('MAC'), lease?.mac || '-'),
+				renderLeaseMeta(_('LAN IP'), ipv4.length ? ipv4.join(', ') : '-')
+			];
+			const card = E('button', {
+				type: 'button',
+				class: 'qddns-rule-wizard-lease-card',
+				'aria-pressed': 'false',
+				title: _('Fill from this lease')
+			}, [
+				E('span', { class: 'qddns-rule-wizard-lease-head' }, [
+					E('span', { class: 'qddns-rule-wizard-lease-title' }, lease?.hostname || _('Unnamed host')),
+					E('span', { class: 'qddns-rule-wizard-lease-action' }, _('Fill from this lease'))
+				]),
+				E('span', { class: 'qddns-rule-wizard-lease-meta' }, identityMeta.concat([
+					renderLeaseMeta(_('Prefix'), prefixes.length ? prefixes.join(', ') : '-'),
+					renderLeaseMeta(_('Interface'), lease?.interface || '-')
+				]))
+			]);
+
+			card.addEventListener('click', function() {
+				const selected = card.parentNode?.querySelector('.qddns-rule-wizard-lease-card.is-selected');
+				if (selected) {
+					selected.classList.remove('is-selected');
+					selected.setAttribute('aria-pressed', 'false');
+				}
+				card.classList.add('is-selected');
+				card.setAttribute('aria-pressed', 'true');
+				fillWizardLease(lease, feedbackNode);
+			});
+
+			return card;
+		}
+
+		function renderLeaseResults(leases) {
+			const isDuidSource = fields.sourceType.value === 'dhcpv6_duid';
+			const list = qddns.normalizeList(leases).filter(function(lease) {
+				const prefixes = qddns.normalizeList(lease?.prefixes);
+
+				if (!prefixes.length)
+					return false;
+
+				return isDuidSource ? !!(lease?.duid && lease?.iaid) : !!lease?.mac;
+			});
+			const emptyMessage = isDuidSource ? _('No DHCPv6 leases found.') : _('No LAN hosts with public IPv6 found.');
+			const feedbackNode = E('div', { class: 'cbi-value-description' }, list.length ? (isDuidSource ? _('Choose a current DUID to fill DUID, IAID, interface, and hostname hint.') : _('Choose a current MAC to fill MAC, LAN IP identity, interface, and hostname hint.')) : emptyMessage);
+
+			if (!list.length)
+				return E('div', { class: 'qddns-rule-wizard-lease-results' }, [feedbackNode]);
+
+			return E('div', { class: 'qddns-rule-wizard-lease-results' }, [
+				feedbackNode,
+				E('div', { class: 'qddns-rule-wizard-lease-list' }, list.map(function(lease) {
+					return renderLeaseCard(lease, feedbackNode);
+				}))
+			]);
+		}
+
+		function loadWizardLeases() {
+			const mode = fields.sourceType.value === 'dhcpv6_duid' ? 'duid' : 'mac';
+
+			return qddns.withBusyButton(sourceLeaseButton, function() {
+				sourceLeaseResults.replaceChildren(E('div', { class: 'cbi-value-description' }, _('Loading...')));
+				return qddns.listDhcpv6Leases(mode).then(function(result) {
+					if (qddns.isFailedResult(result)) {
+						sourceLeaseResults.replaceChildren(E('div', { class: 'cbi-value-description alert-message warning' }, qddns.extractResultMessage(result, _('Unable to load host candidates.'))));
+						return result;
+					}
+
+					const rendered = renderLeaseResults(result.leases);
+					sourceLeaseResults.replaceChildren.apply(sourceLeaseResults, Array.from(rendered.childNodes));
+					return result;
+				}).catch(function(err) {
+					sourceLeaseResults.replaceChildren(E('div', { class: 'cbi-value-description alert-message warning' }, qddns.extractResultMessage(err, _('Unable to load host candidates.'))));
+				});
+			});
+		}
+
+		function validateNewSource() {
+			const sourceType = fields.sourceType.value;
+			const isDhcpv6Source = isDhcpv6SourceType(sourceType);
+			const sourceName = viewRef.wizardValue(fields.sourceName);
+			const sourceData = {
+				name: sourceName,
+				type: sourceType,
+				family: isDhcpv6Source ? 'ipv6' : viewRef.wizardValue(fields.sourceFamily),
+				address: viewRef.wizardValue(fields.sourceAddress),
+				interfaceName: viewRef.wizardValue(fields.sourceInterface),
+				duid: viewRef.wizardValue(fields.sourceDuid),
+				iaid: viewRef.wizardValue(fields.sourceIaid),
+				mac: viewRef.wizardValue(fields.sourceMac),
+				leaseFile: viewRef.wizardValue(fields.sourceLeaseFile) || '/tmp/odhcpd.leases',
+				hostnameHint: viewRef.wizardValue(fields.sourceHostnameHint),
+				prefixFilter: viewRef.wizardValue(fields.sourcePrefixFilter)
+			};
+
+			if (!sourceData.name)
+				return _('Source name is required.');
+			if (sourceType === 'local_addr' && !sourceData.address)
+				return _('Address is required.');
+			if ((sourceType === 'interface' || isDhcpv6Source) && !sourceData.interfaceName)
+				return _('Interface is required.');
+			if (sourceType === 'dhcpv6_duid' && (!sourceData.duid || !sourceData.iaid))
+				return _('Choose a lease candidate or enter the source values manually.');
+			if (sourceType === 'dhcpv6_mac' && !sourceData.mac)
+				return _('Choose a lease candidate or enter the source values manually.');
+
+			return sourceData;
+		}
+
+		function saveNewSource() {
+			const sourceData = validateNewSource();
+
+			if (typeof sourceData === 'string') {
+				setWizardProbeFeedback(sourceData, 'error');
+				return Promise.resolve();
+			}
+
+			const sourceVersion = sourceCreate.version;
+
+			return qddns.withBusyButton(saveSourceButton, function() {
+				const sectionId = sourceCreate.id || viewRef.nextNumericSectionId();
+				const setSourceOption = function(option, value) {
+					const normalized = String(value || '').trim();
+
+					if (normalized) {
+						uci.set('qddns', sectionId, option, normalized);
+					} else if (sourceCreate.id && typeof uci.unset == 'function') {
+						uci.unset('qddns', sectionId, option);
+					}
+				};
+
+				setWizardProbeFeedback(_('Probing source IP...'), 'loading');
+				sourceProbe.loading = true;
+				fields.source.setAttribute('data-source-ip-loading', '1');
+				setWizardSourceIp(_('Loading...'), 'neutral');
+				updateButtons();
+				return qddns.probeSourceDraft(sourceData).then(function(result) {
+					if (sourceVersion !== sourceCreate.version)
+						return result;
+
+					sourceProbe.loading = false;
+					fields.source.removeAttribute('data-source-ip-loading');
+					if (qddns.isFailedResult(result) || !result.address) {
+						fields.source.setAttribute('data-source-ip-error', '1');
+						setWizardSourceIp(_('Unable to read source IP.'), 'negative');
+						setWizardProbeFeedback(_('Unable to read source IP. Choose another source or fix the source configuration.'), 'error');
+						updateButtons();
+						return result;
+					}
+
+					if (!sourceCreate.id)
+						uci.add('qddns', 'source', sectionId);
+
+					uci.set('qddns', sectionId, 'name', sourceData.name);
+					uci.set('qddns', sectionId, 'type', sourceData.type);
+					setSourceOption('family', sourceData.family);
+					setSourceOption('address', sourceData.address);
+					setSourceOption('interface', sourceData.interfaceName);
+					setSourceOption('duid', sourceData.duid);
+					setSourceOption('iaid', sourceData.iaid);
+					setSourceOption('mac', sourceData.mac);
+					setSourceOption('lease_file', sourceData.leaseFile);
+					setSourceOption('hostname_hint', sourceData.hostnameHint);
+					setSourceOption('prefix_filter', sourceData.prefixFilter);
+
+					const sourceObject = {
+						id: sectionId,
+						type: sourceData.type,
+						name: sourceData.name,
+						family: sourceData.family || null,
+						hint: sourceData.hostnameHint || sourceData.address || sourceData.interfaceName || sourceData.duid || sourceData.iaid || null
+					};
+					const existing = viewRef.findById(sources, sectionId);
+					let option = null;
+
+					if (existing) {
+						Object.assign(existing, sourceObject);
+					} else {
+						sources.push(sourceObject);
+					}
+
+					for (let index = 0; index < fields.source.options.length; index++) {
+						if (fields.source.options[index].value === sectionId) {
+							option = fields.source.options[index];
+							break;
+						}
+					}
+
+					if (!option) {
+						option = E('option', { value: sectionId }, [sourceData.name || _('Unnamed source')]);
+						fields.source.appendChild(option);
+					} else {
+						option.textContent = sourceData.name || _('Unnamed source');
+					}
+
+					sourceCreate.id = sectionId;
+					sourceCreate.clean = true;
+					sourceCreate.address = result.address;
+					sourceCreate.family = result.family || sourceData.family || '';
+					sourceCreate.detail = result.detail || '';
+					sourceProbe.address = result.address;
+					sourceProbe.family = result.family || sourceData.family || '';
+					sourceProbe.detail = result.detail || '';
+					fields.source.removeAttribute('data-source-create-dirty');
+					fields.source.removeAttribute('data-source-ip-error');
+					fields.source.setAttribute('data-probed-family', sourceProbe.family);
+					setEffectiveSource(sectionId, sourceData.name || _('Unnamed source'));
+					viewRef.syncWizardRecordType(fields.recordType, sourceProbe.family);
+					setWizardSourceIp(result.address, 'neutral');
+					setWizardProbeFeedback(_('Source IP detected: %s').format(result.address), 'ready');
+					updateButtons();
+					if (stepIndex === 2)
+						updateWizardSummary();
+					return result;
+				}).catch(function(err) {
+					if (sourceVersion !== sourceCreate.version)
+						return;
+
+					sourceProbe.loading = false;
+					fields.source.removeAttribute('data-source-ip-loading');
+					fields.source.setAttribute('data-source-create-dirty', '1');
+					fields.source.setAttribute('data-source-ip-error', '1');
+					setWizardSourceIp(_('Unable to read source IP.'), 'negative');
+					setWizardProbeFeedback(qddns.extractResultMessage(err, _('Unable to read source IP.')), 'error');
+					updateButtons();
+				});
 			});
 		}
 
@@ -491,6 +1005,14 @@ return view.extend({
 			previousButton.style.display = stepIndex ? '' : 'none';
 			nextButton.style.display = stepIndex < 2 ? '' : 'none';
 			saveButton.style.display = stepIndex === 2 ? '' : 'none';
+			saveSourceButton.style.display = stepIndex === 0 && currentSourceMode() === 'new' ? '' : 'none';
+			nextButton.disabled = stepIndex === 0 && sourceProbe.loading;
+			if (stepIndex === 0 && !effectiveSourceId())
+				nextButton.disabled = true;
+			if (stepIndex === 0 && fields.source?.getAttribute('data-source-create-dirty') === '1')
+				nextButton.disabled = true;
+			if (stepIndex === 0 && fields.source?.getAttribute('data-source-ip-error') === '1')
+				nextButton.disabled = true;
 			if (stepIndex === 2)
 				updateWizardSummary();
 			viewRef.setWizardStep(modal, stepIndex);
@@ -502,8 +1024,11 @@ return view.extend({
 			updateButtons();
 		}, this));
 
+		fields.sourceMode.addEventListener('change', updateSourceMode);
+
 		fields.source.addEventListener('change', L.bind(function() {
 			this.resetWizardFeedback(feedback);
+			setEffectiveSource(viewRef.wizardValue(fields.source), viewRef.wizardSelectedText(fields.source, _('Unnamed source')));
 			updateWizardSourceProbe();
 		}, this));
 
@@ -512,6 +1037,29 @@ return view.extend({
 			if (stepIndex === 2)
 				updateWizardSummary();
 		}, this));
+
+		fields.sourceType.addEventListener('change', function() {
+			updateNewSourceFields();
+		});
+
+		[
+			fields.sourceName,
+			fields.sourceFamily,
+			fields.sourceAddress,
+			fields.sourceInterface,
+			fields.sourceDuid,
+			fields.sourceIaid,
+			fields.sourceMac,
+			fields.sourceLeaseFile,
+			fields.sourceHostnameHint,
+			fields.sourcePrefixFilter
+		].forEach(function(field) {
+			field.addEventListener('input', function() { markNewSourceDirty(); });
+			field.addEventListener('change', function() { markNewSourceDirty(); });
+		});
+
+		sourceLeaseButton.addEventListener('click', loadWizardLeases);
+		saveSourceButton.addEventListener('click', saveNewSource);
 
 		nextButton.addEventListener('click', L.bind(function() {
 			if (!this.validateWizardStep(fields, feedback, stepIndex))
@@ -528,14 +1076,19 @@ return view.extend({
 			return this.createRuleFromWizard(fields, feedback, saveButton);
 		}, this));
 
+		updateNewSourceFields(true);
+		updateSourceMode();
 		updateButtons();
-		updateWizardSourceProbe();
 		ui.showModal(_('Guided DDNS rule setup'), [modal]);
 
 		if (launcher)
 			launcher.blur();
-		if (fields.source && typeof fields.source.focus == 'function')
-			window.setTimeout(function() { fields.source.focus(); }, 0);
+		window.setTimeout(function() {
+			if (currentSourceMode() === 'new' && typeof fields.sourceName.focus == 'function')
+				fields.sourceName.focus();
+			else if (fields.source && typeof fields.source.focus == 'function')
+				fields.source.focus();
+		}, 0);
 	},
 
 	renderRuleWizard: function(data) {
