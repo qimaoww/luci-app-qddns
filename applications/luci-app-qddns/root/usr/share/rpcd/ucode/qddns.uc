@@ -69,13 +69,30 @@ function safe_unload() {
 }
 
 function exec_json_with_config(config_path, command) {
-	let p = popen(`${qddns_ctl} --config ${config_path} ${command} 2>/dev/null`, 'r');
+	let p = popen(`${qddns_ctl} --config ${config_path} ${command} 2>&1`, 'r');
 	if (!p)
 		return null;
 
 	let data = p.read('all');
 	p.close();
-	return data ? json(trim(data)) : null;
+	let output = trim(data || '');
+
+	if (output) {
+		let parsed = null;
+		try {
+			parsed = json(output);
+		}
+		catch (err) {
+			parsed = null;
+		}
+
+		if (parsed)
+			return parsed;
+
+		return { ok: false, error: output || 'command failed' };
+	}
+
+	return null;
 }
 
 function exec_json(command) {
@@ -554,16 +571,8 @@ const methods = {
 			if (!source_config)
 				return { ok: false, error: 'invalid draft source' };
 
-			let base_config = '';
 			try {
-				base_config = readfile('/etc/config/qddns') || '';
-			}
-			catch (err) {
-				base_config = '';
-			}
-
-			try {
-				writefile(draft_probe_config, base_config + source_config);
+				writefile(draft_probe_config, source_config);
 			}
 			catch (err) {
 				return { ok: false, error: 'unable to create draft source probe' };

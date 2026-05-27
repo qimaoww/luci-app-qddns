@@ -35,6 +35,7 @@ check_package_metadata() {
 	grep -nF 'LAN IPv4' "$ROOT_DIR/README.md"
 	grep -nF 'IPv4/IPv6 neighbor tables' "$ROOT_DIR/README.md"
 	grep -nF 'does not show, request, or return DUID/IAID' "$ROOT_DIR/README.md"
+	! grep -nF 'LuCI host hints' "$ROOT_DIR/README.md"
 }
 
 check_view_syntax() {
@@ -171,7 +172,7 @@ check_rule_wizard() {
 	grep -nF "_('Loading...')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Source IP is still loading.')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Unable to read source IP.')" "$VIEW_DIR/rules.js"
-	grep -nF "E('p', {}, '%s: %s'.format(_('Source IP')" "$VIEW_DIR/rules.js"
+	grep -nF "renderSummaryRow(_('Source IP')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Enable after creation')" "$VIEW_DIR/rules.js"
 	grep -nF "this.renderRuleWizard(this.pageData)" "$VIEW_DIR/rules.js"
 	grep -nF "this.useRuleEditorLabels(s)" "$VIEW_DIR/rules.js"
@@ -228,10 +229,31 @@ if "setWizardProbeFeedback(_('Source IP detected: %s').format(result.address), '
     raise SystemExit('rule wizard must put detected source IP into the guide feedback')
 if "setWizardProbeFeedback(_('Unable to read source IP. Choose another source or fix the source configuration.'), 'error')" not in modal:
     raise SystemExit('rule wizard must put source IP probe failures into the guide feedback')
+if "setWizardProbeFeedback(sourceProbe.detail, 'error')" not in modal:
+    raise SystemExit('rule wizard must show saved source XHR/probe errors in the guide feedback')
+if "const message = qddns.extractResultMessage(result, _('Unable to read source IP.'))" not in save_block or "setWizardProbeFeedback(message, 'error')" not in save_block:
+    raise SystemExit('rule wizard must show backend draft probe errors instead of replacing them with a generic message')
 if "nextButton.disabled = stepIndex === 0 && sourceProbe.loading" not in modal:
     raise SystemExit('rule wizard must disable Next while source IP probing is loading')
 if "fields.source?.getAttribute('data-source-ip-error') === '1'" not in rules:
     raise SystemExit('rule wizard must block the source step after a failed source IP probe')
+for css in [
+    "--qddns-rule-wizard-width:min(56rem,92vw);",
+    "--qddns-rule-wizard-field-min:16rem;",
+    "--qddns-rule-wizard-meta-label:5.5rem;",
+    ".qddns-rule-wizard-modal{box-sizing:border-box;display:grid;align-items:stretch;gap:var(--qddns-space-4);width:var(--qddns-rule-wizard-width);max-width:92vw;min-width:min(32rem,92vw);text-align:left}",
+    ".qddns-rule-wizard-grid{display:grid;align-items:start;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--qddns-rule-wizard-field-min)),1fr));gap:var(--qddns-space-3);width:100%;min-width:0}",
+    ".qddns-rule-wizard-field{display:flex;flex-direction:column;gap:var(--qddns-space-1);min-width:0;text-align:left}",
+    ".qddns-rule-wizard-field label{font-weight:600;line-height:1.35;text-align:left}",
+    ".qddns-rule-wizard-source-panel{display:grid;justify-items:stretch;gap:var(--qddns-space-3);width:100%;min-width:0;text-align:left}",
+    ".qddns-rule-wizard-source-actions{align-items:center;justify-content:flex-start}",
+    ".qddns-rule-wizard-footer-actions{justify-content:flex-end}",
+    ".qddns-rule-wizard-summary-row{display:grid;grid-template-columns:minmax(var(--qddns-rule-wizard-meta-label),max-content) minmax(0,1fr);gap:var(--qddns-space-2);min-width:0;text-align:left}",
+]:
+    if css not in rules:
+        raise SystemExit(f'rule wizard layout must keep fields/cards aligned: missing {css}')
+if "E('div', { class: 'qddns-actions qddns-rule-wizard-footer-actions' }" not in modal:
+    raise SystemExit('rule wizard modal footer actions must be scoped separately from source actions')
 for required in [
     "sourceMode: E('select'",
     "E('option', { value: 'new' }, [_('Create new source')])",
@@ -267,6 +289,10 @@ if "method: 'probe_source_draft'" not in shared:
     raise SystemExit('shared RPC must expose draft source probing')
 if 'writefile(draft_probe_config' not in rpcd or "sources probe ${draft_probe_source_id}" not in rpcd:
     raise SystemExit('rpcd must probe draft source through a temporary qddns config')
+if "readfile('/etc/config/qddns')" in rpcd or 'writefile(draft_probe_config, source_config)' not in rpcd:
+    raise SystemExit('rpcd draft probe must not copy provider secrets into the temporary qddns config')
+if '2>&1' not in rpcd or "return { ok: false, error: output || 'command failed' }" not in rpcd:
+    raise SystemExit('rpcd must preserve qddnsctl probe error text for LuCI instead of dropping stderr')
 for field in ["this.renderWizardField(_('Record type')", "this.renderWizardField(_('Provider')", "this.renderWizardField(_('Source')", "this.renderWizardField(_('Zone')", "this.renderWizardField(_('Record name')"]:
     if modal.count(field) != 1:
         raise SystemExit(f'{field} must appear exactly once as a field in the modal wizard')
@@ -285,6 +311,27 @@ PYEOF
 	! grep -nF "choice.id +" "$VIEW_DIR/rules.js"
 	! grep -nF "provider.id +" "$VIEW_DIR/rules.js"
 	! grep -nF "source.id +" "$VIEW_DIR/rules.js"
+}
+
+check_source_probe_no_luci_rpc_recursion() {
+	! grep -nF '"luci-rpc", "getHostHints"' "$ROOT_DIR/qddns/src/source.rs"
+	! grep -nF "collect_host_hint_ipv6_candidates(&normalized_mac, &mut matches);" "$ROOT_DIR/qddns/src/source.rs"
+	! grep -nF "ubus call luci-rpc getHostHints" "$ROOT_DIR/qddns/src/source.rs"
+}
+
+check_source_only_draft_probe() {
+	{
+		printf "config source 'wizard_probe'\n"
+		printf "\toption name 'Wizard source'\n"
+		printf "\toption type 'local_addr'\n"
+		printf "\toption family 'ipv4'\n"
+		printf "\toption address '192.0.2.10'\n"
+	} > "$SELFTEST_DRAFT_CONFIG"
+
+	cargo run --quiet --bin qddnsctl -- --config "$SELFTEST_DRAFT_CONFIG" sources probe wizard_probe |
+		grep -q '"address":"192.0.2.10"'
+	cargo run --quiet --bin qddnsctl -- --config "$SELFTEST_DRAFT_CONFIG" sources probe wizard_probe |
+		grep -q '"source":"wizard_probe"'
 }
 
 check_settings_boundary() {
@@ -748,8 +795,9 @@ check_theme_style() {
 
 SELFTEST_STATE_DIR=/tmp/qddns-selftest-state
 SELFTEST_LOG_DIR=/tmp/qddns-selftest-log
+SELFTEST_DRAFT_CONFIG=/tmp/qddns-selftest-draft-source.conf
 SELFTEST_HTTP_PORT=35353
-rm -rf "$SELFTEST_STATE_DIR" "$SELFTEST_LOG_DIR"
+rm -rf "$SELFTEST_STATE_DIR" "$SELFTEST_LOG_DIR" "$SELFTEST_DRAFT_CONFIG"
 mkdir -p "$SELFTEST_STATE_DIR" "$SELFTEST_LOG_DIR"
 
 python3 - "$SELFTEST_STATE_DIR" "$SELFTEST_HTTP_PORT" <<'PYEOF' &
@@ -813,6 +861,7 @@ SELFTEST_HTTP_PID=$!
 cleanup() {
 	kill "$SELFTEST_HTTP_PID" 2>/dev/null || true
 	wait "$SELFTEST_HTTP_PID" 2>/dev/null || true
+	rm -f "$SELFTEST_DRAFT_CONFIG"
 }
 trap cleanup EXIT INT TERM
 sleep 1
@@ -837,6 +886,7 @@ run_step 'LuCI no duplicate internal page nav guard' check_no_internal_page_nav
 	run_step 'LuCI rule wizard guard' check_rule_wizard
 	run_step 'LuCI rules compact table guard' check_rules_table_compactness
 run_step 'LuCI settings boundary guard' check_settings_boundary
+run_step 'Source probe no luci-rpc recursion guard' check_source_probe_no_luci_rpc_recursion
 run_step 'LuCI name-visible numeric-hidden UI guard' check_name_visible_numeric_hidden_ui
 run_step 'LuCI DHCPv6 lease fill UI guard' check_dhcpv6_lease_fill_ui
 run_step 'LuCI DHCPv6 lease fill backend guard' check_dhcpv6_lease_fill_backend
@@ -865,6 +915,7 @@ run_step 'acl no direct log file guard' check_acl_no_direct_log_file
 run_step 'acl boundary script guard' python3 "$ROOT_DIR/tests/check_acl_boundaries.py"
 run_step 'rpcd redaction script guard' python3 "$ROOT_DIR/tests/check_rpcd_redaction.py"
 run_step 'theme style guard' check_theme_style
+run_step 'Selftest source-only draft probe' check_source_only_draft_probe
 run_step 'Selftest validate' cargo run --quiet --bin qddnsctl -- --config "$ROOT_DIR/tests/selftest.conf" validate
 run_step 'Selftest sources list' sh -c "cargo run --quiet --bin qddnsctl -- --config '$ROOT_DIR/tests/selftest.conf' sources list | grep -qx 'wan4	local_addr'"
 run_step 'Selftest source probe' sh -c "cargo run --quiet --bin qddnsctl -- --config '$ROOT_DIR/tests/selftest.conf' sources probe wan4 | grep -q '\"address\":\"198.51.100.77\"'"

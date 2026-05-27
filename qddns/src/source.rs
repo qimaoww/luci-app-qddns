@@ -6,7 +6,6 @@ use std::process::Command;
 use crate::config::{AddressFamily, SourceConfig, SourceKind};
 use crate::error::{Error, Result};
 use crate::http::{HttpClient, HttpRequest, RetryPolicy};
-use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceResolution {
@@ -159,7 +158,6 @@ fn resolve_dhcpv6_mac(
     let lease_file = lease_file.unwrap_or("/tmp/odhcpd.leases");
 
     let mut matches = Vec::<IpAddr>::new();
-    collect_host_hint_ipv6_candidates(&normalized_mac, &mut matches);
 
     let content = fs::read_to_string(lease_file).unwrap_or_default();
     for line in content.lines() {
@@ -224,47 +222,6 @@ fn collect_ndp_ipv6_candidates(normalized_mac: &str, matches: &mut Vec<IpAddr>) 
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     collect_ndp_ipv6_candidates_from_output(&stdout, normalized_mac, matches);
-}
-
-fn collect_host_hint_ipv6_candidates(normalized_mac: &str, matches: &mut Vec<IpAddr>) {
-    let Ok(output) = Command::new("ubus")
-        .args(["call", "luci-rpc", "getHostHints"])
-        .output()
-    else {
-        return;
-    };
-    if !output.status.success() {
-        return;
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    collect_host_hint_ipv6_candidates_from_json(&stdout, normalized_mac, matches);
-}
-
-fn collect_host_hint_ipv6_candidates_from_json(
-    input: &str,
-    normalized_mac: &str,
-    matches: &mut Vec<IpAddr>,
-) {
-    let Ok(value) = serde_json::from_str::<Value>(input) else {
-        return;
-    };
-    let Some(hosts) = value.as_object() else {
-        return;
-    };
-
-    for (mac, host) in hosts {
-        if normalize_mac(mac).ok().as_deref() != Some(normalized_mac) {
-            continue;
-        }
-
-        let Some(addresses) = host.get("ip6addrs").and_then(Value::as_array) else {
-            continue;
-        };
-        for address in addresses.iter().filter_map(Value::as_str) {
-            push_public_ipv6(address, matches);
-        }
-    }
 }
 
 fn collect_ndp_ipv6_candidates_from_output(
@@ -684,39 +641,6 @@ fn find_ip_in_text(text: &str) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn host_hints_collects_unique_public_ipv6_for_mac() {
-        let mut matches = Vec::new();
-
-        collect_host_hint_ipv6_candidates_from_json(
-            r#"{
-                "BC:FC:E7:8C:41:CB": {
-                    "ip6addrs": [
-                        "fe80::bd:301:a658:3234",
-                        "fd00::30",
-                        "2001:db8::30",
-                        "240e:3b2:4e8a:70a0::30",
-                        "240e:3b2:4e8a:70a0::30",
-                        "2409:8a55:4e26:6980::30"
-                    ]
-                },
-                "10:7C:61:B2:07:01": {
-                    "ip6addrs": [ "240e:3b2:4e8a:70a0::205" ]
-                }
-            }"#,
-            "bcfce78c41cb",
-            &mut matches,
-        );
-
-        assert_eq!(
-            matches,
-            vec![
-                "240e:3b2:4e8a:70a0::30".parse::<IpAddr>().unwrap(),
-                "2409:8a55:4e26:6980::30".parse::<IpAddr>().unwrap(),
-            ]
-        );
-    }
 
     #[test]
     fn interface_prefix_accepts_matching_public_ipv6() {

@@ -29,6 +29,9 @@ const QDDNS_STYLE = [
 		'--qddns-rule-toggle-width:6.5rem;',
 		'--qddns-rule-type-width:8rem;',
 		'--qddns-rule-action-min:10rem;',
+		'--qddns-rule-wizard-width:min(56rem,92vw);',
+		'--qddns-rule-wizard-field-min:16rem;',
+		'--qddns-rule-wizard-meta-label:5.5rem;',
 	'}',
 	'.qddns-rules-page{margin-bottom:var(--qddns-space-4)}',
 	'.qddns-panel{margin-bottom:var(--qddns-space-4);padding:var(--qddns-space-4);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-md);background:var(--qddns-surface)}',
@@ -56,35 +59,41 @@ const QDDNS_STYLE = [
 	'.qddns-rule-wizard-entry-text{display:grid;gap:var(--qddns-space-1);min-width:16rem;max-width:42rem}',
 	'.qddns-rule-wizard-entry-text h3,.qddns-rule-wizard-entry-text p{margin:0}',
 	'.qddns-rule-wizard-primary{font-size:1rem;font-weight:700;padding:var(--qddns-space-3) var(--qddns-space-4)}',
-	'.qddns-rule-wizard-modal{display:grid;gap:var(--qddns-space-4);min-width:min(42rem,90vw)}',
+	'.qddns-rule-wizard-modal{box-sizing:border-box;display:grid;align-items:stretch;gap:var(--qddns-space-4);width:var(--qddns-rule-wizard-width);max-width:92vw;min-width:min(32rem,92vw);text-align:left}',
 	'.qddns-rule-wizard-steps{display:flex;flex-wrap:wrap;gap:var(--qddns-space-2)}',
 	'.qddns-rule-wizard-step{padding:var(--qddns-space-1) var(--qddns-space-2);border:1px solid var(--qddns-border);border-radius:999px;background:var(--qddns-neutral)}',
 	'.qddns-rule-wizard-step.is-active{font-weight:700;background:var(--qddns-surface-strong);border-color:currentColor}',
-	'.qddns-rule-wizard-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:var(--qddns-space-3)}',
-	'.qddns-rule-wizard-field{display:flex;flex-direction:column;gap:var(--qddns-space-1)}',
-	'.qddns-rule-wizard-field label{font-weight:600}',
-	'.qddns-rule-wizard-field .cbi-input-text,.qddns-rule-wizard-field .cbi-input-select{width:100%;max-width:100%}',
-	'.qddns-rule-wizard-source-panel{display:grid;gap:var(--qddns-space-3)}',
-	'.qddns-rule-wizard-source-actions{align-items:center}',
-	'.qddns-rule-wizard-lease-results{display:grid;gap:var(--qddns-space-2);min-width:0}',
-	'.qddns-rule-wizard-lease-list{display:grid;gap:var(--qddns-space-2);min-width:0}',
+	'.qddns-rule-wizard-grid{display:grid;align-items:start;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--qddns-rule-wizard-field-min)),1fr));gap:var(--qddns-space-3);width:100%;min-width:0}',
+	'.qddns-rule-wizard-field{display:flex;flex-direction:column;gap:var(--qddns-space-1);min-width:0;text-align:left}',
+	'.qddns-rule-wizard-field label{font-weight:600;line-height:1.35;text-align:left}',
+	'.qddns-rule-wizard-field .cbi-value-description{margin:0;text-align:left}',
+	'.qddns-rule-wizard-field .cbi-input-text,.qddns-rule-wizard-field .cbi-input-select{box-sizing:border-box;width:100%;min-width:0;max-width:100%}',
+	'.qddns-rule-wizard-source-panel{display:grid;justify-items:stretch;gap:var(--qddns-space-3);width:100%;min-width:0;text-align:left}',
+	'.qddns-rule-wizard-source-actions{align-items:center;justify-content:flex-start}',
+	'.qddns-rule-wizard-lease-results{display:grid;justify-items:stretch;gap:var(--qddns-space-2);width:100%;min-width:0;text-align:left}',
+	'.qddns-rule-wizard-lease-list{display:grid;justify-items:stretch;gap:var(--qddns-space-2);width:100%;min-width:0}',
 	'.qddns-rule-wizard-lease-card{appearance:none;box-sizing:border-box;display:grid;justify-items:stretch;gap:var(--qddns-space-2);width:100%;min-width:0;margin:0;padding:var(--qddns-space-2);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);color:inherit;font:inherit;line-height:1.35;text-align:left;cursor:pointer}',
 	'.qddns-rule-wizard-lease-card:hover,.qddns-rule-wizard-lease-card:focus,.qddns-rule-wizard-lease-card.is-selected{border-color:currentColor;background:var(--qddns-surface-strong)}',
-	'.qddns-rule-wizard-lease-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:var(--qddns-space-2);min-width:0;text-align:left}',
+	'.qddns-rule-wizard-lease-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:var(--qddns-space-2);width:100%;justify-self:stretch;min-width:0;text-align:left}',
 	'.qddns-rule-wizard-lease-title{min-width:0;font-weight:600;text-align:left;overflow-wrap:anywhere}',
 	'.qddns-rule-wizard-lease-action{justify-self:end;max-width:100%;padding:0.1rem 0.4rem;border-radius:999px;background:var(--qddns-surface-strong);font-size:0.9em;line-height:1.35;opacity:0.85;text-align:center;white-space:nowrap}',
-	'.qddns-rule-wizard-lease-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr));gap:var(--qddns-space-1) var(--qddns-space-2);min-width:0;text-align:left}',
-	'.qddns-rule-wizard-lease-meta-item{display:grid;grid-template-columns:minmax(4.75rem,max-content) minmax(0,1fr);gap:var(--qddns-space-1);min-width:0;overflow-wrap:break-word;word-break:normal}',
-	'.qddns-rule-wizard-lease-meta-label{min-width:4.75rem;opacity:0.72}',
+	'.qddns-rule-wizard-lease-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr));gap:var(--qddns-space-1) var(--qddns-space-2);width:100%;justify-self:stretch;min-width:0;text-align:left}',
+	'.qddns-rule-wizard-lease-meta-item{display:grid;grid-template-columns:minmax(var(--qddns-rule-wizard-meta-label),max-content) minmax(0,1fr);gap:var(--qddns-space-1);width:100%;min-width:0;text-align:left;overflow-wrap:break-word;word-break:normal}',
+	'.qddns-rule-wizard-lease-meta-label{min-width:var(--qddns-rule-wizard-meta-label);opacity:0.72}',
 	'.qddns-rule-wizard-lease-meta-value{min-width:0;overflow-wrap:break-word;word-break:normal}',
 	'.qddns-rule-wizard-switch{display:flex;align-items:center;gap:var(--qddns-space-2);min-height:2.4rem}',
 	'.qddns-rule-wizard-summary{display:grid;gap:var(--qddns-space-2);padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface-strong)}',
 	'.qddns-rule-wizard-summary p{margin:0}',
+	'.qddns-rule-wizard-summary-row{display:grid;grid-template-columns:minmax(var(--qddns-rule-wizard-meta-label),max-content) minmax(0,1fr);gap:var(--qddns-space-2);min-width:0;text-align:left}',
+	'.qddns-rule-wizard-summary-label{opacity:0.72}',
+	'.qddns-rule-wizard-summary-value{min-width:0;overflow-wrap:anywhere}',
 	'.qddns-rule-wizard-source-ip{display:inline-block;max-width:100%;overflow-wrap:anywhere}',
 	'.qddns-rule-wizard-source-ip[data-tone="warning"]{opacity:0.78}',
 	'.qddns-rule-wizard-source-ip[data-tone="negative"]{color:var(--qddns-negative-text)}',
 	'.qddns-rule-wizard-feedback{margin-top:var(--qddns-space-3)}',
 	'.qddns-rule-wizard-modal .qddns-actions{justify-content:flex-end}',
+	'.qddns-rule-wizard-modal .qddns-rule-wizard-source-actions{justify-content:flex-start}',
+	'.qddns-rule-wizard-footer-actions{justify-content:flex-end}',
 	'.qddns-empty-cell{text-align:center;opacity:0.72;padding:var(--qddns-space-4)}',
 	'.qddns-log-output{margin:0;max-height:20rem;overflow:auto;padding:var(--qddns-space-4);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface-strong);white-space:pre-wrap;word-break:break-word}',
 	'.qddns-badge{display:inline-flex;align-items:center;justify-content:center;min-height:2rem;padding:0 var(--qddns-space-3);border-radius:999px;font-size:0.8125rem;font-weight:600;line-height:1.4;border:1px solid transparent}',
@@ -497,7 +506,7 @@ return view.extend({
 				])
 			]),
 			feedback,
-			E('div', { class: 'qddns-actions' }, [previousButton, nextButton, saveButton, E('button', { type: 'button', class: 'btn cbi-button', click: ui.hideModal }, [_('Close')])])
+			E('div', { class: 'qddns-actions qddns-rule-wizard-footer-actions' }, [previousButton, nextButton, saveButton, E('button', { type: 'button', class: 'btn cbi-button', click: ui.hideModal }, [_('Close')])])
 		]);
 
 		function setWizardSourceIp(message, tone) {
@@ -636,12 +645,19 @@ return view.extend({
 			updateButtons();
 		}
 
+		function renderSummaryRow(label, value) {
+			return E('div', { class: 'qddns-rule-wizard-summary-row' }, [
+				E('span', { class: 'qddns-rule-wizard-summary-label' }, label + ':'),
+				E('span', { class: 'qddns-rule-wizard-summary-value' }, value || '-')
+			]);
+		}
+
 		function updateWizardSummary() {
 			summary.replaceChildren(
-				E('p', {}, '%s: %s.%s (%s)'.format(_('Record'), viewRef.wizardValue(fields.recordName) || '-', viewRef.wizardValue(fields.zone) || '-', viewRef.wizardValue(fields.recordType) || 'A')),
-				E('p', {}, '%s: %s'.format(_('Source'), viewRef.wizardSourceLabel(fields))),
-				E('p', {}, '%s: %s'.format(_('Source IP'), sourceProbe.address || sourceIpStatus.textContent || _('N/A'))),
-				E('p', {}, '%s: %s'.format(_('Provider'), viewRef.wizardSelectedText(fields.provider, _('Unnamed provider'))))
+				renderSummaryRow(_('Record'), '%s.%s (%s)'.format(viewRef.wizardValue(fields.recordName) || '-', viewRef.wizardValue(fields.zone) || '-', viewRef.wizardValue(fields.recordType) || 'A')),
+				renderSummaryRow(_('Source'), viewRef.wizardSourceLabel(fields)),
+				renderSummaryRow(_('Source IP'), sourceProbe.address || sourceIpStatus.textContent || _('N/A')),
+				renderSummaryRow(_('Provider'), viewRef.wizardSelectedText(fields.provider, _('Unnamed provider')))
 			);
 		}
 
@@ -693,9 +709,10 @@ return view.extend({
 				sourceProbe.loading = false;
 				fields.source.removeAttribute('data-source-ip-loading');
 				if (qddns.isFailedResult(result) || !result.address) {
+					const message = qddns.extractResultMessage(result, _('Unable to read source IP.'));
 					fields.source.setAttribute('data-source-ip-error', '1');
 					setWizardSourceIp(_('Unable to read source IP.'), 'negative');
-					setWizardProbeFeedback(_('Unable to read source IP. Choose another source or fix the source configuration.'), 'error');
+					setWizardProbeFeedback(message, 'error');
 					updateButtons();
 					if (stepIndex === 2)
 						updateWizardSummary();
@@ -726,7 +743,7 @@ return view.extend({
 				fields.source.removeAttribute('data-source-ip-loading');
 				fields.source.setAttribute('data-source-ip-error', '1');
 				setWizardSourceIp(sourceProbe.detail, 'negative');
-				setWizardProbeFeedback(_('Unable to read source IP. Choose another source or fix the source configuration.'), 'error');
+				setWizardProbeFeedback(sourceProbe.detail, 'error');
 				updateButtons();
 				if (stepIndex === 2)
 					updateWizardSummary();
@@ -915,9 +932,10 @@ return view.extend({
 					sourceProbe.loading = false;
 					fields.source.removeAttribute('data-source-ip-loading');
 					if (qddns.isFailedResult(result) || !result.address) {
+						const message = qddns.extractResultMessage(result, _('Unable to read source IP.'));
 						fields.source.setAttribute('data-source-ip-error', '1');
 						setWizardSourceIp(_('Unable to read source IP.'), 'negative');
-						setWizardProbeFeedback(_('Unable to read source IP. Choose another source or fix the source configuration.'), 'error');
+						setWizardProbeFeedback(message, 'error');
 						updateButtons();
 						return result;
 					}
