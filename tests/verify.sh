@@ -265,11 +265,20 @@ import os
 from pathlib import Path
 
 settings = Path(os.environ['VIEW_DIR'], 'settings.js').read_text().splitlines()
+source_start = next((i for i, line in enumerate(settings) if "s = m.section(form.GridSection, 'source'" in line), None)
+provider_start = next((i for i, line in enumerate(settings) if "s = m.section(form.GridSection, 'provider'" in line), None)
+if source_start is None or provider_start is None:
+    raise SystemExit('source/provider GridSection blocks are missing')
+source_block = '\n'.join(settings[source_start:provider_start])
+if 's.nodescriptions = true;' not in source_block:
+    raise SystemExit('source GridSection must suppress option description rows; they break named table alignment')
 start = next((i for i, line in enumerate(settings) if "o = s.option(widgets.DeviceSelect, 'interface', _('Interface')" in line), None)
 if start is None:
     raise SystemExit('source interface DeviceSelect option is missing')
 end = next((i for i in range(start + 1, len(settings)) if '\to = s.option(' in settings[i]), len(settings))
 block = '\n'.join(settings[start:end])
+if "Required for DHCPv6 DUID/MAC sources; its public IPv6 prefix is the validity source." not in block:
+    raise SystemExit('source interface modal guidance is missing')
 if 'o.multiple = false;' not in block:
     raise SystemExit('source interface selector must be single-select')
 if 'o.multiple = true;' in block:

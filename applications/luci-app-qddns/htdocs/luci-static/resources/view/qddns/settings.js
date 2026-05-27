@@ -675,6 +675,7 @@ return view.extend({
 		s = m.section(form.GridSection, 'source', _('Source Library'), _('Saved sources are available for source probe below and become selectable on the rules page after saving and reloading. Names stay editable.'));
 		s.addremove = true;
 		s.anonymous = false;
+		s.nodescriptions = true;
 		this.useNameCreateFlow(s, {
 			placeholder: _('New source name'),
 			description: _('Enter the source name shown in tables and rule selectors.'),
