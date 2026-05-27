@@ -63,16 +63,19 @@ const QDDNS_SETTINGS_STYLE = [
 	'.qddns-actions .cbi-button.qddns-busy{opacity:0.7;cursor:progress}',
 	'.qddns-dhcpv6-lease-status{display:grid;gap:var(--qddns-space-2);max-width:100%;min-width:0}',
 	'.qddns-dhcpv6-lease-results{display:grid;gap:var(--qddns-space-2);max-width:100%;min-width:0}',
-	'.qddns-dhcpv6-lease-list{display:grid;gap:var(--qddns-space-2);max-width:100%;min-width:0}',
-	'.qddns-dhcpv6-lease-card{appearance:none;box-sizing:border-box;display:grid;gap:var(--qddns-space-2);width:100%;min-width:0;margin:0;padding:var(--qddns-space-2);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);color:inherit;font:inherit;line-height:1.35;text-align:left;cursor:pointer}',
+	'.qddns-dhcpv6-lease-list{display:grid;justify-items:stretch;gap:var(--qddns-space-2);max-width:100%;min-width:0}',
+	'.qddns-dhcpv6-lease-card{appearance:none;box-sizing:border-box;display:grid;justify-items:stretch;gap:var(--qddns-space-2);width:100%;min-width:0;margin:0;padding:var(--qddns-space-2);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);color:inherit;font:inherit;line-height:1.35;text-align:left;cursor:pointer}',
 	'.qddns-dhcpv6-lease-card:hover,.qddns-dhcpv6-lease-card:focus,.qddns-dhcpv6-lease-card.is-selected{border-color:currentColor;background:var(--qddns-surface-strong)}',
-	'.qddns-dhcpv6-lease-card-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:var(--qddns-space-2);min-width:0}',
-	'.qddns-dhcpv6-lease-title{min-width:0;font-weight:600;overflow-wrap:anywhere}',
+	'.qddns-dhcpv6-lease-card-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:var(--qddns-space-2);width:100%;justify-self:stretch;min-width:0;text-align:left}',
+	'.qddns-dhcpv6-lease-title{justify-self:start;min-width:0;font-weight:600;text-align:left;overflow-wrap:anywhere}',
 	'.qddns-dhcpv6-lease-action{justify-self:end;max-width:100%;padding:0.1rem 0.4rem;border-radius:999px;background:var(--qddns-surface-strong);font-size:0.9em;line-height:1.35;opacity:0.85;text-align:center;white-space:nowrap}',
-	'.qddns-dhcpv6-lease-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--qddns-dhcpv6-card-min)),1fr));gap:var(--qddns-space-1) var(--qddns-space-2);min-width:0}',
-	'.qddns-dhcpv6-lease-meta-item{display:grid;grid-template-columns:minmax(4.75rem,max-content) minmax(0,1fr);gap:var(--qddns-space-1);min-width:0;overflow-wrap:break-word;word-break:normal}',
+	'.qddns-dhcpv6-lease-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--qddns-dhcpv6-card-min)),1fr));gap:var(--qddns-space-1) var(--qddns-space-2);width:100%;justify-self:stretch;min-width:0;text-align:left}',
+	'.qddns-dhcpv6-lease-meta-item{display:grid;grid-template-columns:minmax(4.75rem,max-content) minmax(0,1fr);gap:var(--qddns-space-1);width:100%;justify-self:stretch;min-width:0;text-align:left;overflow-wrap:break-word;word-break:normal}',
 	'.qddns-dhcpv6-lease-meta-label{min-width:4.75rem;opacity:0.72}',
 	'.qddns-dhcpv6-lease-meta-value{min-width:0;overflow-wrap:break-word;word-break:normal}',
+	'.qddns-source-ip-status{display:inline-block;max-width:100%;overflow-wrap:anywhere}',
+	'.qddns-source-ip-status[data-tone="warning"]{opacity:0.78}',
+	'.qddns-source-ip-status[data-tone="negative"]{color:var(--qddns-negative-text,inherit)}',
 	'@media (max-width: 768px){',
 		'.qddns-settings-page .qddns-panel{padding:var(--qddns-space-3)}',
 	'}'
@@ -124,8 +127,14 @@ return view.extend({
 
 		children.forEach(function(option) {
 			switch (option.option) {
+			case 'type':
+				options.type = option;
+				break;
 			case 'family':
 				options.family = option;
+				break;
+			case 'address':
+				options.address = option;
 				break;
 			case 'duid':
 				options.duid = option;
@@ -154,12 +163,107 @@ return view.extend({
 		return options;
 	},
 
-	isDhcpv6DuidSource: function(sectionId) {
-		return uci.get('qddns', sectionId, 'type') === 'dhcpv6_duid';
+	getSourceOptionValue: function(option, sectionId) {
+		if (!option || typeof option.getUIElement != 'function')
+			return '';
+
+		const widget = option.getUIElement(sectionId);
+		if (!widget)
+			return '';
+
+		if (typeof widget.getValue == 'function') {
+			const value = widget.getValue();
+			return Array.isArray(value) ? String(value[0] || '') : String(value || '');
+		}
+
+		const input = widget.node?.querySelector('input,select,textarea');
+		return input ? String(input.value || '') : '';
 	},
 
-	getDhcpv6LeaseMode: function(sectionId) {
-		return this.isDhcpv6DuidSource(sectionId) ? 'duid' : 'mac';
+	getSourceType: function(sectionId, optionSet) {
+		return this.getSourceOptionValue(optionSet?.type, sectionId) || uci.get('qddns', sectionId, 'type') || '';
+	},
+
+	isProbeableSourceType: function(sourceType) {
+		return ['local_addr', 'interface', 'dhcpv6_duid', 'dhcpv6_mac'].indexOf(sourceType) > -1;
+	},
+
+	setSourceIpStatus: function(node, message, tone) {
+		node.textContent = message || _('N/A');
+		node.setAttribute('data-tone', tone || 'neutral');
+	},
+
+	bindSourceOptionChange: function(sectionId, optionSet, handler, optionNames) {
+		const names = optionNames || ['type', 'family', 'address', 'duid', 'iaid', 'mac', 'leaseFile', 'prefixFilter', 'interface'];
+
+		window.setTimeout(function() {
+			names.forEach(function(name) {
+				const option = optionSet?.[name];
+				if (!option || typeof option.getUIElement != 'function')
+					return;
+
+				const widget = option.getUIElement(sectionId);
+				const node = widget?.node;
+				const input = node?.querySelector('input,select,textarea') || node;
+				if (!input || typeof input.addEventListener != 'function')
+					return;
+
+				input.addEventListener('input', handler);
+				input.addEventListener('change', handler);
+			});
+		}, 0);
+	},
+
+	renderSourceIpStatus: function(sectionId, optionSet) {
+		const node = E('span', { class: 'qddns-source-ip-status', 'data-source-ip-status': sectionId }, [_('Loading...')]);
+		const sourceIpProbe = { token: 0 };
+
+		this.bindSourceOptionChange(sectionId, optionSet, L.bind(function() {
+			sourceIpProbe.token++;
+			this.setSourceIpStatus(node, _('Save and reload to read updated source IP.'), 'warning');
+		}, this));
+
+		this.updateSourceIpStatus(sectionId, optionSet, node, sourceIpProbe);
+		return node;
+	},
+
+	updateSourceIpStatus: function(sectionId, optionSet, node, sourceIpProbe) {
+		const sourceType = this.getSourceType(sectionId, optionSet);
+		sourceIpProbe.token++;
+		const token = sourceIpProbe.token;
+
+		if (!this.isProbeableSourceType(sourceType)) {
+			this.setSourceIpStatus(node, _('N/A'), 'neutral');
+			return Promise.resolve();
+		}
+
+		this.setSourceIpStatus(node, _('Loading...'), 'neutral');
+
+		return qddns.probeSource(sectionId).then(L.bind(function(result) {
+			if (token !== sourceIpProbe.token)
+				return result;
+
+			if (qddns.isFailedResult(result) || !result.address) {
+				this.setSourceIpStatus(node, _('Unable to read source IP.'), 'negative');
+				return result;
+			}
+
+			this.setSourceIpStatus(node, result.address, 'neutral');
+			return result;
+		}, this)).catch(L.bind(function(err) {
+			if (token !== sourceIpProbe.token)
+				return;
+
+			this.setSourceIpStatus(node, qddns.extractResultMessage(err, _('Unable to read source IP.')), 'negative');
+		}, this));
+	},
+
+	isDhcpv6DuidSource: function(sectionId, optionSet) {
+		return this.getSourceType(sectionId, optionSet) === 'dhcpv6_duid';
+	},
+
+	getDhcpv6LeaseMode: function(sectionId, optionSet) {
+		return this.isDhcpv6DuidSource(sectionId, optionSet) ? 'duid' : 'mac';
 	},
 
 	setSourceOptionValue: function(option, sectionId, value) {
@@ -189,7 +293,7 @@ return view.extend({
 
 	fillDhcpv6Lease: function(sectionId, lease, feedback, optionSet) {
 		const options = optionSet || this.sourceDhcpv6Options || {};
-		const isDuidSource = this.isDhcpv6DuidSource(sectionId);
+		const isDuidSource = this.isDhcpv6DuidSource(sectionId, options);
 
 		this.setSourceOptionValue(options.family, sectionId, 'ipv6');
 		if (isDuidSource) {
@@ -207,8 +311,8 @@ return view.extend({
 			feedback.textContent = isDuidSource ? _('Selected DHCPv6 lease values have been filled. Save the source to keep them.') : _('Selected LAN host MAC has been filled. Save the source to keep it.');
 	},
 
-	filterDhcpv6Choices: function(sectionId, leases) {
-		const isDuidSource = this.isDhcpv6DuidSource(sectionId);
+	filterDhcpv6Choices: function(sectionId, leases, optionSet) {
+		const isDuidSource = this.isDhcpv6DuidSource(sectionId, optionSet);
 
 		return qddns.normalizeList(leases).filter(function(lease) {
 			const prefixes = qddns.normalizeList(lease?.prefixes);
@@ -223,11 +327,17 @@ return view.extend({
 	renderDhcpv6LeaseStatus: function(sectionId, optionSet) {
 		this.ensureSettingsStyle();
 
-		const isDuidSource = this.isDhcpv6DuidSource(sectionId);
-		const loadButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' }, [isDuidSource ? _('Read current DUID') : _('Read current MAC')]);
-		const results = E('div', { class: 'qddns-dhcpv6-lease-results' }, [
-			E('div', { class: 'cbi-value-description' }, isDuidSource ? _('Read current DHCPv6 lease candidates, then choose one to fill the DUID source fields.') : _('Read current LAN host candidates, then choose one to fill the MAC source fields.'))
-		]);
+		const loadButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' });
+		const results = E('div', { class: 'qddns-dhcpv6-lease-results' });
+		const resetResults = L.bind(function() {
+			const isDuidSource = this.isDhcpv6DuidSource(sectionId, optionSet);
+
+			loadButton.replaceChildren(isDuidSource ? _('Read current DUID') : _('Read current MAC'));
+			results.replaceChildren(E('div', { class: 'cbi-value-description' }, isDuidSource ? _('Read current DHCPv6 lease candidates, then choose one to fill the DUID source fields.') : _('Read current LAN host candidates, then choose one to fill the MAC source fields.')));
+		}, this);
+
+		resetResults();
+		this.bindSourceOptionChange(sectionId, optionSet, resetResults, ['type']);
 
 		loadButton.addEventListener('click', L.bind(function(ev) {
 			return this.handleDhcpv6LeaseLoad(ev, sectionId, results, optionSet);
@@ -249,7 +359,7 @@ return view.extend({
 	renderDhcpv6LeaseCard: function(sectionId, lease, feedback, optionSet) {
 		const prefixes = qddns.normalizeList(lease?.prefixes);
 		const ipv4 = qddns.normalizeList(lease?.ipv4);
-		const isDuidSource = this.isDhcpv6DuidSource(sectionId);
+		const isDuidSource = this.isDhcpv6DuidSource(sectionId, optionSet);
 		const identityMeta = isDuidSource ? [
 			this.renderDhcpv6LeaseMeta(_('DUID'), lease?.duid || '-'),
 			this.renderDhcpv6LeaseMeta(_('IAID'), lease?.iaid || '-')
@@ -290,8 +400,8 @@ return view.extend({
 	},
 
 	renderDhcpv6LeaseResults: function(sectionId, leases, optionSet) {
-		const list = this.filterDhcpv6Choices(sectionId, leases);
-		const isDuidSource = this.isDhcpv6DuidSource(sectionId);
+		const list = this.filterDhcpv6Choices(sectionId, leases, optionSet);
+		const isDuidSource = this.isDhcpv6DuidSource(sectionId, optionSet);
 		const emptyMessage = isDuidSource ? _('No DHCPv6 leases found.') : _('No LAN hosts with public IPv6 found.');
 		const feedback = E('div', { class: 'cbi-value-description' }, list.length ? (isDuidSource ? _('Choose a current DUID to fill DUID, IAID, interface, and hostname hint.') : _('Choose a current MAC to fill MAC, LAN IP identity, interface, and hostname hint.')) : emptyMessage);
 
@@ -325,10 +435,10 @@ return view.extend({
 
 	handleDhcpv6LeaseLoad: function(ev, sectionId, target, optionSet) {
 		const button = ev.currentTarget;
-		const title = this.isDhcpv6DuidSource(sectionId) ? _('DHCPv6 leases') : _('LAN hosts');
+		const title = this.isDhcpv6DuidSource(sectionId, optionSet) ? _('DHCPv6 leases') : _('LAN hosts');
 
 		return qddns.withBusyButton(button, L.bind(function() {
-			return qddns.listDhcpv6Leases(this.getDhcpv6LeaseMode(sectionId)).then(L.bind(function(result) {
+			return qddns.listDhcpv6Leases(this.getDhcpv6LeaseMode(sectionId, optionSet)).then(L.bind(function(result) {
 				if (qddns.isFailedResult(result)) {
 					qddns.showFailureModal(title, result, _('Unable to load host candidates.'));
 					return result;
@@ -583,13 +693,20 @@ return view.extend({
 		o.value('interface', _('Interface'));
 		o.value('public_probe', _('Public probe'));
 		o.value('script', _('Script'));
+		this.sourceDhcpv6Options = {};
+		this.sourceDhcpv6Options.type = o;
 
 		o = s.option(form.ListValue, 'family', _('Family'));
 		o.value('', _('Auto'));
 		o.value('ipv4', _('IPv4'));
 		o.value('ipv6', _('IPv6'));
-		this.sourceDhcpv6Options = { family: o };
-		o = s.option(form.Value, 'address', _('Address')); o.depends('type', 'local_addr');
+		this.sourceDhcpv6Options.family = o;
+		o = s.option(form.Value, 'address', _('Address')); o.modalonly = true; o.depends('type', 'local_addr'); this.sourceDhcpv6Options.address = o;
+		o = s.option(form.DummyValue, '_source_ip', _('Source IP'));
+		o.rawhtml = true;
+		o.cfgvalue = function(sectionId) {
+			return viewRef.renderSourceIpStatus(sectionId, viewRef.getDhcpv6OptionSet(this.section));
+		};
 		o = s.option(form.DummyValue, '_dhcpv6_status', _('Status'));
 		o.rawhtml = true;
 		o.modalonly = true;

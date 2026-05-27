@@ -141,6 +141,20 @@ check_rule_wizard() {
 	grep -nF "_('Next')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Back')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Choose the source IP first, then choose the DNS location.')" "$VIEW_DIR/rules.js"
+	grep -nF "renderWizardSourceIp" "$VIEW_DIR/rules.js"
+	grep -nF "updateWizardSourceProbe" "$VIEW_DIR/rules.js"
+	grep -nF "data-source-ip-status" "$VIEW_DIR/rules.js"
+	grep -nF "sourceProbe.token++" "$VIEW_DIR/rules.js"
+	grep -nF "if (token !== sourceProbe.token)" "$VIEW_DIR/rules.js"
+	grep -nF "isProbeableSourceType" "$VIEW_DIR/rules.js"
+	grep -nF "sourceProbe.loading" "$VIEW_DIR/rules.js"
+	grep -nF "fields.source.addEventListener('change'" "$VIEW_DIR/rules.js"
+	grep -nF "fields.recordType.addEventListener('change'" "$VIEW_DIR/rules.js"
+	grep -nF "_('Source IP')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Loading...')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Source IP is still loading.')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Unable to read source IP.')" "$VIEW_DIR/rules.js"
+	grep -nF "E('p', {}, '%s: %s'.format(_('Source IP')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Enable after creation')" "$VIEW_DIR/rules.js"
 	grep -nF "this.renderRuleWizard(this.pageData)" "$VIEW_DIR/rules.js"
 	grep -nF "this.useRuleEditorLabels(s)" "$VIEW_DIR/rules.js"
@@ -161,6 +175,8 @@ check_rule_wizard() {
 	grep -nF "uci.set('qddns', sectionId, 'retry_count', '3')" "$VIEW_DIR/rules.js"
 	grep -nF "uci.set('qddns', sectionId, 'retry_backoff', '30')" "$VIEW_DIR/rules.js"
 	grep -nF "sourceFamily" "$VIEW_DIR/rules.js"
+	grep -nF "wizardSourceFamily" "$VIEW_DIR/rules.js"
+	grep -nF "data-probed-family" "$VIEW_DIR/rules.js"
 	grep -nF "_('Record type must match the selected source address family.')" "$VIEW_DIR/rules.js"
 	grep -nF "return uci.save().then(function()" "$VIEW_DIR/rules.js"
 	grep -nF "window.location.reload()" "$VIEW_DIR/rules.js"
@@ -302,7 +318,7 @@ check_dhcpv6_lease_fill_ui() {
 	grep -nF "fillDhcpv6Lease" "$VIEW_DIR/settings.js"
 	grep -nF "setSourceOptionValue" "$VIEW_DIR/settings.js"
 	grep -nF "renderDhcpv6LeaseStatus" "$VIEW_DIR/settings.js"
-	grep -nF "qddns.listDhcpv6Leases(this.getDhcpv6LeaseMode(sectionId))" "$VIEW_DIR/settings.js"
+	grep -nF "qddns.listDhcpv6Leases(this.getDhcpv6LeaseMode(sectionId, optionSet))" "$VIEW_DIR/settings.js"
 	grep -nF "getDhcpv6LeaseMode" "$VIEW_DIR/settings.js"
 	grep -nF "s.option(form.DummyValue, '_dhcpv6_status', _('Status'))" "$VIEW_DIR/settings.js"
 	grep -nF "_('Read current DUID')" "$VIEW_DIR/settings.js"
@@ -332,6 +348,8 @@ check_dhcpv6_lease_fill_ui() {
 	grep -nF -- "--qddns-dhcpv6-card-min:24rem;" "$VIEW_DIR/settings.js"
 	grep -nF "grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--qddns-dhcpv6-card-min)),1fr))" "$VIEW_DIR/settings.js"
 	grep -nF "overflow-wrap:break-word;word-break:normal" "$VIEW_DIR/settings.js"
+	grep -nF "justify-items:stretch" "$VIEW_DIR/settings.js"
+	grep -nF "width:100%;justify-self:stretch" "$VIEW_DIR/settings.js"
 	! grep -nF -- "--qddns-dhcpv6-card-min:10rem;" "$VIEW_DIR/settings.js"
 	! grep -nF "grid-template-columns:repeat(auto-fit,minmax(var(--qddns-dhcpv6-card-min),1fr))" "$VIEW_DIR/settings.js"
 	grep -nF "this.setSourceOptionValue(options.duid, sectionId, lease?.duid || '')" "$VIEW_DIR/settings.js"
@@ -344,6 +362,15 @@ check_dhcpv6_lease_fill_ui() {
 	! grep -nF "firstHextet" "$VIEW_DIR/settings.js"
 	grep -nF "o.value('dhcpv6_mac', _('MAC'))" "$VIEW_DIR/settings.js"
 	grep -nF "o = s.option(form.Value, 'mac', _('MAC'))" "$VIEW_DIR/settings.js"
+	grep -nF "this.sourceDhcpv6Options.type = o" "$VIEW_DIR/settings.js"
+	grep -nF "renderSourceIpStatus" "$VIEW_DIR/settings.js"
+	grep -nF "sourceIpProbe.token++" "$VIEW_DIR/settings.js"
+	grep -nF "if (token !== sourceIpProbe.token)" "$VIEW_DIR/settings.js"
+	grep -nF "bindSourceOptionChange" "$VIEW_DIR/settings.js"
+	grep -nF "s.option(form.DummyValue, '_source_ip', _('Source IP'))" "$VIEW_DIR/settings.js"
+	grep -nF "o = s.option(form.Value, 'address', _('Address')); o.modalonly = true; o.depends('type', 'local_addr')" "$VIEW_DIR/settings.js"
+	grep -nF "_('Save and reload to read updated source IP.')" "$VIEW_DIR/settings.js"
+	grep -nF "_('Unable to read source IP.')" "$VIEW_DIR/settings.js"
 	! grep -nF "o.value('dhcpv6_mac', _('DHCPv6 MAC'))" "$VIEW_DIR/settings.js"
 	! grep -nF "_('Read current DHCPv6 lease candidates, then choose one to fill the MAC source fields.')" "$VIEW_DIR/settings.js"
 	grep -nF "input.dispatchEvent(new Event('input', { bubbles: true }))" "$VIEW_DIR/settings.js"
@@ -506,6 +533,11 @@ check_name_visible_numeric_hidden_po() {
 		'No providers available' \
 		'No sources available' \
 		'Choose the source IP first, then choose the DNS location.' \
+		'Source IP' \
+		'Loading...' \
+		'Source IP is still loading.' \
+		'Unable to read source IP.' \
+		'Save and reload to read updated source IP.' \
 		'Provider, source, zone, and record name are required.' \
 		'Record type must match the selected source address family.' \
 		'Enable after creation' \

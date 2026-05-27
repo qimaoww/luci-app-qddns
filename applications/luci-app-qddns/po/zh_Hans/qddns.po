@@ -85,6 +85,9 @@ msgstr "无"
 msgid "Current IP"
 msgstr "当前 IP"
 
+msgid "Source IP"
+msgstr "来源 IP"
+
 msgid "Remote IP"
 msgstr "远端 IP"
 
@@ -267,6 +270,9 @@ msgstr "地址"
 
 msgid "Unable to probe the selected source."
 msgstr "无法探测所选来源。"
+
+msgid "Unable to read source IP."
+msgstr "无法读取来源 IP。"
 
 msgid "No sources configured"
 msgstr "尚未配置来源"
@@ -547,6 +553,15 @@ msgstr "没有可用来源"
 
 msgid "Choose the source IP first, then choose the DNS location."
 msgstr "先选择要发布的来源 IP，再选择 DNS 位置。"
+
+msgid "Loading..."
+msgstr "正在读取..."
+
+msgid "Source IP is still loading."
+msgstr "来源 IP 仍在读取中。"
+
+msgid "Save and reload to read updated source IP."
+msgstr "保存并重新加载后读取更新后的来源 IP。"
 
 msgid "Rule name, provider, source, zone, and record name are required."
 msgstr "规则名称、提供商、来源、域和记录名不能为空。"

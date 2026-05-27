@@ -67,6 +67,9 @@ const QDDNS_STYLE = [
 	'.qddns-rule-wizard-switch{display:flex;align-items:center;gap:var(--qddns-space-2);min-height:2.4rem}',
 	'.qddns-rule-wizard-summary{display:grid;gap:var(--qddns-space-2);padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface-strong)}',
 	'.qddns-rule-wizard-summary p{margin:0}',
+	'.qddns-rule-wizard-source-ip{display:inline-block;max-width:100%;overflow-wrap:anywhere}',
+	'.qddns-rule-wizard-source-ip[data-tone="warning"]{opacity:0.78}',
+	'.qddns-rule-wizard-source-ip[data-tone="negative"]{color:var(--qddns-negative-text)}',
 	'.qddns-rule-wizard-feedback{margin-top:var(--qddns-space-3)}',
 	'.qddns-rule-wizard-modal .qddns-actions{justify-content:flex-end}',
 	'.qddns-empty-cell{text-align:center;opacity:0.72;padding:var(--qddns-space-4)}',
@@ -199,6 +202,10 @@ return view.extend({
 		return select;
 	},
 
+	renderWizardSourceIp: function(statusNode) {
+		return this.renderWizardField(_('Source IP'), statusNode);
+	},
+
 	wizardValue: function(control) {
 		return String(control?.value || '').trim();
 	},
@@ -230,6 +237,14 @@ return view.extend({
 		return String(source?.family || '').toLowerCase();
 	},
 
+	isProbeableSourceType: function(sourceType) {
+		return ['local_addr', 'interface', 'dhcpv6_duid', 'dhcpv6_mac'].indexOf(sourceType) > -1;
+	},
+
+	wizardSourceFamily: function(fields, sourceId) {
+		return String(fields.source?.getAttribute('data-probed-family') || this.sourceFamily(sourceId)).toLowerCase();
+	},
+
 	setWizardFeedback: function(feedback, message) {
 		feedback.textContent = message;
 		feedback.classList.add('alert-message', 'warning');
@@ -252,7 +267,12 @@ return view.extend({
 				return false;
 			}
 
-			const family = this.sourceFamily(source);
+			if (fields.source?.getAttribute('data-source-ip-loading') === '1') {
+				this.setWizardFeedback(feedback, _('Source IP is still loading.'));
+				return false;
+			}
+
+			const family = this.wizardSourceFamily(fields, source);
 			if ((recordType === 'A' && family === 'ipv6') || (recordType === 'AAAA' && family === 'ipv4')) {
 				this.setWizardFeedback(feedback, _('Record type must match the selected source address family.'));
 				return false;
@@ -281,7 +301,7 @@ return view.extend({
 			return Promise.resolve();
 		}
 
-		const family = this.sourceFamily(source);
+		const family = this.wizardSourceFamily(fields, source);
 		if ((recordType === 'A' && family === 'ipv6') || (recordType === 'AAAA' && family === 'ipv4')) {
 			feedback.textContent = _('Record type must match the selected source address family.');
 			feedback.classList.add('alert-message', 'warning');
@@ -332,6 +352,8 @@ return view.extend({
 			recordName: E('input', { type: 'text', class: 'cbi-input-text', placeholder: 'home' }),
 			enabled: E('input', { type: 'checkbox', checked: 'checked' })
 		};
+		const sourceIpStatus = E('span', { class: 'qddns-rule-wizard-source-ip', 'data-source-ip-status': 'wizard' }, [_('Loading...')]);
+		const sourceProbe = { token: 0, address: '', family: '', detail: '', loading: false };
 		const feedback = E('div', { class: 'cbi-value-description qddns-rule-wizard-feedback' }, _('Choose the source IP first, then choose the DNS location.'));
 		const saveButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-add' }, [_('Add DDNS rule')]);
 		const previousButton = E('button', { type: 'button', class: 'btn cbi-button' }, [_('Back')]);
@@ -348,7 +370,8 @@ return view.extend({
 				E('h4', {}, _('Choose Source IP')),
 				E('div', { class: 'qddns-rule-wizard-grid' }, [
 					this.renderWizardField(_('Source'), fields.source),
-					this.renderWizardField(_('Record type'), fields.recordType)
+					this.renderWizardField(_('Record type'), fields.recordType),
+					this.renderWizardSourceIp(sourceIpStatus)
 				])
 			]),
 			E('div', { 'data-wizard-panel': '1', style: 'display:none' }, [
@@ -371,17 +394,95 @@ return view.extend({
 			E('div', { class: 'qddns-actions' }, [previousButton, nextButton, saveButton, E('button', { type: 'button', class: 'btn cbi-button', click: ui.hideModal }, [_('Close')])])
 		]);
 
+		function setWizardSourceIp(message, tone) {
+			sourceIpStatus.textContent = message || _('N/A');
+			sourceIpStatus.setAttribute('data-tone', tone || 'neutral');
+		}
+
+		function updateWizardSummary() {
+			summary.replaceChildren(
+				E('p', {}, '%s: %s.%s (%s)'.format(_('Record'), viewRef.wizardValue(fields.recordName) || '-', viewRef.wizardValue(fields.zone) || '-', viewRef.wizardValue(fields.recordType) || 'A')),
+				E('p', {}, '%s: %s'.format(_('Source'), viewRef.wizardSelectedText(fields.source, _('Unnamed source')))),
+				E('p', {}, '%s: %s'.format(_('Source IP'), sourceProbe.address || sourceIpStatus.textContent || _('N/A'))),
+				E('p', {}, '%s: %s'.format(_('Provider'), viewRef.wizardSelectedText(fields.provider, _('Unnamed provider'))))
+			);
+		}
+
+		function updateWizardSourceProbe() {
+			const sourceId = viewRef.wizardValue(fields.source);
+			sourceProbe.token++;
+			const token = sourceProbe.token;
+			sourceProbe.address = '';
+			sourceProbe.family = '';
+			sourceProbe.detail = '';
+			sourceProbe.loading = false;
+			fields.source.removeAttribute('data-probed-family');
+			fields.source.removeAttribute('data-source-ip-loading');
+
+			if (!sourceId) {
+				setWizardSourceIp(_('N/A'), 'neutral');
+				if (stepIndex === 2)
+					updateWizardSummary();
+				return Promise.resolve();
+			}
+
+			const source = viewRef.findById(sources, sourceId);
+			if (!viewRef.isProbeableSourceType(source?.type)) {
+				setWizardSourceIp(_('N/A'), 'neutral');
+				if (stepIndex === 2)
+					updateWizardSummary();
+				return Promise.resolve();
+			}
+
+			sourceProbe.loading = true;
+			fields.source.setAttribute('data-source-ip-loading', '1');
+			setWizardSourceIp(_('Loading...'), 'neutral');
+			if (stepIndex === 2)
+				updateWizardSummary();
+
+			return qddns.probeSource(sourceId).then(function(result) {
+				if (token !== sourceProbe.token)
+					return result;
+
+				sourceProbe.loading = false;
+				fields.source.removeAttribute('data-source-ip-loading');
+				if (qddns.isFailedResult(result) || !result.address) {
+					setWizardSourceIp(_('Unable to read source IP.'), 'negative');
+					if (stepIndex === 2)
+						updateWizardSummary();
+					return result;
+				}
+
+				sourceProbe.address = result.address;
+				sourceProbe.family = result.family || '';
+				sourceProbe.detail = result.detail || '';
+				fields.source.setAttribute('data-probed-family', sourceProbe.family);
+				setWizardSourceIp(result.address, 'neutral');
+				if (stepIndex === 2)
+					updateWizardSummary();
+				return result;
+			}).catch(function(err) {
+				if (token !== sourceProbe.token)
+					return;
+
+				sourceProbe.address = '';
+				sourceProbe.family = '';
+				sourceProbe.detail = qddns.extractResultMessage(err, _('Unable to read source IP.'));
+				sourceProbe.loading = false;
+				fields.source.removeAttribute('data-probed-family');
+				fields.source.removeAttribute('data-source-ip-loading');
+				setWizardSourceIp(sourceProbe.detail, 'negative');
+				if (stepIndex === 2)
+					updateWizardSummary();
+			});
+		}
+
 		function updateButtons() {
 			previousButton.style.display = stepIndex ? '' : 'none';
 			nextButton.style.display = stepIndex < 2 ? '' : 'none';
 			saveButton.style.display = stepIndex === 2 ? '' : 'none';
-			if (stepIndex === 2) {
-				summary.replaceChildren(
-					E('p', {}, '%s: %s.%s (%s)'.format(_('Record'), viewRef.wizardValue(fields.recordName) || '-', viewRef.wizardValue(fields.zone) || '-', viewRef.wizardValue(fields.recordType) || 'A')),
-					E('p', {}, '%s: %s'.format(_('Source'), viewRef.wizardSelectedText(fields.source, _('Unnamed source')))),
-					E('p', {}, '%s: %s'.format(_('Provider'), viewRef.wizardSelectedText(fields.provider, _('Unnamed provider'))))
-				);
-			}
+			if (stepIndex === 2)
+				updateWizardSummary();
 			viewRef.setWizardStep(modal, stepIndex);
 		}
 
@@ -389,6 +490,17 @@ return view.extend({
 			stepIndex = Math.max(0, stepIndex - 1);
 			this.resetWizardFeedback(feedback);
 			updateButtons();
+		}, this));
+
+		fields.source.addEventListener('change', L.bind(function() {
+			this.resetWizardFeedback(feedback);
+			updateWizardSourceProbe();
+		}, this));
+
+		fields.recordType.addEventListener('change', L.bind(function() {
+			this.resetWizardFeedback(feedback);
+			if (stepIndex === 2)
+				updateWizardSummary();
 		}, this));
 
 		nextButton.addEventListener('click', L.bind(function() {
@@ -407,6 +519,7 @@ return view.extend({
 		}, this));
 
 		updateButtons();
+		updateWizardSourceProbe();
 		ui.showModal(_('Guided DDNS rule setup'), [modal]);
 
 		if (launcher)
