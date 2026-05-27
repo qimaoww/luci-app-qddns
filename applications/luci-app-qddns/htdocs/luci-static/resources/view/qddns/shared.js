@@ -6,6 +6,7 @@
 const callOverview = rpc.declare({ object: 'qddns', method: 'get_overview', expect: {} });
 const callRules = rpc.declare({ object: 'qddns', method: 'list_rules', expect: {} });
 const callSources = rpc.declare({ object: 'qddns', method: 'list_sources', expect: { result: [] } });
+const callInterfaces = rpc.declare({ object: 'qddns', method: 'list_interfaces', expect: {} });
 const callDhcpv6Leases = rpc.declare({ object: 'qddns', method: 'list_dhcpv6_leases', params: ['mode'], expect: {} });
 const callProbeSource = rpc.declare({ object: 'qddns', method: 'probe_source', params: ['id'], expect: {} });
 const callProbeSourceDraft = rpc.declare({ object: 'qddns', method: 'probe_source_draft', params: ['name', 'type', 'family', 'address', 'interface', 'duid', 'iaid', 'mac', 'lease_file', 'hostname_hint', 'prefix_filter'], expect: {} });
@@ -53,6 +54,7 @@ return baseclass.extend({
 	overview: callOverview,
 	listRules: callRules,
 	listSources: callSources,
+	listInterfaces: callInterfaces,
 	listDhcpv6Leases: callDhcpv6Leases,
 	probeSource: callProbeSource,
 	probeSourceDraft: function(source) {
@@ -62,7 +64,7 @@ return baseclass.extend({
 			source.type || '',
 			source.family || '',
 			source.address || '',
-			source.interfaceName || source.interface || '',
+			L.toArray(source.interfaceName || source.interface).join(','),
 			source.duid || '',
 			source.iaid || '',
 			source.mac || '',
@@ -77,6 +79,16 @@ return baseclass.extend({
 	getRuleStatus: callGetRuleStatus,
 
 	normalizeList: normalizeList,
+
+	normalizeInterfaces: function(data) {
+		const values = Array.isArray(data) ? data : data?.interfaces;
+
+		return normalizeList(values).map(function(item) {
+			return (typeof item == 'string') ? { name: item } : item;
+		}).filter(function(item) {
+			return item?.name;
+		});
+	},
 
 	ensureCommonStyle: function() {
 		if (document.getElementById(QDDNS_COMMON_STYLE_ID))

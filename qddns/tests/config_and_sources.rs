@@ -61,7 +61,8 @@ config source 'lan_duid'
     option type 'dhcpv6_duid'
     option duid '0001000130555374bcfce78c41cb'
     option iaid '6bcfce7'
-    option interface 'wan6'
+    list interface 'wan6'
+    list interface 'wan6_backup'
     option prefix_filter '240e:'
 
 config source 'lan_mac'
@@ -103,7 +104,7 @@ config rule 'desktop_ipv6'
     else {
         panic!("lan_duid should be dhcpv6_duid");
     };
-    assert_eq!(interface.as_deref(), Some("wan6"));
+    assert_eq!(interface.as_deref(), Some("wan6,wan6_backup"));
     // The interface prefix is the primary validity source; prefix_filter only narrows it.
     assert_eq!(prefix_filter.as_deref(), Some("240e:"));
     let SourceKind::Dhcpv6Mac {
@@ -120,6 +121,41 @@ config rule 'desktop_ipv6'
     // The interface prefix is the primary validity source; prefix_filter only narrows it.
     assert_eq!(prefix_filter.as_deref(), Some("240e:"));
     assert_eq!(config.rules["desktop_ipv6"].record_type, "AAAA");
+}
+
+#[test]
+fn parses_repeated_interface_list_options_for_multi_select_sources() {
+    let config = Config::parse_uci(
+        r#"
+config qddns 'main'
+
+config source 'lan_mac'
+    option type 'dhcpv6_mac'
+    option mac 'bc-fc-e7-8c-41-cb'
+    list interface 'eth1'
+    list interface 'wan6'
+
+config provider 'cf'
+    option type 'cloudflare'
+    option api_token 'token'
+
+config rule 'desktop_ipv6'
+    option enabled '1'
+    option provider 'cf'
+    option source 'lan_mac'
+    option record_type 'AAAA'
+    option zone 'example.com'
+    option record_name 'desktop'
+"#,
+    )
+    .expect("config parses");
+
+    let SourceKind::Dhcpv6Mac { interface, .. } = &config.sources["lan_mac"].kind else {
+        panic!("lan_mac should be dhcpv6_mac");
+    };
+
+    assert_eq!(interface.as_deref(), Some("eth1,wan6"));
+    config.validate().expect("multi-interface source validates");
 }
 
 #[test]
@@ -231,6 +267,20 @@ fn interface_source_resolves_loopback_ipv4() {
         kind: SourceKind::Interface {
             family: Some(AddressFamily::Ipv4),
             interface: Some("lo".into()),
+        },
+    };
+
+    let resolved = resolve_source(&source).expect("interface source resolves");
+    assert_eq!(resolved.address, "127.0.0.1".parse::<IpAddr>().unwrap());
+}
+
+#[test]
+fn interface_source_accepts_multi_select_loopback_fallback() {
+    let source = SourceConfig {
+        name: "loopback".into(),
+        kind: SourceKind::Interface {
+            family: Some(AddressFamily::Ipv4),
+            interface: Some("lo,eth1".into()),
         },
     };
 

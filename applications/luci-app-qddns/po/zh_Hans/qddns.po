@@ -331,8 +331,8 @@ msgstr "主机名提示"
 msgid "Interface"
 msgstr "接口"
 
-msgid "Required for DHCPv6 DUID/MAC sources; its public IPv6 prefix is the validity source."
-msgstr "DHCPv6 DUID/MAC 来源必填；该接口的公网 IPv6 前缀用于有效性判断。"
+msgid "Required for DHCPv6 DUID/MAC sources; selected public IPv6 prefixes are the validity source."
+msgstr "DHCPv6 DUID/MAC 来源必填；所选接口的公网 IPv6 前缀用于有效性判断。"
 
 msgid "Probe URL"
 msgstr "探测 URL"

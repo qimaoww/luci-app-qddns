@@ -417,6 +417,27 @@ impl Config {
                     .as_mut()
                     .ok_or_else(|| Error::new(format!("option outside config section: {line}")))?;
                 section.options.insert(parts[1].clone(), parts[2].clone());
+                continue;
+            }
+
+            if line.starts_with("list ") {
+                let parts = split_uci_tokens(line);
+                if parts.len() < 3 {
+                    return Err(Error::new(format!("invalid list line: {line}")));
+                }
+                let section = current
+                    .as_mut()
+                    .ok_or_else(|| Error::new(format!("list outside config section: {line}")))?;
+                section
+                    .options
+                    .entry(parts[1].clone())
+                    .and_modify(|value| {
+                        if !value.is_empty() {
+                            value.push(',');
+                        }
+                        value.push_str(&parts[2]);
+                    })
+                    .or_insert_with(|| parts[2].clone());
             }
         }
 

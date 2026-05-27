@@ -43,6 +43,15 @@ const PROVIDER_TEMPLATES = {
 };
 
 const QDDNS_SETTINGS_STYLE_ID = 'qddns-settings-style';
+const SOURCE_OPTION_FIELDS = ['family', 'address', 'interface', 'duid', 'iaid', 'mac', 'lease_file', 'hostname_hint', 'prefix_filter', 'probe_url', 'script'];
+const SOURCE_FIELDS_BY_TYPE = {
+	local_addr: ['family', 'address'],
+	interface: ['family', 'interface'],
+	public_probe: ['family', 'probe_url'],
+	script: ['family', 'script'],
+	dhcpv6_duid: ['interface', 'duid', 'iaid', 'lease_file', 'hostname_hint', 'prefix_filter'],
+	dhcpv6_mac: ['interface', 'mac', 'lease_file', 'hostname_hint', 'prefix_filter']
+};
 const QDDNS_SETTINGS_STYLE = [
 	':root{',
 		'--qddns-space-1:0.25rem;',
@@ -173,11 +182,54 @@ return view.extend({
 
 		if (typeof widget.getValue == 'function') {
 			const value = widget.getValue();
-			return Array.isArray(value) ? String(value[0] || '') : String(value || '');
+			return Array.isArray(value) ? value.join(',') : String(value || '');
 		}
 
 		const input = widget.node?.querySelector('input,select,textarea');
 		return input ? String(input.value || '') : '';
+	},
+
+	interfaceValues: function(value) {
+		return L.toArray(value).flatMap(function(item) {
+			return String(item || '').split(/,+/);
+		}).map(function(item) {
+			return item.trim();
+		}).filter(function(item, index, values) {
+			return item && values.indexOf(item) === index;
+		});
+	},
+
+	sourceFieldsForType: function(sourceType) {
+		return SOURCE_FIELDS_BY_TYPE[sourceType] || [];
+	},
+
+	isSourceFieldActive: function(field, sourceType) {
+		return this.sourceFieldsForType(sourceType).indexOf(field) > -1;
+	},
+
+	cleanupSourceTypeOptions: function(sectionId, sourceType) {
+		const fields = this.sourceFieldsForType(sourceType);
+
+		SOURCE_OPTION_FIELDS.forEach(function(field) {
+			if (fields.indexOf(field) === -1)
+				uci.unset('qddns', sectionId, field);
+		});
+	},
+
+	guardSourceOptionWrite: function(option, field) {
+		const viewRef = this;
+		const write = option.write;
+
+		option.write = function(sectionId, value) {
+			const sourceType = uci.get('qddns', sectionId, 'type') || viewRef.getSourceOptionValue(viewRef.sourceDhcpv6Options?.type, sectionId);
+
+			if (!viewRef.isSourceFieldActive(field, sourceType)) {
+				uci.unset('qddns', sectionId, field);
+				return;
+			}
+
+			return write.apply(this, arguments);
+		};
 	},
 
 	getSourceType: function(sectionId, optionSet) {
@@ -274,7 +326,7 @@ return view.extend({
 		if (!widget || typeof widget.setValue != 'function')
 			return;
 
-		const normalized = value == null ? '' : String(value);
+		const normalized = option.multiple ? this.interfaceValues(value) : (value == null ? '' : String(value));
 		widget.setValue(normalized);
 
 		if (widget.node) {
@@ -696,13 +748,24 @@ return view.extend({
 		o.value('script', _('Script'));
 		this.sourceDhcpv6Options = {};
 		this.sourceDhcpv6Options.type = o;
+		const sourceTypeWrite = o.write;
+		o.write = function(sectionId, value) {
+			const result = sourceTypeWrite.apply(this, arguments);
+			viewRef.cleanupSourceTypeOptions(sectionId, value);
+			return result;
+		};
 
 		o = s.option(form.ListValue, 'family', _('Family'));
 		o.value('', _('Auto'));
 		o.value('ipv4', _('IPv4'));
 		o.value('ipv6', _('IPv6'));
+		o.depends('type', 'local_addr');
+		o.depends('type', 'interface');
+		o.depends('type', 'public_probe');
+		o.depends('type', 'script');
 		this.sourceDhcpv6Options.family = o;
-		o = s.option(form.Value, 'address', _('Address')); o.modalonly = true; o.depends('type', 'local_addr'); this.sourceDhcpv6Options.address = o;
+		this.guardSourceOptionWrite(o, 'family');
+		o = s.option(form.Value, 'address', _('Address')); o.modalonly = true; o.depends('type', 'local_addr'); this.sourceDhcpv6Options.address = o; this.guardSourceOptionWrite(o, 'address');
 		o = s.option(form.DummyValue, '_source_ip', _('Source IP'));
 		o.rawhtml = true;
 		o.cfgvalue = function(sectionId) {
@@ -722,22 +785,38 @@ return view.extend({
 
 			return viewRef.renderDhcpv6LeaseStatus(sectionId, viewRef.getDhcpv6OptionSet(this.section));
 		};
-		o = s.option(form.Value, 'duid', _('DUID')); this.sourceDhcpv6Options.duid = o; o.modalonly = true; o.depends('type', 'dhcpv6_duid');
-		o = s.option(form.Value, 'iaid', _('IAID')); this.sourceDhcpv6Options.iaid = o; o.modalonly = true; o.depends('type', 'dhcpv6_duid');
-		o = s.option(form.Value, 'mac', _('MAC')); this.sourceDhcpv6Options.mac = o; o.modalonly = true; o.depends('type', 'dhcpv6_mac');
-		o = s.option(form.Value, 'lease_file', _('Lease file')); this.sourceDhcpv6Options.leaseFile = o; o.placeholder = '/tmp/odhcpd.leases'; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac');
-		o = s.option(form.Value, 'prefix_filter', _('Prefix narrowing'), _('Advanced narrowing after interface prefix matching; it cannot replace the interface.')); this.sourceDhcpv6Options.prefixFilter = o; o.placeholder = '240e:'; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac');
-		o = s.option(form.Value, 'hostname_hint', _('Hostname hint')); this.sourceDhcpv6Options.hostnameHint = o; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac');
-		o = s.option(widgets.DeviceSelect, 'interface', _('Interface'), _('Required for DHCPv6 DUID/MAC sources; its public IPv6 prefix is the validity source.'));
+		o = s.option(form.Value, 'duid', _('DUID')); this.sourceDhcpv6Options.duid = o; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); this.guardSourceOptionWrite(o, 'duid');
+		o = s.option(form.Value, 'iaid', _('IAID')); this.sourceDhcpv6Options.iaid = o; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); this.guardSourceOptionWrite(o, 'iaid');
+		o = s.option(form.Value, 'mac', _('MAC')); this.sourceDhcpv6Options.mac = o; o.modalonly = true; o.depends('type', 'dhcpv6_mac'); this.guardSourceOptionWrite(o, 'mac');
+		o = s.option(form.Value, 'lease_file', _('Lease file')); this.sourceDhcpv6Options.leaseFile = o; o.placeholder = '/tmp/odhcpd.leases'; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac'); this.guardSourceOptionWrite(o, 'lease_file');
+		o = s.option(form.Value, 'prefix_filter', _('Prefix narrowing'), _('Advanced narrowing after interface prefix matching; it cannot replace the interface.')); this.sourceDhcpv6Options.prefixFilter = o; o.placeholder = '240e:'; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac'); this.guardSourceOptionWrite(o, 'prefix_filter');
+		o = s.option(form.Value, 'hostname_hint', _('Hostname hint')); this.sourceDhcpv6Options.hostnameHint = o; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac'); this.guardSourceOptionWrite(o, 'hostname_hint');
+		o = s.option(widgets.DeviceSelect, 'interface', _('Interface'), _('Required for DHCPv6 DUID/MAC sources; selected public IPv6 prefixes are the validity source.'));
 		this.sourceDhcpv6Options.interface = o;
-		o.multiple = false;
+		o.multiple = true;
+		o.cfgvalue = function(sectionId, value) {
+			const stored = arguments.length > 1 ? value : (this.data?.[sectionId] || uci.get('qddns', sectionId, 'interface'));
+			const normalized = viewRef.interfaceValues(stored);
+
+			if (arguments.length > 1) {
+				this.data = this.data || {};
+				this.data[sectionId] = normalized;
+			}
+
+			return normalized;
+		};
+		const interfaceWrite = o.write;
+		o.write = function(sectionId, value) {
+			return interfaceWrite.call(this, sectionId, viewRef.interfaceValues(value));
+		};
 		o.noaliases = true;
 		o.nocreate = true;
 		o.depends('type', 'interface');
 		o.depends('type', 'dhcpv6_duid');
 		o.depends('type', 'dhcpv6_mac');
-		o = s.option(form.Value, 'probe_url', _('Probe URL')); o.modalonly = true; o.depends('type', 'public_probe');
-		o = s.option(form.Value, 'script', _('Script path')); o.modalonly = true; o.depends('type', 'script');
+		this.guardSourceOptionWrite(o, 'interface');
+		o = s.option(form.Value, 'probe_url', _('Probe URL')); o.modalonly = true; o.depends('type', 'public_probe'); this.guardSourceOptionWrite(o, 'probe_url');
+		o = s.option(form.Value, 'script', _('Script path')); o.modalonly = true; o.depends('type', 'script'); this.guardSourceOptionWrite(o, 'script');
 
 		s = m.section(form.GridSection, 'provider', _('Provider Library'), _('Saved providers become selectable on the rules page after saving and reloading. Names stay editable.'));
 		s.addremove = true;

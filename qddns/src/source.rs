@@ -1,11 +1,18 @@
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::Read;
 use std::net::{IpAddr, Ipv6Addr};
-use std::process::Command;
+use std::path::Path;
+use std::process::{Command, Output, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use crate::config::{AddressFamily, SourceConfig, SourceKind};
 use crate::error::{Error, Result};
 use crate::http::{HttpClient, HttpRequest, RetryPolicy};
+
+const DHCPV6_LEASE_MAX_BYTES: u64 = 262_144;
+const SOURCE_COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceResolution {
@@ -99,12 +106,12 @@ fn resolve_dhcpv6_duid(
 ) -> Result<SourceResolution> {
     let duid = duid.ok_or_else(|| Error::new(format!("source '{}' missing duid", source.name)))?;
     let iaid = iaid.ok_or_else(|| Error::new(format!("source '{}' missing iaid", source.name)))?;
-    let iface = required_dhcpv6_interface(source, interface)?;
-    let interface_prefixes = interface_public_ipv6_prefixes(source, iface)?;
-    let lease_file = lease_file.unwrap_or("/tmp/odhcpd.leases");
+    let ifaces = required_dhcpv6_interfaces(source, interface)?;
+    let explicit_lease_file = lease_file.map(str::trim).filter(|value| !value.is_empty());
+    let lease_file = explicit_lease_file.unwrap_or("/tmp/odhcpd.leases");
 
-    let content = fs::read_to_string(lease_file)
-        .map_err(|err| Error::new(format!("failed to read lease file '{lease_file}': {err}")))?;
+    let content = read_dhcpv6_lease_file(lease_file)?;
+    let interface_prefixes = interfaces_public_ipv6_prefixes(source, &ifaces)?;
 
     let mut matches = Vec::<IpAddr>::new();
     for line in content.lines() {
@@ -140,7 +147,10 @@ fn resolve_dhcpv6_duid(
     Ok(SourceResolution {
         address: selected,
         family: "ipv6".into(),
-        detail: format!("resolved from {lease_file} via interface {iface}"),
+        detail: format!(
+            "resolved from {lease_file} via interface {}",
+            format_interface_names(&ifaces)
+        ),
     })
 }
 
@@ -153,36 +163,47 @@ fn resolve_dhcpv6_mac(
 ) -> Result<SourceResolution> {
     let mac = mac.ok_or_else(|| Error::new(format!("source '{}' missing mac", source.name)))?;
     let normalized_mac = normalize_mac(mac)?;
-    let iface = required_dhcpv6_interface(source, interface)?;
-    let interface_prefixes = interface_public_ipv6_prefixes(source, iface)?;
-    let lease_file = lease_file.unwrap_or("/tmp/odhcpd.leases");
+    let ifaces = required_dhcpv6_interfaces(source, interface)?;
+    let explicit_lease_file = lease_file.map(str::trim).filter(|value| !value.is_empty());
+    let lease_file = explicit_lease_file.unwrap_or("/tmp/odhcpd.leases");
 
     let mut matches = Vec::<IpAddr>::new();
 
-    let content = fs::read_to_string(lease_file).unwrap_or_default();
-    for line in content.lines() {
-        let line = line.trim();
-        if line.is_empty() || !line.starts_with('#') {
-            continue;
-        }
+    let lease_error = match read_dhcpv6_lease_file(lease_file) {
+        Ok(content) => {
+            for line in content.lines() {
+                let line = line.trim();
+                if line.is_empty() || !line.starts_with('#') {
+                    continue;
+                }
 
-        let fields = line.split_whitespace().collect::<Vec<_>>();
-        if fields.len() < 9 {
-            continue;
-        }
-        let Some(duid_mac) = duid_link_layer_mac(fields[2]) else {
-            continue;
-        };
-        if duid_mac != normalized_mac {
-            continue;
-        }
+                let fields = line.split_whitespace().collect::<Vec<_>>();
+                if fields.len() < 9 {
+                    continue;
+                }
+                let Some(duid_mac) = duid_link_layer_mac(fields[2]) else {
+                    continue;
+                };
+                if duid_mac != normalized_mac {
+                    continue;
+                }
 
-        collect_public_ipv6_candidates(&fields, &mut matches);
-    }
+                collect_public_ipv6_candidates(&fields, &mut matches);
+            }
+            None
+        }
+        Err(err) if explicit_lease_file.is_some() => return Err(err),
+        Err(err) => Some(err),
+    };
+    let interface_prefixes = interfaces_public_ipv6_prefixes(source, &ifaces)?;
 
     collect_ndp_ipv6_candidates(&normalized_mac, &mut matches);
 
     if matches.is_empty() {
+        if let Some(err) = lease_error {
+            return Err(err);
+        }
+
         return Err(Error::new(format!(
             "no public IPv6 address found for MAC '{}'",
             format_mac(&normalized_mac)
@@ -200,9 +221,57 @@ fn resolve_dhcpv6_mac(
         address: selected,
         family: "ipv6".into(),
         detail: format!(
-            "resolved by MAC from LAN host tables and {lease_file} via interface {iface}"
+            "resolved by MAC from LAN host tables and {lease_file} via interface {}",
+            format_interface_names(&ifaces)
         ),
     })
+}
+
+fn read_dhcpv6_lease_file(lease_file: &str) -> Result<String> {
+    let path = Path::new(lease_file);
+    if !path.is_absolute() {
+        return Err(Error::new(format!(
+            "lease file '{lease_file}' must be an absolute path"
+        )));
+    }
+    let path = fs::canonicalize(path)
+        .map_err(|err| Error::new(format!("failed to read lease file '{lease_file}': {err}")))?;
+    if path.starts_with("/dev") || path.starts_with("/proc") || path.starts_with("/sys") {
+        return Err(Error::new(format!(
+            "lease file '{lease_file}' is not allowed"
+        )));
+    }
+
+    let metadata = fs::metadata(&path)
+        .map_err(|err| Error::new(format!("failed to read lease file '{lease_file}': {err}")))?;
+    if !metadata.file_type().is_file() {
+        return Err(Error::new(format!(
+            "lease file '{lease_file}' must be a regular file"
+        )));
+    }
+
+    let mut content = String::new();
+    let mut file = fs::File::open(&path)
+        .map_err(|err| Error::new(format!("failed to read lease file '{lease_file}': {err}")))?;
+    let opened_metadata = file
+        .metadata()
+        .map_err(|err| Error::new(format!("failed to read lease file '{lease_file}': {err}")))?;
+    if !opened_metadata.file_type().is_file() {
+        return Err(Error::new(format!(
+            "lease file '{lease_file}' must be a regular file"
+        )));
+    }
+    file.by_ref()
+        .take(DHCPV6_LEASE_MAX_BYTES + 1)
+        .read_to_string(&mut content)
+        .map_err(|err| Error::new(format!("failed to read lease file '{lease_file}': {err}")))?;
+    if content.len() as u64 > DHCPV6_LEASE_MAX_BYTES {
+        return Err(Error::new(format!(
+            "lease file '{lease_file}' exceeds {DHCPV6_LEASE_MAX_BYTES} bytes"
+        )));
+    }
+
+    Ok(content)
 }
 
 fn collect_public_ipv6_candidates(fields: &[&str], matches: &mut Vec<IpAddr>) {
@@ -213,7 +282,11 @@ fn collect_public_ipv6_candidates(fields: &[&str], matches: &mut Vec<IpAddr>) {
 }
 
 fn collect_ndp_ipv6_candidates(normalized_mac: &str, matches: &mut Vec<IpAddr>) {
-    let Ok(output) = Command::new("ip").args(["-6", "neigh", "show"]).output() else {
+    let Ok(output) = command_output_with_timeout(
+        Command::new("ip").args(["-6", "neigh", "show"]),
+        SOURCE_COMMAND_TIMEOUT,
+        "ip -6 neigh show",
+    ) else {
         return;
     };
     if !output.status.success() {
@@ -267,23 +340,65 @@ fn is_public_ipv6(ip: &std::net::Ipv6Addr) -> bool {
     (0x2000..=0x3fff).contains(&first) && !(segments[0] == 0x2001 && segments[1] == 0x0db8)
 }
 
-fn required_dhcpv6_interface<'a>(
-    source: &SourceConfig,
-    interface: Option<&'a str>,
-) -> Result<&'a str> {
-    let iface = interface
+fn parse_interface_names(interface: Option<&str>) -> Vec<String> {
+    interface
+        .unwrap_or("")
+        .split(',')
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| Error::new(format!("source '{}' missing interface", source.name)))?;
-    validate_interface_name(iface)?;
-    Ok(iface)
+        .fold(Vec::<String>::new(), |mut names, value| {
+            if !names.iter().any(|name| name == value) {
+                names.push(value.to_string());
+            }
+            names
+        })
+}
+
+fn required_dhcpv6_interfaces(
+    source: &SourceConfig,
+    interface: Option<&str>,
+) -> Result<Vec<String>> {
+    let ifaces = parse_interface_names(interface);
+    if ifaces.is_empty() {
+        return Err(Error::new(format!(
+            "source '{}' missing interface",
+            source.name
+        )));
+    }
+
+    for iface in &ifaces {
+        validate_interface_name(iface)?;
+    }
+
+    Ok(ifaces)
+}
+
+fn format_interface_names(ifaces: &[String]) -> String {
+    ifaces.join(", ")
+}
+
+fn interfaces_public_ipv6_prefixes(
+    source: &SourceConfig,
+    ifaces: &[String],
+) -> Result<Vec<Ipv6Prefix>> {
+    let mut prefixes = Vec::new();
+    for iface in ifaces {
+        for prefix in interface_public_ipv6_prefixes(source, iface)? {
+            if !prefixes.contains(&prefix) {
+                prefixes.push(prefix);
+            }
+        }
+    }
+    Ok(prefixes)
 }
 
 fn interface_public_ipv6_prefixes(source: &SourceConfig, iface: &str) -> Result<Vec<Ipv6Prefix>> {
-    let output = Command::new("ip")
-        .args(["-6", "addr", "show", "dev", iface])
-        .output()
-        .map_err(|err| Error::new(format!("failed to inspect interface '{iface}': {err}")))?;
+    let output = command_output_with_timeout(
+        Command::new("ip").args(["-6", "addr", "show", "dev", iface]),
+        SOURCE_COMMAND_TIMEOUT,
+        &format!("ip -6 addr show dev {iface}"),
+    )
+    .map_err(|err| Error::new(format!("failed to inspect interface '{iface}': {err}")))?;
     if !output.status.success() {
         return Err(Error::new(format!(
             "unable to inspect interface '{}' for source '{}'",
@@ -448,13 +563,11 @@ fn select_lease_address(
         interface_matches
     };
 
-    if selected.len() == 1 {
-        return Ok(selected[0]);
-    }
-
-    Err(Error::new(format!(
-        "multiple IPv6 addresses matched interface prefix for {subject}, prefix_filter required"
-    )))
+    selected.first().copied().ok_or_else(|| {
+        Error::new(format!(
+            "no IPv6 lease matched interface prefix for {subject}"
+        ))
+    })
 }
 
 fn normalize_mac(mac: &str) -> Result<String> {
@@ -498,8 +611,8 @@ fn resolve_script(source: &SourceConfig, script: Option<&str>) -> Result<SourceR
             source.name
         )));
     }
-    let output = Command::new(script)
-        .output()
+    let mut command = Command::new(script);
+    let output = command_output_with_timeout(&mut command, SOURCE_COMMAND_TIMEOUT, "script source")
         .map_err(|err| Error::new(format!("failed to execute script: {err}")))?;
     if !output.status.success() {
         return Err(Error::new(format!(
@@ -551,35 +664,79 @@ fn resolve_interface(
     family: Option<AddressFamily>,
     interface: Option<&str>,
 ) -> Result<SourceResolution> {
-    let iface = interface
-        .ok_or_else(|| Error::new(format!("source '{}' missing interface", source.name)))?;
-    validate_interface_name(iface)?;
-    if iface == "lo" {
-        let address = match family {
-            Some(AddressFamily::Ipv6) => "::1".parse::<IpAddr>().unwrap(),
-            _ => "127.0.0.1".parse::<IpAddr>().unwrap(),
-        };
-        return Ok(SourceResolution {
-            family: if address.is_ipv4() { "ipv4" } else { "ipv6" }.into(),
-            detail: format!("loopback fallback for interface {iface}"),
-            address,
-        });
+    let ifaces = required_dhcpv6_interfaces(source, interface)?;
+
+    for iface in &ifaces {
+        if iface == "lo" {
+            let address = match family {
+                Some(AddressFamily::Ipv6) => "::1".parse::<IpAddr>().unwrap(),
+                _ => "127.0.0.1".parse::<IpAddr>().unwrap(),
+            };
+            return Ok(SourceResolution {
+                family: if address.is_ipv4() { "ipv4" } else { "ipv6" }.into(),
+                detail: format!("loopback fallback for interface {iface}"),
+                address,
+            });
+        }
+
+        let output = command_output_with_timeout(
+            Command::new("ip").args(["addr", "show", "dev", iface]),
+            SOURCE_COMMAND_TIMEOUT,
+            &format!("ip addr show dev {iface}"),
+        )
+        .map_err(|err| Error::new(format!("failed to inspect interface '{iface}': {err}")))?;
+        if !output.status.success() {
+            return Err(Error::new(format!(
+                "unable to inspect interface '{}'",
+                iface
+            )));
+        }
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        if let Some(address) = parse_interface_address(&stdout, family) {
+            return parse_address_output(&address.to_string(), "interface");
+        }
     }
 
-    let output = Command::new("ip")
-        .args(["addr", "show", "dev", iface])
-        .output()
-        .map_err(|err| Error::new(format!("failed to inspect interface '{iface}': {err}")))?;
-    if !output.status.success() {
-        return Err(Error::new(format!(
-            "unable to inspect interface '{}'",
-            iface
-        )));
+    Err(Error::new(format!(
+        "interfaces '{}' have no address",
+        format_interface_names(&ifaces)
+    )))
+}
+
+fn command_output_with_timeout(
+    command: &mut Command,
+    timeout: Duration,
+    description: &str,
+) -> Result<Output> {
+    let mut child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|err| Error::new(format!("{description} failed to start: {err}")))?;
+    let start = Instant::now();
+
+    loop {
+        if child
+            .try_wait()
+            .map_err(|err| Error::new(format!("{description} failed to wait: {err}")))?
+            .is_some()
+        {
+            return child
+                .wait_with_output()
+                .map_err(|err| Error::new(format!("{description} failed to read output: {err}")));
+        }
+
+        if start.elapsed() >= timeout {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(Error::new(format!(
+                "{description} timed out after {}s",
+                timeout.as_secs().max(1)
+            )));
+        }
+
+        thread::sleep(Duration::from_millis(20));
     }
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    parse_interface_address(&stdout, family)
-        .ok_or_else(|| Error::new(format!("interface '{}' has no address", iface)))
-        .and_then(|address| parse_address_output(&address.to_string(), "interface"))
 }
 
 fn validate_interface_name(iface: &str) -> Result<()> {
@@ -703,6 +860,61 @@ mod tests {
     }
 
     #[test]
+    fn interface_prefix_selects_first_matching_candidate_without_prefix_filter() {
+        let prefixes = parse_interface_public_ipv6_prefixes(
+            "3: wan6: <BROADCAST,MULTICAST,UP> mtu 1500\n    inet6 240e:3b2:4e8a:70a0::1/64 scope global dynamic\n",
+        );
+        let matches = vec![
+            "240e:3b2:4e8a:70a0::30".parse::<IpAddr>().unwrap(),
+            "240e:3b2:4e8a:70a0::31".parse::<IpAddr>().unwrap(),
+        ];
+
+        let selected = select_lease_address(&matches, &prefixes, None, "MAC").unwrap();
+
+        assert_eq!(
+            selected,
+            "240e:3b2:4e8a:70a0::30".parse::<IpAddr>().unwrap()
+        );
+    }
+
+    #[test]
+    fn source_command_output_times_out_slow_commands() {
+        let mut command = Command::new("sh");
+        command.args(["-c", "sleep 2"]);
+
+        let err = command_output_with_timeout(
+            &mut command,
+            std::time::Duration::from_millis(50),
+            "slow source command",
+        )
+        .expect_err("slow source commands must time out");
+
+        assert!(
+            err.to_string().contains("timed out"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn interface_names_accept_multi_select_values() {
+        let source = SourceConfig {
+            name: "lan_mac".into(),
+            kind: SourceKind::Dhcpv6Mac {
+                mac: Some("bc-fc-e7-8c-41-cb".into()),
+                interface: Some("eth1, wan6,eth2".into()),
+                lease_file: None,
+                prefix_filter: None,
+                hostname_hint: None,
+            },
+        };
+
+        let names = required_dhcpv6_interfaces(&source, Some("eth1, wan6,eth2"))
+            .expect("multi-select interface values must parse");
+
+        assert_eq!(names, vec!["eth1", "wan6", "eth2"]);
+    }
+
+    #[test]
     fn dhcpv6_resolution_fails_without_interface_prefix() {
         let matches = vec!["240e:3b2:4e8a:70a0::30".parse::<IpAddr>().unwrap()];
         let err = select_lease_address(&matches, &[], None, "DUID")
@@ -710,6 +922,129 @@ mod tests {
 
         assert!(
             err.to_string().contains("interface prefix"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn dhcpv6_lease_reader_rejects_pseudo_files() {
+        let err = read_dhcpv6_lease_file("/proc/kmsg")
+            .expect_err("pseudo files must not be opened as DHCPv6 leases");
+
+        assert!(
+            err.to_string().contains("not allowed"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn dhcpv6_lease_reader_accepts_regular_files() {
+        let path =
+            std::env::temp_dir().join(format!("qddns-source-test-lease-{}", std::process::id()));
+        fs::write(&path, "# lease\n").unwrap();
+
+        let content = read_dhcpv6_lease_file(path.to_str().unwrap())
+            .expect("regular DHCPv6 lease files must be readable");
+
+        let _ = fs::remove_file(&path);
+        assert_eq!(content, "# lease\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn dhcpv6_lease_reader_accepts_regular_file_symlinks() {
+        let lease_path = std::env::temp_dir().join(format!(
+            "qddns-source-test-lease-real-{}",
+            std::process::id()
+        ));
+        let link_path = std::env::temp_dir().join(format!(
+            "qddns-source-test-lease-real-link-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_file(&lease_path);
+        let _ = fs::remove_file(&link_path);
+        fs::write(&lease_path, "# lease\n").unwrap();
+        std::os::unix::fs::symlink(&lease_path, &link_path).unwrap();
+
+        let content = read_dhcpv6_lease_file(link_path.to_str().unwrap())
+            .expect("regular DHCPv6 lease file symlinks must be readable");
+
+        let _ = fs::remove_file(&link_path);
+        let _ = fs::remove_file(&lease_path);
+        assert_eq!(content, "# lease\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn dhcpv6_lease_reader_rejects_pseudo_file_symlinks() {
+        let path = std::env::temp_dir().join(format!(
+            "qddns-source-test-lease-link-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_file(&path);
+        std::os::unix::fs::symlink("/proc/kmsg", &path).unwrap();
+
+        let err = read_dhcpv6_lease_file(path.to_str().unwrap())
+            .expect_err("pseudo file symlinks must not be opened as DHCPv6 leases");
+
+        let _ = fs::remove_file(&path);
+        assert!(
+            err.to_string().contains("not allowed"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn dhcpv6_lease_reader_rejects_non_regular_paths() {
+        let path =
+            std::env::temp_dir().join(format!("qddns-source-test-dir-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir_all(&path).unwrap();
+
+        let err = read_dhcpv6_lease_file(path.to_str().unwrap())
+            .expect_err("directories must not be read as DHCPv6 leases");
+
+        let _ = fs::remove_dir_all(&path);
+        assert!(
+            err.to_string().contains("regular file"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn dhcpv6_lease_reader_rejects_oversized_files() {
+        let path =
+            std::env::temp_dir().join(format!("qddns-source-test-lease-{}", std::process::id()));
+        fs::write(&path, "x".repeat((DHCPV6_LEASE_MAX_BYTES + 1) as usize)).unwrap();
+
+        let err = read_dhcpv6_lease_file(path.to_str().unwrap())
+            .expect_err("oversized leases must be rejected");
+
+        let _ = fs::remove_file(&path);
+        assert!(
+            err.to_string().contains("exceeds"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn dhcpv6_mac_rejects_unsafe_explicit_lease_file_before_ndp_fallback() {
+        let source = SourceConfig {
+            name: "probe".into(),
+            kind: SourceKind::Dhcpv6Mac {
+                mac: Some("1a:26:b5:c1:c3:d0".into()),
+                interface: Some("eth1".into()),
+                lease_file: Some("/proc/kmsg".into()),
+                prefix_filter: None,
+                hostname_hint: None,
+            },
+        };
+        let result = resolve_source(&source);
+
+        let err = result.expect_err("unsafe explicit lease_file must not reach interface probing");
+        assert!(
+            err.to_string().contains("not allowed"),
             "unexpected error: {err}"
         );
     }

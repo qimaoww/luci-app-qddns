@@ -25,6 +25,7 @@ write_ubus = write_ubus_grants.get("qddns", [])
 if sorted(read_ubus) != sorted([
     "get_overview",
     "list_sources",
+    "list_interfaces",
     "probe_source",
     "probe_source_draft",
     "list_dhcpv6_leases",
@@ -44,6 +45,7 @@ files = read.get("file", {})
 allowed_files = {
     "/tmp/dhcp.leases": ["read"],
     "/tmp/odhcpd.leases": ["read"],
+    "/bin/mktemp": ["exec"],
     "/sbin/ip": ["exec"],
     "/usr/bin/qddnsctl": ["exec"],
 }
