@@ -30,9 +30,9 @@ check_package_metadata() {
 	grep -nF 'PKG_VERSION:=0.2.0' "$ROOT_DIR/applications/luci-app-qddns/Makefile"
 	grep -nF 'dhcpv6_mac' "$ROOT_DIR/README.md"
 	grep -nF 'deduplicates IPv6 addresses' "$ROOT_DIR/README.md"
-	grep -nF 'interface prefix' "$ROOT_DIR/README.md"
+	grep -nF 'DHCPv6-PD route source prefixes' "$ROOT_DIR/README.md"
 	grep -nF 'selects the first matching candidate deterministically' "$ROOT_DIR/README.md"
-	grep -nF 'advanced narrowing after interface prefix matching' "$ROOT_DIR/README.md"
+	grep -nF 'advanced narrowing after WAN/PD source prefix matching' "$ROOT_DIR/README.md"
 	grep -nF 'LAN IPv4' "$ROOT_DIR/README.md"
 	grep -nF 'IPv4/IPv6 neighbor tables' "$ROOT_DIR/README.md"
 	grep -nF 'does not show, request, or return DUID/IAID' "$ROOT_DIR/README.md"
@@ -501,7 +501,7 @@ if start is None:
     raise SystemExit('source interface DeviceSelect option is missing')
 end = next((i for i in range(start + 1, len(settings)) if '\to = s.option(' in settings[i]), len(settings))
 block = '\n'.join(settings[start:end])
-if "For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s); delegated public IPv6 prefixes from those interfaces validate LAN host IPv6 addresses." not in block:
+if "For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s); DHCPv6-PD route source prefixes from those interfaces validate LAN host IPv6 addresses." not in block:
     raise SystemExit('source interface modal guidance is missing')
 if 'o.multiple = true;' not in block:
     raise SystemExit('source interface selector must enable multi-select')
@@ -752,14 +752,14 @@ for bad in [
         raise SystemExit(f'forbidden IPv6 prefix path remains: {bad}')
 if 'prefix_len' not in source and 'prefix_length' not in source:
     raise SystemExit('source.rs must use parsed IPv6 prefix length')
-if 'interface_prefix_selects_first_matching_candidate_without_prefix_filter' not in source:
-    raise SystemExit('source.rs must test automatic selection when multiple candidates match an interface prefix')
+if 'wan_source_prefix_selects_first_matching_candidate_without_prefix_filter' not in source:
+    raise SystemExit('source.rs must test automatic selection when multiple candidates match a WAN source prefix')
 if 'ip -6 route show table all' not in source or 'parse_interface_route_source_ipv6_prefixes' not in source:
     raise SystemExit('source.rs must include WAN route source prefixes for delegated IPv6 PD matching')
 if 'wan_route_from_prefix_accepts_delegated_pd_candidate' not in source:
     raise SystemExit('source.rs must test WAN route source prefixes for delegated IPv6 PD matching')
-if 'for prefix in interface_public_ipv6_prefixes(source, iface)?' not in source or 'selected interface prefix set' not in source:
-    raise SystemExit('source.rs must merge multi-selected interface prefixes and only fail when all selected interfaces lack public IPv6 prefixes')
+if 'for prefix in interface_wan_source_ipv6_prefixes(iface)?' not in source or 'selected WAN/upstream source prefix set' not in source:
+    raise SystemExit('source.rs must merge multi-selected WAN source prefixes and only fail when all selected interfaces lack public route source prefixes')
 if "lease?.interface" in settings or "lease?.interface" in rules:
     raise SystemExit('lease cards must not write or display LAN host interfaces as source interface values')
 if 'host_interface' not in rpcd or 'host_interface' not in settings or 'host_interface' not in rules:
@@ -910,9 +910,9 @@ check_name_visible_numeric_hidden_po() {
 			'Host interface' \
 			'Prefix' \
 			'Prefix narrowing' \
-			'Advanced narrowing after interface prefix matching; it cannot replace the interface.' \
-			'For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s). Lease cards only fill the LAN host identity.' \
-			'For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s); delegated public IPv6 prefixes from those interfaces validate LAN host IPv6 addresses.' \
+			'Advanced narrowing after WAN/PD source prefix matching; it cannot replace the interface.' \
+			'For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s). QDDNS uses DHCPv6-PD route source prefixes from them; lease cards only fill the LAN host identity.' \
+			'For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s); DHCPv6-PD route source prefixes from those interfaces validate LAN host IPv6 addresses.' \
 		'DUID' \
 		'IAID' \
 		'Log Output' \
@@ -1040,7 +1040,7 @@ run_step 'Source probe no luci-rpc recursion guard' check_source_probe_no_luci_r
 run_step 'LuCI name-visible numeric-hidden UI guard' check_name_visible_numeric_hidden_ui
 run_step 'LuCI DHCPv6 lease fill UI guard' check_dhcpv6_lease_fill_ui
 run_step 'LuCI DHCPv6 lease fill backend guard' check_dhcpv6_lease_fill_backend
-run_step 'IPv6 interface prefix source guard' check_ipv6_prefix_source_guard
+run_step 'IPv6 WAN source prefix guard' check_ipv6_prefix_source_guard
 run_step 'Default numeric section guard' check_default_config_numeric_sections
 run_step 'Default DHCPv6 interface guard' check_default_config_dhcpv6_interface
 run_step 'LuCI name-visible numeric-hidden PO guard' check_name_visible_numeric_hidden_po

@@ -111,7 +111,7 @@ fn resolve_dhcpv6_duid(
     let lease_file = explicit_lease_file.unwrap_or("/tmp/odhcpd.leases");
 
     let content = read_dhcpv6_lease_file(lease_file)?;
-    let interface_prefixes = interfaces_public_ipv6_prefixes(source, &ifaces)?;
+    let wan_source_prefixes = interfaces_wan_source_ipv6_prefixes(source, &ifaces)?;
 
     let mut matches = Vec::<IpAddr>::new();
     for line in content.lines() {
@@ -139,7 +139,7 @@ fn resolve_dhcpv6_duid(
 
     let selected = select_lease_address(
         &matches,
-        &interface_prefixes,
+        &wan_source_prefixes,
         prefix_filter,
         &format!("DUID '{duid}'"),
     )?;
@@ -195,7 +195,7 @@ fn resolve_dhcpv6_mac(
         Err(err) if explicit_lease_file.is_some() => return Err(err),
         Err(err) => Some(err),
     };
-    let interface_prefixes = interfaces_public_ipv6_prefixes(source, &ifaces)?;
+    let wan_source_prefixes = interfaces_wan_source_ipv6_prefixes(source, &ifaces)?;
 
     collect_ndp_ipv6_candidates(&normalized_mac, &mut matches);
 
@@ -212,7 +212,7 @@ fn resolve_dhcpv6_mac(
 
     let selected = select_lease_address(
         &matches,
-        &interface_prefixes,
+        &wan_source_prefixes,
         prefix_filter,
         &format!("MAC '{}'", format_mac(&normalized_mac)),
     )?;
@@ -377,13 +377,13 @@ fn format_interface_names(ifaces: &[String]) -> String {
     ifaces.join(", ")
 }
 
-fn interfaces_public_ipv6_prefixes(
+fn interfaces_wan_source_ipv6_prefixes(
     source: &SourceConfig,
     ifaces: &[String],
 ) -> Result<Vec<Ipv6Prefix>> {
     let mut prefixes = Vec::new();
     for iface in ifaces {
-        for prefix in interface_public_ipv6_prefixes(source, iface)? {
+        for prefix in interface_wan_source_ipv6_prefixes(iface)? {
             if !prefixes.contains(&prefix) {
                 prefixes.push(prefix);
             }
@@ -391,7 +391,7 @@ fn interfaces_public_ipv6_prefixes(
     }
     if prefixes.is_empty() {
         return Err(Error::new(format!(
-            "selected interface prefix set for source '{}' is empty; interfaces {} have no public IPv6 prefix",
+            "selected WAN/upstream source prefix set for source '{}' is empty; interfaces {} have no public IPv6 route source prefix",
             source.name,
             format_interface_names(ifaces)
         )));
@@ -400,44 +400,8 @@ fn interfaces_public_ipv6_prefixes(
     Ok(prefixes)
 }
 
-fn interface_public_ipv6_prefixes(source: &SourceConfig, iface: &str) -> Result<Vec<Ipv6Prefix>> {
-    let output = command_output_with_timeout(
-        Command::new("ip").args(["-6", "addr", "show", "dev", iface]),
-        SOURCE_COMMAND_TIMEOUT,
-        &format!("ip -6 addr show dev {iface}"),
-    )
-    .map_err(|err| Error::new(format!("failed to inspect interface '{iface}': {err}")))?;
-    if !output.status.success() {
-        return Err(Error::new(format!(
-            "unable to inspect interface '{}' for source '{}'",
-            iface, source.name
-        )));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut prefixes = parse_interface_public_ipv6_prefixes(&stdout);
-    let route_prefixes = interface_route_source_ipv6_prefixes(iface)?;
-    push_unique_prefixes(&mut prefixes, route_prefixes);
-    Ok(prefixes)
-}
-
-fn parse_interface_public_ipv6_prefixes(output: &str) -> Vec<Ipv6Prefix> {
-    let mut prefixes = Vec::new();
-
-    for line in output.lines() {
-        let line = line.trim_start();
-        let Some(rest) = line.strip_prefix("inet6 ") else {
-            continue;
-        };
-        let Some(prefix) = rest.split_whitespace().next().and_then(parse_ipv6_prefix) else {
-            continue;
-        };
-        if is_public_ipv6(&prefix.address) && !prefixes.contains(&prefix) {
-            prefixes.push(prefix);
-        }
-    }
-
-    prefixes
+fn interface_wan_source_ipv6_prefixes(iface: &str) -> Result<Vec<Ipv6Prefix>> {
+    interface_route_source_ipv6_prefixes(iface)
 }
 
 fn interface_route_source_ipv6_prefixes(iface: &str) -> Result<Vec<Ipv6Prefix>> {
@@ -448,7 +412,7 @@ fn interface_route_source_ipv6_prefixes(iface: &str) -> Result<Vec<Ipv6Prefix>> 
     )
     .map_err(|err| {
         Error::new(format!(
-            "failed to inspect IPv6 routes for interface '{iface}': {err}"
+            "failed to inspect IPv6 route source prefixes for interface '{iface}': {err}"
         ))
     })?;
     if !output.status.success() {
@@ -488,12 +452,6 @@ fn parse_interface_route_source_ipv6_prefixes(output: &str, iface: &str) -> Vec<
     }
 
     prefixes
-}
-
-fn push_unique_prefixes(prefixes: &mut Vec<Ipv6Prefix>, extra: Vec<Ipv6Prefix>) {
-    for prefix in extra {
-        push_unique_prefix(prefixes, prefix);
-    }
 }
 
 fn push_unique_prefix(prefixes: &mut Vec<Ipv6Prefix>, prefix: Ipv6Prefix) {
@@ -582,11 +540,11 @@ fn ipv6_mask(prefix_len: u8) -> u128 {
 
 fn select_lease_address(
     matches: &[IpAddr],
-    interface_prefixes: &[Ipv6Prefix],
+    wan_source_prefixes: &[Ipv6Prefix],
     prefix_filter: Option<&str>,
     subject: &str,
 ) -> Result<IpAddr> {
-    let mut interface_matches = Vec::new();
+    let mut wan_matches = Vec::new();
     for address in matches {
         let IpAddr::V6(ipv6) = address else {
             continue;
@@ -594,23 +552,23 @@ fn select_lease_address(
         if !is_public_ipv6(ipv6) {
             continue;
         }
-        if interface_prefixes
+        if wan_source_prefixes
             .iter()
             .any(|prefix| prefix.contains(ipv6))
         {
-            interface_matches.push(*address);
+            wan_matches.push(*address);
         }
     }
 
-    if interface_matches.is_empty() {
+    if wan_matches.is_empty() {
         return Err(Error::new(format!(
-            "no IPv6 lease matched interface prefix for {subject}"
+            "no IPv6 lease matched WAN/upstream source prefix for {subject}"
         )));
     }
 
     let selected = if let Some(prefix) = prefix_filter.filter(|value| !value.trim().is_empty()) {
         let prefix = parse_prefix_filter(prefix)?;
-        let narrowed = interface_matches
+        let narrowed = wan_matches
             .iter()
             .copied()
             .filter(|address| match address {
@@ -620,17 +578,17 @@ fn select_lease_address(
             .collect::<Vec<_>>();
         if narrowed.is_empty() {
             return Err(Error::new(format!(
-                "no IPv6 lease matched prefix_filter after interface prefix for {subject}"
+                "no IPv6 lease matched prefix_filter after WAN/upstream source prefix for {subject}"
             )));
         }
         narrowed
     } else {
-        interface_matches
+        wan_matches
     };
 
     selected.first().copied().ok_or_else(|| {
         Error::new(format!(
-            "no IPv6 lease matched interface prefix for {subject}"
+            "no IPv6 lease matched WAN/upstream source prefix for {subject}"
         ))
     })
 }
@@ -865,9 +823,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn interface_prefix_accepts_matching_public_ipv6() {
-        let prefixes = parse_interface_public_ipv6_prefixes(
-            "3: wan6: <BROADCAST,MULTICAST,UP> mtu 1500\n    inet6 240e:3b2:4e8a:70a0::1/64 scope global dynamic\n",
+    fn wan_source_prefix_accepts_matching_public_ipv6() {
+        let prefixes = parse_interface_route_source_ipv6_prefixes(
+            "default from 240e:3b2:4e8a:70a0::/64 dev pppoe-wan proto static metric 512 pref medium\n",
+            "pppoe-wan",
         );
         let matches = vec![
             "2409:8a55:4e26:6980::30".parse::<IpAddr>().unwrap(),
@@ -884,15 +843,12 @@ mod tests {
 
     #[test]
     fn wan_route_from_prefix_accepts_delegated_pd_candidate() {
-        let mut prefixes = parse_interface_public_ipv6_prefixes(
-            "7: pppoe-wan: <POINTOPOINT,MULTICAST,UP> mtu 1492\n    inet6 240e:3b2:4e8a:7000::2/64 scope global dynamic\n",
-        );
-        prefixes.extend(parse_interface_route_source_ipv6_prefixes(
+        let prefixes = parse_interface_route_source_ipv6_prefixes(
             "default from 240e:3b2:4e8a:7000::/60 dev pppoe-wan proto static metric 512 pref medium\n\
              default from 240e:3b2:4e8a:7000::/60 dev pppoe-wan_cmcc proto static metric 512 pref medium\n\
              default from all dev pppoe-wan proto static metric 512 pref medium\n",
             "pppoe-wan",
-        ));
+        );
         let matches = vec![
             "240e:3b2:4e8a:7001::30".parse::<IpAddr>().unwrap(),
             "240e:3b2:4e8a:7010::30".parse::<IpAddr>().unwrap(),
@@ -907,9 +863,78 @@ mod tests {
     }
 
     #[test]
-    fn interface_prefix_rejects_wrong_prefix_and_non_global_ipv6() {
-        let prefixes = parse_interface_public_ipv6_prefixes(
-            "3: wan6: <BROADCAST,MULTICAST,UP> mtu 1500\n    inet6 240e:3b2:4e8a:70a0::1/64 scope global dynamic\n",
+    fn route_source_prefix_ignores_other_wan_devices() {
+        let prefixes = parse_interface_route_source_ipv6_prefixes(
+            "default from 2409:8a55:4e26:6980::/60 dev pppoe-wan_cmcc proto static metric 512 pref medium\n\
+             default from all dev pppoe-wan proto static metric 512 pref medium\n",
+            "pppoe-wan",
+        );
+        let matches = vec!["2409:8a55:4e26:6980::30".parse::<IpAddr>().unwrap()];
+
+        let err = select_lease_address(&matches, &prefixes, None, "MAC")
+            .expect_err("source prefixes from other WAN devices must be ignored");
+
+        assert!(
+            err.to_string().contains("WAN/upstream source prefix"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn multi_wan_route_source_prefixes_are_merged() {
+        let output =
+            "default from 240e:3b2:4e8a:70a0::/60 dev pppoe-wan proto static metric 512 pref medium\n\
+             default from 2409:8a55:4e26:6980::/60 dev pppoe-wan_cmcc proto static metric 512 pref medium\n";
+        let mut prefixes = parse_interface_route_source_ipv6_prefixes(output, "pppoe-wan");
+        for prefix in parse_interface_route_source_ipv6_prefixes(output, "pppoe-wan_cmcc") {
+            push_unique_prefix(&mut prefixes, prefix);
+        }
+        let matches = vec!["2409:8a55:4e26:6980::30".parse::<IpAddr>().unwrap()];
+
+        let selected = select_lease_address(&matches, &prefixes, None, "MAC").unwrap();
+
+        assert_eq!(
+            selected,
+            "2409:8a55:4e26:6980::30".parse::<IpAddr>().unwrap()
+        );
+    }
+
+    #[test]
+    fn prefix_filter_cannot_replace_wan_source_prefix() {
+        let prefixes = parse_interface_route_source_ipv6_prefixes(
+            "default from 240e:3b2:4e8a:70a0::/64 dev pppoe-wan proto static metric 512 pref medium\n",
+            "pppoe-wan",
+        );
+        let matches = vec!["2409:8a55:4e26:6980::30".parse::<IpAddr>().unwrap()];
+
+        let err = select_lease_address(&matches, &prefixes, Some("2409:"), "MAC")
+            .expect_err("prefix_filter must not bypass WAN source prefix matching");
+
+        assert!(
+            err.to_string().contains("WAN/upstream source prefix"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn wan_addr_prefix_is_not_used_for_dhcpv6_validation() {
+        let prefixes = parse_interface_route_source_ipv6_prefixes("", "pppoe-wan");
+        let matches = vec!["240e:3b2:4e8a:70a0::30".parse::<IpAddr>().unwrap()];
+
+        let err = select_lease_address(&matches, &prefixes, None, "MAC")
+            .expect_err("WAN interface address prefixes must not validate LAN host IPv6");
+
+        assert!(
+            err.to_string().contains("WAN/upstream source prefix"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn wan_source_prefix_rejects_wrong_prefix_and_non_global_ipv6() {
+        let prefixes = parse_interface_route_source_ipv6_prefixes(
+            "default from 240e:3b2:4e8a:70a0::/64 dev pppoe-wan proto static metric 512 pref medium\n",
+            "pppoe-wan",
         );
         let matches = vec![
             "240e:3b2:4e8a:70a1::30".parse::<IpAddr>().unwrap(),
@@ -923,15 +948,16 @@ mod tests {
             .expect_err("wrong prefix and non-global addresses must be rejected");
 
         assert!(
-            err.to_string().contains("interface prefix"),
+            err.to_string().contains("WAN/upstream source prefix"),
             "unexpected error: {err}"
         );
     }
 
     #[test]
-    fn interface_prefix_applies_prefix_filter_as_narrowing_only() {
-        let prefixes = parse_interface_public_ipv6_prefixes(
-            "3: wan6: <BROADCAST,MULTICAST,UP> mtu 1500\n    inet6 240e:3b2:4e8a::1/48 scope global dynamic\n",
+    fn wan_source_prefix_applies_prefix_filter_as_narrowing_only() {
+        let prefixes = parse_interface_route_source_ipv6_prefixes(
+            "default from 240e:3b2:4e8a::/48 dev pppoe-wan proto static metric 512 pref medium\n",
+            "pppoe-wan",
         );
         let matches = vec![
             "240e:3b2:4e8a:70a1::30".parse::<IpAddr>().unwrap(),
@@ -949,9 +975,10 @@ mod tests {
     }
 
     #[test]
-    fn interface_prefix_selects_first_matching_candidate_without_prefix_filter() {
-        let prefixes = parse_interface_public_ipv6_prefixes(
-            "3: wan6: <BROADCAST,MULTICAST,UP> mtu 1500\n    inet6 240e:3b2:4e8a:70a0::1/64 scope global dynamic\n",
+    fn wan_source_prefix_selects_first_matching_candidate_without_prefix_filter() {
+        let prefixes = parse_interface_route_source_ipv6_prefixes(
+            "default from 240e:3b2:4e8a:70a0::/64 dev pppoe-wan proto static metric 512 pref medium\n",
+            "pppoe-wan",
         );
         let matches = vec![
             "240e:3b2:4e8a:70a0::30".parse::<IpAddr>().unwrap(),
@@ -1004,13 +1031,13 @@ mod tests {
     }
 
     #[test]
-    fn dhcpv6_resolution_fails_without_interface_prefix() {
+    fn dhcpv6_resolution_fails_without_wan_source_prefix() {
         let matches = vec!["240e:3b2:4e8a:70a0::30".parse::<IpAddr>().unwrap()];
         let err = select_lease_address(&matches, &[], None, "DUID")
-            .expect_err("no interface prefix must fail");
+            .expect_err("no WAN source prefix must fail");
 
         assert!(
-            err.to_string().contains("interface prefix"),
+            err.to_string().contains("WAN/upstream source prefix"),
             "unexpected error: {err}"
         );
     }

@@ -488,13 +488,13 @@ return view.extend({
 		]);
 		const sourceFamilyField = this.renderWizardField(_('Family'), fields.sourceFamily);
 		const sourceAddressField = this.renderWizardField(_('Address'), fields.sourceAddress);
-		const sourceInterfaceField = this.renderWizardField(_('Interface'), fields.sourceInterface, _('For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s). Lease cards only fill the LAN host identity.'));
+		const sourceInterfaceField = this.renderWizardField(_('Interface'), fields.sourceInterface, _('For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s). QDDNS uses DHCPv6-PD route source prefixes from them; lease cards only fill the LAN host identity.'));
 		const sourceDuidField = this.renderWizardField(_('DUID'), fields.sourceDuid);
 		const sourceIaidField = this.renderWizardField(_('IAID'), fields.sourceIaid);
 		const sourceMacField = this.renderWizardField(_('MAC'), fields.sourceMac);
 		const sourceLeaseFileField = this.renderWizardField(_('Lease file'), fields.sourceLeaseFile);
 		const sourceHostnameHintField = this.renderWizardField(_('Hostname hint'), fields.sourceHostnameHint);
-		const sourcePrefixFilterField = this.renderWizardField(_('Prefix narrowing'), fields.sourcePrefixFilter, _('Advanced narrowing after interface prefix matching; it cannot replace the interface.'));
+		const sourcePrefixFilterField = this.renderWizardField(_('Prefix narrowing'), fields.sourcePrefixFilter, _('Advanced narrowing after WAN/PD source prefix matching; it cannot replace the interface.'));
 		const sourceLeasePanel = E('div', { class: 'qddns-rule-wizard-source-panel', 'data-source-panel': 'lease' }, [
 			E('div', { class: 'qddns-actions qddns-rule-wizard-source-actions' }, [sourceLeaseButton]),
 			sourceLeaseResults
@@ -767,7 +767,7 @@ return view.extend({
 				if (qddns.isFailedResult(result) || !result.address) {
 					const message = qddns.extractResultMessage(result, _('Unable to read source IP.'));
 					fields.source.setAttribute('data-source-ip-error', '1');
-					setWizardSourceIp(_('Unable to read source IP.'), 'negative');
+					setWizardSourceIp(message, 'negative');
 					setWizardProbeFeedback(message, 'error');
 					updateButtons();
 					if (stepIndex === 2)
@@ -1070,7 +1070,7 @@ return view.extend({
 						fields.source.setAttribute('data-source-create-dirty', '1');
 						fields.source.setAttribute('data-source-ip-error', '1');
 						fields.source.removeAttribute('data-probed-family');
-						setWizardSourceIp(_('Unable to read source IP.'), 'negative');
+						setWizardSourceIp(message, 'negative');
 						setWizardProbeFeedback(message, 'error');
 						updateButtons();
 						return result;
@@ -1154,8 +1154,9 @@ return view.extend({
 					fields.source.setAttribute('data-source-create-dirty', '1');
 					fields.source.setAttribute('data-source-ip-error', '1');
 					fields.source.removeAttribute('data-probed-family');
-					setWizardSourceIp(_('Unable to read source IP.'), 'negative');
-					setWizardProbeFeedback(qddns.extractResultMessage(err, _('Unable to read source IP.')), 'error');
+					const message = qddns.extractResultMessage(err, _('Unable to read source IP.'));
+					setWizardSourceIp(message, 'negative');
+					setWizardProbeFeedback(message, 'error');
 					updateButtons();
 				});
 			});

@@ -328,8 +328,8 @@ msgstr "前缀过滤"
 msgid "Prefix narrowing"
 msgstr "前缀收窄"
 
-msgid "Advanced narrowing after interface prefix matching; it cannot replace the interface."
-msgstr "接口前缀匹配后的高级收窄；不能替代接口。"
+msgid "Advanced narrowing after WAN/PD source prefix matching; it cannot replace the interface."
+msgstr "WAN/PD 来源前缀匹配后的高级收窄；不能替代接口。"
 
 msgid "Hostname hint"
 msgstr "主机名提示"
@@ -337,11 +337,11 @@ msgstr "主机名提示"
 msgid "Interface"
 msgstr "接口"
 
-msgid "For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s). Lease cards only fill the LAN host identity."
-msgstr "DHCPv6 DUID/MAC 来源请选择 WAN/上游接口；租约卡片只填充局域网主机身份。"
+msgid "For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s). QDDNS uses DHCPv6-PD route source prefixes from them; lease cards only fill the LAN host identity."
+msgstr "DHCPv6 DUID/MAC 来源请选择 WAN/上游接口；QDDNS 使用这些接口的 DHCPv6-PD 路由来源前缀，租约卡片只填充局域网主机身份。"
 
-msgid "For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s); delegated public IPv6 prefixes from those interfaces validate LAN host IPv6 addresses."
-msgstr "DHCPv6 DUID/MAC 来源请选择 WAN/上游接口；这些接口的下发公网 IPv6 前缀用于校验局域网主机 IPv6。"
+msgid "For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s); DHCPv6-PD route source prefixes from those interfaces validate LAN host IPv6 addresses."
+msgstr "DHCPv6 DUID/MAC 来源请选择 WAN/上游接口；这些接口的 DHCPv6-PD 路由来源前缀用于校验局域网主机 IPv6。"
 
 msgid "Probe URL"
 msgstr "探测 URL"
