@@ -1,5 +1,5 @@
 use std::fs;
-use std::net::{IpAddr, Ipv6Addr};
+use std::net::IpAddr;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -61,11 +61,13 @@ config source 'lan_duid'
     option type 'dhcpv6_duid'
     option duid '0001000130555374bcfce78c41cb'
     option iaid '6bcfce7'
+    option interface 'wan6'
     option prefix_filter '240e:'
 
 config source 'lan_mac'
     option type 'dhcpv6_mac'
     option mac 'bc-fc-e7-8c-41-cb'
+    option interface 'wan6'
     option prefix_filter '240e:'
 
 config provider 'cf'
@@ -93,19 +95,70 @@ config rule 'desktop_ipv6'
     assert_eq!(config.sources.len(), 2);
     assert_eq!(config.providers.len(), 1);
     assert_eq!(config.rules.len(), 1);
-    let SourceKind::Dhcpv6Duid { prefix_filter, .. } = &config.sources["lan_duid"].kind else {
+    let SourceKind::Dhcpv6Duid {
+        interface,
+        prefix_filter,
+        ..
+    } = &config.sources["lan_duid"].kind
+    else {
         panic!("lan_duid should be dhcpv6_duid");
     };
+    assert_eq!(interface.as_deref(), Some("wan6"));
+    // The interface prefix is the primary validity source; prefix_filter only narrows it.
     assert_eq!(prefix_filter.as_deref(), Some("240e:"));
     let SourceKind::Dhcpv6Mac {
-        mac, prefix_filter, ..
+        mac,
+        interface,
+        prefix_filter,
+        ..
     } = &config.sources["lan_mac"].kind
     else {
         panic!("lan_mac should be dhcpv6_mac");
     };
     assert_eq!(mac.as_deref(), Some("bc-fc-e7-8c-41-cb"));
+    assert_eq!(interface.as_deref(), Some("wan6"));
+    // The interface prefix is the primary validity source; prefix_filter only narrows it.
     assert_eq!(prefix_filter.as_deref(), Some("240e:"));
     assert_eq!(config.rules["desktop_ipv6"].record_type, "AAAA");
+}
+
+#[test]
+fn dhcpv6_source_requires_interface() {
+    let config = Config::parse_uci(
+        r#"
+config qddns 'main'
+
+config source 'lan_duid'
+    option type 'dhcpv6_duid'
+    option duid '0001000130555374bcfce78c41cb'
+    option iaid '6bcfce7'
+
+config source 'lan_mac'
+    option type 'dhcpv6_mac'
+    option mac 'bc-fc-e7-8c-41-cb'
+
+config provider 'cf'
+    option type 'cloudflare'
+    option api_token 'token'
+
+config rule 'desktop_ipv6'
+    option enabled '1'
+    option provider 'cf'
+    option source 'lan_duid'
+    option record_type 'AAAA'
+    option zone 'example.com'
+    option record_name 'desktop'
+"#,
+    )
+    .expect("config parses");
+
+    let err = config
+        .validate()
+        .expect_err("missing dhcpv6 interface must fail");
+    assert!(
+        err.to_string().contains("source.lan_duid.interface"),
+        "unexpected error: {err}"
+    );
 }
 
 #[test]
@@ -144,86 +197,6 @@ config rule 'bad_ipv6'
     let config = Config::load_from_path(&path).expect("config loads");
     let err = config.validate().expect_err("validation should fail");
     assert!(err.to_string().contains("AAAA"), "unexpected error: {err}");
-}
-
-#[test]
-fn duid_source_prefers_matching_prefix_when_multiple_global_addresses_exist() {
-    let temp = TempDir::new();
-    let lease_path = temp.path().join("odhcpd.leases");
-    write_file(
-        &lease_path,
-        "# br-lan 0001000130555374bcfce78c41cb 6bcfce7 DESKTOP-DVAVJOS 1778918207 30 128 240e:3b2:4e8f:bf40::30/128 2409:8a55:4e29:d250::30/128\n",
-    );
-
-    let source = SourceConfig {
-        name: "lan_duid".into(),
-        kind: SourceKind::Dhcpv6Duid {
-            duid: Some("0001000130555374bcfce78c41cb".into()),
-            iaid: Some("6bcfce7".into()),
-            lease_file: Some(lease_path.display().to_string()),
-            prefix_filter: Some("240e:".into()),
-            hostname_hint: Some("DESKTOP-DVAVJOS".into()),
-        },
-    };
-
-    let resolved = resolve_source(&source).expect("duid source resolves");
-    assert_eq!(
-        resolved.address,
-        IpAddr::V6("240e:3b2:4e8f:bf40::30".parse::<Ipv6Addr>().unwrap())
-    );
-}
-
-#[test]
-fn duid_source_rejects_ambiguous_global_addresses_without_prefix_filter() {
-    let temp = TempDir::new();
-    let lease_path = temp.path().join("odhcpd.leases");
-    write_file(
-        &lease_path,
-        "# br-lan 0001000130555374bcfce78c41cb 6bcfce7 DESKTOP-DVAVJOS 1778918207 30 128 240e:3b2:4e8f:bf40::30/128 2409:8a55:4e29:d250::30/128\n",
-    );
-
-    let source = SourceConfig {
-        name: "lan_duid".into(),
-        kind: SourceKind::Dhcpv6Duid {
-            duid: Some("0001000130555374bcfce78c41cb".into()),
-            iaid: Some("6bcfce7".into()),
-            lease_file: Some(lease_path.display().to_string()),
-            prefix_filter: None,
-            hostname_hint: None,
-        },
-    };
-
-    let err = resolve_source(&source).expect_err("resolution should fail");
-    assert!(
-        err.to_string().contains("prefix"),
-        "unexpected error: {err}"
-    );
-}
-
-#[test]
-fn mac_source_resolves_ipv6_from_duid_link_layer_address() {
-    let temp = TempDir::new();
-    let lease_path = temp.path().join("odhcpd.leases");
-    write_file(
-        &lease_path,
-        "# eth1 0001000130555374bcfce78c41cb 6bcfce7 DESKTOP-DVAVJOS 1779830447 30 128 240e:3b2:4e8a:70a0::30/128 2409:8a55:4e26:6980::30/128\n",
-    );
-
-    let source = SourceConfig {
-        name: "lan_mac".into(),
-        kind: SourceKind::Dhcpv6Mac {
-            mac: Some("BC-FC-E7-8C-41-CB".into()),
-            lease_file: Some(lease_path.display().to_string()),
-            prefix_filter: Some("240e:".into()),
-            hostname_hint: Some("DESKTOP-DVAVJOS".into()),
-        },
-    };
-
-    let resolved = resolve_source(&source).expect("mac source resolves");
-    assert_eq!(
-        resolved.address,
-        IpAddr::V6("240e:3b2:4e8a:70a0::30".parse::<Ipv6Addr>().unwrap())
-    );
 }
 
 #[test]

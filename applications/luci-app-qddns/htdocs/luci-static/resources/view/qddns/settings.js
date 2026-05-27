@@ -66,12 +66,13 @@ const QDDNS_SETTINGS_STYLE = [
 	'.qddns-dhcpv6-lease-list{display:grid;gap:var(--qddns-space-2);max-width:100%;min-width:0}',
 	'.qddns-dhcpv6-lease-card{appearance:none;box-sizing:border-box;display:grid;gap:var(--qddns-space-2);width:100%;min-width:0;margin:0;padding:var(--qddns-space-2);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);color:inherit;font:inherit;line-height:1.35;text-align:left;cursor:pointer}',
 	'.qddns-dhcpv6-lease-card:hover,.qddns-dhcpv6-lease-card:focus,.qddns-dhcpv6-lease-card.is-selected{border-color:currentColor;background:var(--qddns-surface-strong)}',
-	'.qddns-dhcpv6-lease-card-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--qddns-space-2);min-width:0}',
+	'.qddns-dhcpv6-lease-card-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:var(--qddns-space-2);min-width:0}',
 	'.qddns-dhcpv6-lease-title{min-width:0;font-weight:600;overflow-wrap:anywhere}',
-	'.qddns-dhcpv6-lease-action{padding:0.1rem 0.4rem;border-radius:999px;background:var(--qddns-surface-strong);font-size:0.9em;opacity:0.85}',
+	'.qddns-dhcpv6-lease-action{justify-self:end;max-width:100%;padding:0.1rem 0.4rem;border-radius:999px;background:var(--qddns-surface-strong);font-size:0.9em;line-height:1.35;opacity:0.85;text-align:center;white-space:nowrap}',
 	'.qddns-dhcpv6-lease-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(var(--qddns-dhcpv6-card-min),1fr));gap:var(--qddns-space-1) var(--qddns-space-2);min-width:0}',
-	'.qddns-dhcpv6-lease-meta-item{min-width:0;overflow-wrap:anywhere}',
-	'.qddns-dhcpv6-lease-meta-label{opacity:0.72}',
+	'.qddns-dhcpv6-lease-meta-item{display:grid;grid-template-columns:minmax(4.75rem,max-content) minmax(0,1fr);gap:var(--qddns-space-1);min-width:0;overflow-wrap:anywhere}',
+	'.qddns-dhcpv6-lease-meta-label{min-width:4.75rem;opacity:0.72}',
+	'.qddns-dhcpv6-lease-meta-value{min-width:0;overflow-wrap:anywhere}',
 	'@media (max-width: 768px){',
 		'.qddns-settings-page .qddns-panel{padding:var(--qddns-space-3)}',
 	'}'
@@ -144,6 +145,9 @@ return view.extend({
 			case 'prefix_filter':
 				options.prefixFilter = option;
 				break;
+			case 'interface':
+				options.interface = option;
+				break;
 			}
 		});
 
@@ -183,17 +187,6 @@ return view.extend({
 			option.triggerValidation(sectionId);
 	},
 
-	getLeasePrefixFilter: function(lease) {
-		if (lease?.prefix_filter)
-			return lease.prefix_filter;
-
-		const prefix = qddns.normalizeList(lease?.prefixes)[0] || '';
-		const address = String(prefix).split('/')[0];
-		const firstHextet = address.split(':')[0];
-
-		return firstHextet ? firstHextet + ':' : '';
-	},
-
 	fillDhcpv6Lease: function(sectionId, lease, feedback, optionSet) {
 		const options = optionSet || this.sourceDhcpv6Options || {};
 		const isDuidSource = this.isDhcpv6DuidSource(sectionId);
@@ -207,7 +200,8 @@ return view.extend({
 		}
 		this.setSourceOptionValue(options.leaseFile, sectionId, lease?.lease_file || '/tmp/odhcpd.leases');
 		this.setSourceOptionValue(options.hostnameHint, sectionId, lease?.hostname || '');
-		this.setSourceOptionValue(options.prefixFilter, sectionId, this.getLeasePrefixFilter(lease));
+		this.setSourceOptionValue(options.interface, sectionId, lease?.interface || '');
+		this.setSourceOptionValue(options.prefixFilter, sectionId, '');
 
 		if (feedback)
 			feedback.textContent = isDuidSource ? _('Selected DHCPv6 lease values have been filled. Save the source to keep them.') : _('Selected LAN host MAC has been filled. Save the source to keep it.');
@@ -248,18 +242,20 @@ return view.extend({
 	renderDhcpv6LeaseMeta: function(label, value) {
 		return E('span', { class: 'qddns-dhcpv6-lease-meta-item' }, [
 			E('span', { class: 'qddns-dhcpv6-lease-meta-label' }, label + ': '),
-			E('span', {}, value || '-')
+			E('span', { class: 'qddns-dhcpv6-lease-meta-value' }, value || '-')
 		]);
 	},
 
 	renderDhcpv6LeaseCard: function(sectionId, lease, feedback, optionSet) {
 		const prefixes = qddns.normalizeList(lease?.prefixes);
+		const ipv4 = qddns.normalizeList(lease?.ipv4);
 		const isDuidSource = this.isDhcpv6DuidSource(sectionId);
 		const identityMeta = isDuidSource ? [
 			this.renderDhcpv6LeaseMeta(_('DUID'), lease?.duid || '-'),
 			this.renderDhcpv6LeaseMeta(_('IAID'), lease?.iaid || '-')
 		] : [
-			this.renderDhcpv6LeaseMeta(_('MAC'), lease?.mac || '-')
+			this.renderDhcpv6LeaseMeta(_('MAC'), lease?.mac || '-'),
+			this.renderDhcpv6LeaseMeta(_('LAN IP'), ipv4.length ? ipv4.join(', ') : '-')
 		];
 		const card = E('button', {
 			type: 'button',
@@ -297,7 +293,7 @@ return view.extend({
 		const list = this.filterDhcpv6Choices(sectionId, leases);
 		const isDuidSource = this.isDhcpv6DuidSource(sectionId);
 		const emptyMessage = isDuidSource ? _('No DHCPv6 leases found.') : _('No LAN hosts with public IPv6 found.');
-		const feedback = E('div', { class: 'cbi-value-description' }, list.length ? (isDuidSource ? _('Choose a current DUID to fill DUID, IAID, hostname hint, and prefix filter.') : _('Choose a current MAC to fill MAC, hostname hint, and prefix filter.')) : emptyMessage);
+		const feedback = E('div', { class: 'cbi-value-description' }, list.length ? (isDuidSource ? _('Choose a current DUID to fill DUID, IAID, interface, and hostname hint.') : _('Choose a current MAC to fill MAC, LAN IP identity, interface, and hostname hint.')) : emptyMessage);
 
 		if (!list.length)
 			return E('div', { class: 'qddns-dhcpv6-lease-results' }, [feedback]);
@@ -606,12 +602,15 @@ return view.extend({
 		o = s.option(form.Value, 'iaid', _('IAID')); this.sourceDhcpv6Options.iaid = o; o.modalonly = true; o.depends('type', 'dhcpv6_duid');
 		o = s.option(form.Value, 'mac', _('MAC')); this.sourceDhcpv6Options.mac = o; o.modalonly = true; o.depends('type', 'dhcpv6_mac');
 		o = s.option(form.Value, 'lease_file', _('Lease file')); this.sourceDhcpv6Options.leaseFile = o; o.placeholder = '/tmp/odhcpd.leases'; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac');
-		o = s.option(form.Value, 'prefix_filter', _('Prefix filter')); this.sourceDhcpv6Options.prefixFilter = o; o.placeholder = '240e:'; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac');
+		o = s.option(form.Value, 'prefix_filter', _('Prefix narrowing'), _('Advanced narrowing after interface prefix matching; it cannot replace the interface.')); this.sourceDhcpv6Options.prefixFilter = o; o.placeholder = '240e:'; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac');
 		o = s.option(form.Value, 'hostname_hint', _('Hostname hint')); this.sourceDhcpv6Options.hostnameHint = o; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac');
-		o = s.option(widgets.DeviceSelect, 'interface', _('Interface'));
+		o = s.option(widgets.DeviceSelect, 'interface', _('Interface'), _('Required for DHCPv6 DUID/MAC sources; its public IPv6 prefix is the validity source.'));
+		this.sourceDhcpv6Options.interface = o;
 		o.noaliases = true;
 		o.nocreate = true;
 		o.depends('type', 'interface');
+		o.depends('type', 'dhcpv6_duid');
+		o.depends('type', 'dhcpv6_mac');
 		o = s.option(form.Value, 'probe_url', _('Probe URL')); o.modalonly = true; o.depends('type', 'public_probe');
 		o = s.option(form.Value, 'script', _('Script path')); o.modalonly = true; o.depends('type', 'script');
 

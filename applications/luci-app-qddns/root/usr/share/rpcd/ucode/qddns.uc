@@ -76,12 +76,24 @@ function exec_json(command) {
 	return data ? json(trim(data)) : null;
 }
 
+function source_family(section) {
+	let family = section.family || '';
+
+	if (family == 'ipv4' || family == 'ipv6')
+		return family;
+
+	if (section.type == 'dhcpv6_duid' || section.type == 'dhcpv6_mac')
+		return 'ipv6';
+
+	return null;
+}
+
 function section_to_obj(section) {
 	return {
 		id: section['.name'],
 		type: section.type,
 		name: section.name || null,
-		family: section.family,
+		family: source_family(section),
 		hint: section.hostname_hint || section.address || section.interface || section.duid || section.iaid || null
 	};
 }
@@ -123,22 +135,20 @@ function rule_status_to_obj(status) {
 	};
 }
 
-function dhcpv6_prefix_filter(prefixes) {
-	if (!prefixes || !length(prefixes))
-		return null;
-
-	let address = split(prefixes[0], '/')[0] || '';
-	let first = split(address, ':')[0] || '';
-
-	return first ? `${first}:` : null;
-}
-
 function is_public_ipv6(address) {
 	let first = substr(address || '', 0, 1);
 
 	return match(address || '', /:/) != null &&
 		(first == '2' || first == '3') &&
 		substr(address, 0, 9) != '2001:db8:';
+}
+
+function is_private_ipv4(address) {
+	address = address || '';
+
+	return substr(address, 0, 3) == '10.' ||
+		substr(address, 0, 8) == '192.168.' ||
+		(substr(address, 0, 4) == '172.' && match(address, /^172[.](1[6-9]|2[0-9]|3[0-1])[.]/) != null);
 }
 
 function push_unique(list, value) {
@@ -199,8 +209,7 @@ function host_entry(entries, mac) {
 			mac: mac,
 			hostname: null,
 			ipv4: [],
-			prefixes: [],
-			prefix_filter: null
+			prefixes: []
 		};
 	}
 
@@ -236,7 +245,8 @@ function add_dhcpv4_lease_entries(entries) {
 		if (fields[3] && fields[3] != '*')
 			entry.hostname = entry.hostname || strip_lan_suffix(fields[3]);
 
-		push_unique(entry.ipv4, fields[2]);
+		if (is_private_ipv4(fields[2]))
+			push_unique(entry.ipv4, fields[2]);
 	}
 }
 
@@ -345,7 +355,6 @@ function list_dhcpv6_leases(mode) {
 		if (!length(entry.prefixes))
 			continue;
 
-		entry.prefix_filter = dhcpv6_prefix_filter(entry.prefixes);
 		if (mode == 'mac') {
 			delete entry.duid;
 			delete entry.iaid;

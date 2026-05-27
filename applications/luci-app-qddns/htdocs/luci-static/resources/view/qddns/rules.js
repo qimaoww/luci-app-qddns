@@ -236,7 +236,7 @@ return view.extend({
 	},
 
 	resetWizardFeedback: function(feedback) {
-		feedback.textContent = _('Provider and source choices show names only; rule links are saved automatically.');
+		feedback.textContent = _('Choose the source IP first, then choose the DNS location.');
 		feedback.classList.remove('alert-message', 'warning');
 	},
 
@@ -332,7 +332,7 @@ return view.extend({
 			recordName: E('input', { type: 'text', class: 'cbi-input-text', placeholder: 'home' }),
 			enabled: E('input', { type: 'checkbox', checked: 'checked' })
 		};
-		const feedback = E('div', { class: 'cbi-value-description qddns-rule-wizard-feedback' }, _('Provider and source choices show names only; rule links are saved automatically.'));
+		const feedback = E('div', { class: 'cbi-value-description qddns-rule-wizard-feedback' }, _('Choose the source IP first, then choose the DNS location.'));
 		const saveButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-add' }, [_('Add DDNS rule')]);
 		const previousButton = E('button', { type: 'button', class: 'btn cbi-button' }, [_('Back')]);
 		const nextButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' }, [_('Next')]);
@@ -340,15 +340,15 @@ return view.extend({
 		let stepIndex = 0;
 		const modal = E('div', { class: 'qddns-rule-wizard-modal' }, [
 			E('div', { class: 'qddns-rule-wizard-steps' }, [
-				E('span', { 'data-wizard-step': '0', class: 'qddns-rule-wizard-step is-active' }, _('1. Address')),
+				E('span', { 'data-wizard-step': '0', class: 'qddns-rule-wizard-step is-active' }, _('1. Source')),
 				E('span', { 'data-wizard-step': '1', class: 'qddns-rule-wizard-step' }, _('2. DNS')),
 				E('span', { 'data-wizard-step': '2', class: 'qddns-rule-wizard-step' }, _('3. Confirm'))
 			]),
 			E('div', { 'data-wizard-panel': '0' }, [
-				E('h4', {}, _('Choose the address to publish')),
+				E('h4', {}, _('Choose Source IP')),
 				E('div', { class: 'qddns-rule-wizard-grid' }, [
-					this.renderWizardField(_('Record type'), fields.recordType),
-					this.renderWizardField(_('Source'), fields.source)
+					this.renderWizardField(_('Source'), fields.source),
+					this.renderWizardField(_('Record type'), fields.recordType)
 				])
 			]),
 			E('div', { 'data-wizard-panel': '1', style: 'display:none' }, [
@@ -411,6 +411,8 @@ return view.extend({
 
 		if (launcher)
 			launcher.blur();
+		if (fields.source && typeof fields.source.focus == 'function')
+			window.setTimeout(function() { fields.source.focus(); }, 0);
 	},
 
 	renderRuleWizard: function(data) {

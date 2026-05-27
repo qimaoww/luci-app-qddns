@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::fs;
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv6Addr};
 use std::process::Command;
 
 use crate::config::{AddressFamily, SourceConfig, SourceKind};
@@ -13,6 +13,19 @@ pub struct SourceResolution {
     pub address: IpAddr,
     pub family: String,
     pub detail: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Ipv6Prefix {
+    address: Ipv6Addr,
+    prefix_len: u8,
+}
+
+impl Ipv6Prefix {
+    fn contains(self, address: &Ipv6Addr) -> bool {
+        let mask = ipv6_mask(self.prefix_len);
+        ipv6_to_u128(self.address) & mask == ipv6_to_u128(*address) & mask
+    }
 }
 
 pub fn resolve_source(source: &SourceConfig) -> Result<SourceResolution> {
@@ -36,6 +49,7 @@ pub fn resolve_source_with_http(
         SourceKind::Dhcpv6Duid {
             duid,
             iaid,
+            interface,
             lease_file,
             prefix_filter,
             ..
@@ -43,17 +57,20 @@ pub fn resolve_source_with_http(
             source,
             duid.as_deref(),
             iaid.as_deref(),
+            interface.as_deref(),
             lease_file.as_deref(),
             prefix_filter.as_deref(),
         ),
         SourceKind::Dhcpv6Mac {
             mac,
+            interface,
             lease_file,
             prefix_filter,
             ..
         } => resolve_dhcpv6_mac(
             source,
             mac.as_deref(),
+            interface.as_deref(),
             lease_file.as_deref(),
             prefix_filter.as_deref(),
         ),
@@ -77,11 +94,14 @@ fn resolve_dhcpv6_duid(
     source: &SourceConfig,
     duid: Option<&str>,
     iaid: Option<&str>,
+    interface: Option<&str>,
     lease_file: Option<&str>,
     prefix_filter: Option<&str>,
 ) -> Result<SourceResolution> {
     let duid = duid.ok_or_else(|| Error::new(format!("source '{}' missing duid", source.name)))?;
     let iaid = iaid.ok_or_else(|| Error::new(format!("source '{}' missing iaid", source.name)))?;
+    let iface = required_dhcpv6_interface(source, interface)?;
+    let interface_prefixes = interface_public_ipv6_prefixes(source, iface)?;
     let lease_file = lease_file.unwrap_or("/tmp/odhcpd.leases");
 
     let content = fs::read_to_string(lease_file)
@@ -111,23 +131,31 @@ fn resolve_dhcpv6_duid(
         )));
     }
 
-    let selected = select_lease_address(&matches, prefix_filter, &format!("DUID '{duid}'"))?;
+    let selected = select_lease_address(
+        &matches,
+        &interface_prefixes,
+        prefix_filter,
+        &format!("DUID '{duid}'"),
+    )?;
 
     Ok(SourceResolution {
         address: selected,
         family: "ipv6".into(),
-        detail: format!("resolved from {lease_file}"),
+        detail: format!("resolved from {lease_file} via interface {iface}"),
     })
 }
 
 fn resolve_dhcpv6_mac(
     source: &SourceConfig,
     mac: Option<&str>,
+    interface: Option<&str>,
     lease_file: Option<&str>,
     prefix_filter: Option<&str>,
 ) -> Result<SourceResolution> {
     let mac = mac.ok_or_else(|| Error::new(format!("source '{}' missing mac", source.name)))?;
     let normalized_mac = normalize_mac(mac)?;
+    let iface = required_dhcpv6_interface(source, interface)?;
+    let interface_prefixes = interface_public_ipv6_prefixes(source, iface)?;
     let lease_file = lease_file.unwrap_or("/tmp/odhcpd.leases");
 
     let mut matches = Vec::<IpAddr>::new();
@@ -165,6 +193,7 @@ fn resolve_dhcpv6_mac(
 
     let selected = select_lease_address(
         &matches,
+        &interface_prefixes,
         prefix_filter,
         &format!("MAC '{}'", format_mac(&normalized_mac)),
     )?;
@@ -172,7 +201,9 @@ fn resolve_dhcpv6_mac(
     Ok(SourceResolution {
         address: selected,
         family: "ipv6".into(),
-        detail: format!("resolved by MAC from LAN host tables and {lease_file}"),
+        detail: format!(
+            "resolved by MAC from LAN host tables and {lease_file} via interface {iface}"
+        ),
     })
 }
 
@@ -279,29 +310,193 @@ fn is_public_ipv6(ip: &std::net::Ipv6Addr) -> bool {
     (0x2000..=0x3fff).contains(&first) && !(segments[0] == 0x2001 && segments[1] == 0x0db8)
 }
 
+fn required_dhcpv6_interface<'a>(
+    source: &SourceConfig,
+    interface: Option<&'a str>,
+) -> Result<&'a str> {
+    let iface = interface
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| Error::new(format!("source '{}' missing interface", source.name)))?;
+    validate_interface_name(iface)?;
+    Ok(iface)
+}
+
+fn interface_public_ipv6_prefixes(source: &SourceConfig, iface: &str) -> Result<Vec<Ipv6Prefix>> {
+    let output = Command::new("ip")
+        .args(["-6", "addr", "show", "dev", iface])
+        .output()
+        .map_err(|err| Error::new(format!("failed to inspect interface '{iface}': {err}")))?;
+    if !output.status.success() {
+        return Err(Error::new(format!(
+            "unable to inspect interface '{}' for source '{}'",
+            iface, source.name
+        )));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let prefixes = parse_interface_public_ipv6_prefixes(&stdout);
+    if prefixes.is_empty() {
+        return Err(Error::new(format!(
+            "interface '{}' for source '{}' has no public IPv6 prefix",
+            iface, source.name
+        )));
+    }
+
+    Ok(prefixes)
+}
+
+fn parse_interface_public_ipv6_prefixes(output: &str) -> Vec<Ipv6Prefix> {
+    let mut prefixes = Vec::new();
+
+    for line in output.lines() {
+        let line = line.trim_start();
+        let Some(rest) = line.strip_prefix("inet6 ") else {
+            continue;
+        };
+        let Some(prefix) = rest.split_whitespace().next().and_then(parse_ipv6_prefix) else {
+            continue;
+        };
+        if is_public_ipv6(&prefix.address) && !prefixes.contains(&prefix) {
+            prefixes.push(prefix);
+        }
+    }
+
+    prefixes
+}
+
+fn parse_ipv6_prefix(input: &str) -> Option<Ipv6Prefix> {
+    let (address, prefix_len) = input.split_once('/')?;
+    let address = address.parse::<Ipv6Addr>().ok()?;
+    let prefix_len = prefix_len.parse::<u8>().ok()?;
+    if prefix_len > 128 {
+        return None;
+    }
+
+    Some(Ipv6Prefix {
+        address,
+        prefix_len,
+    })
+}
+
+fn parse_prefix_filter(filter: &str) -> Result<Ipv6Prefix> {
+    let filter = filter.trim();
+    if filter.is_empty() {
+        return Err(Error::new("prefix_filter must not be empty"));
+    }
+
+    if let Some(prefix) = parse_ipv6_prefix(filter) {
+        return Ok(prefix);
+    }
+
+    if let Ok(address) = filter.parse::<Ipv6Addr>() {
+        return Ok(Ipv6Prefix {
+            address,
+            prefix_len: 128,
+        });
+    }
+
+    parse_hextet_prefix_filter(filter)
+        .ok_or_else(|| Error::new(format!("invalid prefix_filter '{filter}'")))
+}
+
+fn parse_hextet_prefix_filter(filter: &str) -> Option<Ipv6Prefix> {
+    let filter = filter.trim_end_matches(':');
+    if filter.is_empty() {
+        return None;
+    }
+
+    let parts = filter.split(':').collect::<Vec<_>>();
+    if parts.len() > 8 || parts.iter().any(|part| part.is_empty() || part.len() > 4) {
+        return None;
+    }
+
+    let mut segments = [0u16; 8];
+    for (index, part) in parts.iter().enumerate() {
+        segments[index] = u16::from_str_radix(part, 16).ok()?;
+    }
+
+    Some(Ipv6Prefix {
+        address: Ipv6Addr::new(
+            segments[0],
+            segments[1],
+            segments[2],
+            segments[3],
+            segments[4],
+            segments[5],
+            segments[6],
+            segments[7],
+        ),
+        prefix_len: (parts.len() * 16) as u8,
+    })
+}
+
+fn ipv6_to_u128(address: Ipv6Addr) -> u128 {
+    u128::from_be_bytes(address.octets())
+}
+
+fn ipv6_mask(prefix_len: u8) -> u128 {
+    if prefix_len == 0 {
+        0
+    } else {
+        u128::MAX << (128 - prefix_len)
+    }
+}
+
 fn select_lease_address(
     matches: &[IpAddr],
+    interface_prefixes: &[Ipv6Prefix],
     prefix_filter: Option<&str>,
     subject: &str,
 ) -> Result<IpAddr> {
-    if let Some(prefix) = prefix_filter {
-        return matches
+    let mut interface_matches = Vec::new();
+    for address in matches {
+        let IpAddr::V6(ipv6) = address else {
+            continue;
+        };
+        if !is_public_ipv6(ipv6) {
+            continue;
+        }
+        if interface_prefixes
             .iter()
-            .find(|addr| addr.to_string().starts_with(prefix))
-            .copied()
-            .ok_or_else(|| {
-                Error::new(format!(
-                    "no IPv6 lease matched prefix '{prefix}' for {subject}"
-                ))
-            });
+            .any(|prefix| prefix.contains(ipv6))
+        {
+            interface_matches.push(*address);
+        }
     }
 
-    if matches.len() == 1 {
-        return Ok(matches[0]);
+    if interface_matches.is_empty() {
+        return Err(Error::new(format!(
+            "no IPv6 lease matched interface prefix for {subject}"
+        )));
+    }
+
+    let selected = if let Some(prefix) = prefix_filter.filter(|value| !value.trim().is_empty()) {
+        let prefix = parse_prefix_filter(prefix)?;
+        let narrowed = interface_matches
+            .iter()
+            .copied()
+            .filter(|address| match address {
+                IpAddr::V6(ipv6) => prefix.contains(ipv6),
+                IpAddr::V4(_) => false,
+            })
+            .collect::<Vec<_>>();
+        if narrowed.is_empty() {
+            return Err(Error::new(format!(
+                "no IPv6 lease matched prefix_filter after interface prefix for {subject}"
+            )));
+        }
+        narrowed
+    } else {
+        interface_matches
+    };
+
+    if selected.len() == 1 {
+        return Ok(selected[0]);
     }
 
     Err(Error::new(format!(
-        "multiple IPv6 addresses found for {subject}, prefix filter required"
+        "multiple IPv6 addresses matched interface prefix for {subject}, prefix_filter required"
     )))
 }
 
@@ -520,6 +715,78 @@ mod tests {
                 "240e:3b2:4e8a:70a0::30".parse::<IpAddr>().unwrap(),
                 "2409:8a55:4e26:6980::30".parse::<IpAddr>().unwrap(),
             ]
+        );
+    }
+
+    #[test]
+    fn interface_prefix_accepts_matching_public_ipv6() {
+        let prefixes = parse_interface_public_ipv6_prefixes(
+            "3: wan6: <BROADCAST,MULTICAST,UP> mtu 1500\n    inet6 240e:3b2:4e8a:70a0::1/64 scope global dynamic\n",
+        );
+        let matches = vec![
+            "2409:8a55:4e26:6980::30".parse::<IpAddr>().unwrap(),
+            "240E:03B2:4E8A:70A0::30".parse::<IpAddr>().unwrap(),
+        ];
+
+        let selected = select_lease_address(&matches, &prefixes, None, "MAC").unwrap();
+
+        assert_eq!(
+            selected,
+            "240e:3b2:4e8a:70a0::30".parse::<IpAddr>().unwrap()
+        );
+    }
+
+    #[test]
+    fn interface_prefix_rejects_wrong_prefix_and_non_global_ipv6() {
+        let prefixes = parse_interface_public_ipv6_prefixes(
+            "3: wan6: <BROADCAST,MULTICAST,UP> mtu 1500\n    inet6 240e:3b2:4e8a:70a0::1/64 scope global dynamic\n",
+        );
+        let matches = vec![
+            "240e:3b2:4e8a:70a1::30".parse::<IpAddr>().unwrap(),
+            "fe80::1".parse::<IpAddr>().unwrap(),
+            "fd00::1".parse::<IpAddr>().unwrap(),
+            "::1".parse::<IpAddr>().unwrap(),
+            "2001:db8::1".parse::<IpAddr>().unwrap(),
+        ];
+
+        let err = select_lease_address(&matches, &prefixes, None, "MAC")
+            .expect_err("wrong prefix and non-global addresses must be rejected");
+
+        assert!(
+            err.to_string().contains("interface prefix"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn interface_prefix_applies_prefix_filter_as_narrowing_only() {
+        let prefixes = parse_interface_public_ipv6_prefixes(
+            "3: wan6: <BROADCAST,MULTICAST,UP> mtu 1500\n    inet6 240e:3b2:4e8a::1/48 scope global dynamic\n",
+        );
+        let matches = vec![
+            "240e:3b2:4e8a:70a1::30".parse::<IpAddr>().unwrap(),
+            "240e:3b2:4e8a:70a0::30".parse::<IpAddr>().unwrap(),
+            "2409:8a55:4e26:6980::30".parse::<IpAddr>().unwrap(),
+        ];
+
+        let selected =
+            select_lease_address(&matches, &prefixes, Some("240e:3b2:4e8a:70a0:"), "DUID").unwrap();
+
+        assert_eq!(
+            selected,
+            "240e:3b2:4e8a:70a0::30".parse::<IpAddr>().unwrap()
+        );
+    }
+
+    #[test]
+    fn dhcpv6_resolution_fails_without_interface_prefix() {
+        let matches = vec!["240e:3b2:4e8a:70a0::30".parse::<IpAddr>().unwrap()];
+        let err = select_lease_address(&matches, &[], None, "DUID")
+            .expect_err("no interface prefix must fail");
+
+        assert!(
+            err.to_string().contains("interface prefix"),
+            "unexpected error: {err}"
         );
     }
 }

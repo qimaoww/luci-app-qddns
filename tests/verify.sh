@@ -30,6 +30,9 @@ check_package_metadata() {
 	grep -nF 'PKG_VERSION:=0.2.0' "$ROOT_DIR/applications/luci-app-qddns/Makefile"
 	grep -nF 'dhcpv6_mac' "$ROOT_DIR/README.md"
 	grep -nF 'deduplicates IPv6 addresses' "$ROOT_DIR/README.md"
+	grep -nF 'interface prefix' "$ROOT_DIR/README.md"
+	grep -nF 'advanced narrowing after interface prefix matching' "$ROOT_DIR/README.md"
+	grep -nF 'LAN IPv4' "$ROOT_DIR/README.md"
 	grep -nF 'does not show, request, or return DUID/IAID' "$ROOT_DIR/README.md"
 }
 
@@ -128,7 +131,7 @@ check_rule_wizard() {
 	grep -nF "showRuleWizardModal" "$VIEW_DIR/rules.js"
 	grep -nF "ui.showModal(_('Guided DDNS rule setup')" "$VIEW_DIR/rules.js"
 	grep -nF "data-wizard-panel" "$VIEW_DIR/rules.js"
-	grep -nF "_('1. Address')" "$VIEW_DIR/rules.js"
+	grep -nF "_('1. Source')" "$VIEW_DIR/rules.js"
 	grep -nF "_('2. DNS')" "$VIEW_DIR/rules.js"
 	grep -nF "_('3. Confirm')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Confirm and create the rule')" "$VIEW_DIR/rules.js"
@@ -136,7 +139,7 @@ check_rule_wizard() {
 	grep -nF "wizardRuleName" "$VIEW_DIR/rules.js"
 	grep -nF "_('Next')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Back')" "$VIEW_DIR/rules.js"
-	grep -nF "_('Provider and source choices show names only; rule links are saved automatically.')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Choose the source IP first, then choose the DNS location.')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Enable after creation')" "$VIEW_DIR/rules.js"
 	grep -nF "this.renderRuleWizard(this.pageData)" "$VIEW_DIR/rules.js"
 	grep -nF "this.useRuleEditorLabels(s)" "$VIEW_DIR/rules.js"
@@ -169,8 +172,12 @@ modal_start = rules.index('showRuleWizardModal: function')
 modal_end = rules.index('renderRuleWizard: function')
 modal = rules[modal_start:modal_end]
 for field in ["this.renderWizardField(_('Record type')", "this.renderWizardField(_('Provider')", "this.renderWizardField(_('Source')", "this.renderWizardField(_('Zone')", "this.renderWizardField(_('Record name')"]:
-	if modal.count(field) != 1:
-		raise SystemExit(f'{field} must appear exactly once as a field in the modal wizard')
+    if modal.count(field) != 1:
+        raise SystemExit(f'{field} must appear exactly once as a field in the modal wizard')
+if modal.index("this.renderWizardField(_('Source')") > modal.index("this.renderWizardField(_('Record type')"):
+    raise SystemExit('source field must be first in the wizard')
+if "fields.source.focus" not in modal:
+    raise SystemExit('source field must receive initial focus')
 PYEOF
 	! grep -nF "this.renderWizardField(_('Rule name'), fields.name)" "$VIEW_DIR/rules.js"
 	! grep -nF "name: E('input'" "$VIEW_DIR/rules.js"
@@ -235,7 +242,7 @@ check_name_visible_numeric_hidden_ui() {
 	grep -nF "o.placeholder = _('Unnamed source')" "$VIEW_DIR/settings.js"
 	grep -nF "o.placeholder = _('Unnamed provider')" "$VIEW_DIR/settings.js"
 	! grep -nF "o.readonly = true;" "$VIEW_DIR/settings.js"
-	grep -nF "o = s.option(widgets.DeviceSelect, 'interface', _('Interface'))" "$VIEW_DIR/settings.js"
+	grep -nF "o = s.option(widgets.DeviceSelect, 'interface', _('Interface')" "$VIEW_DIR/settings.js"
 	grep -nF "o.noaliases = true;" "$VIEW_DIR/settings.js"
 	grep -nF "o.nocreate = true;" "$VIEW_DIR/settings.js"
 	grep -nF "o.placeholder = _('Unnamed rule')" "$VIEW_DIR/rules.js"
@@ -312,6 +319,8 @@ check_dhcpv6_lease_fill_ui() {
 	grep -nF "options.leaseFile" "$VIEW_DIR/settings.js"
 	grep -nF "options.hostnameHint" "$VIEW_DIR/settings.js"
 	grep -nF "options.prefixFilter" "$VIEW_DIR/settings.js"
+	grep -nF "this.setSourceOptionValue(options.prefixFilter, sectionId, '')" "$VIEW_DIR/settings.js"
+	grep -nF "options.interface" "$VIEW_DIR/settings.js"
 	grep -nF "const widget = option.getUIElement(sectionId)" "$VIEW_DIR/settings.js"
 	grep -nF "widget.setValue(normalized)" "$VIEW_DIR/settings.js"
 	grep -nF "widget.node.setAttribute('data-changed', 'true')" "$VIEW_DIR/settings.js"
@@ -321,7 +330,12 @@ check_dhcpv6_lease_fill_ui() {
 	grep -nF "qddns-dhcpv6-lease-card" "$VIEW_DIR/settings.js"
 	grep -nF "this.setSourceOptionValue(options.duid, sectionId, lease?.duid || '')" "$VIEW_DIR/settings.js"
 	grep -nF "this.setSourceOptionValue(options.mac, sectionId, lease?.mac || '')" "$VIEW_DIR/settings.js"
+	grep -nF "this.setSourceOptionValue(options.interface, sectionId, lease?.interface || '')" "$VIEW_DIR/settings.js"
 	grep -nF "const identityMeta = isDuidSource ? [" "$VIEW_DIR/settings.js"
+	grep -nF "_('LAN IP')" "$VIEW_DIR/settings.js"
+	grep -nF "_('Prefix narrowing')" "$VIEW_DIR/settings.js"
+	! grep -nF "getLeasePrefixFilter" "$VIEW_DIR/settings.js"
+	! grep -nF "firstHextet" "$VIEW_DIR/settings.js"
 	grep -nF "o.value('dhcpv6_mac', _('MAC'))" "$VIEW_DIR/settings.js"
 	grep -nF "o = s.option(form.Value, 'mac', _('MAC'))" "$VIEW_DIR/settings.js"
 	! grep -nF "o.value('dhcpv6_mac', _('DHCPv6 MAC'))" "$VIEW_DIR/settings.js"
@@ -337,6 +351,9 @@ check_dhcpv6_lease_fill_ui() {
 check_dhcpv6_lease_fill_backend() {
 	grep -nF "import { popen, readfile } from 'fs';" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	! grep -nF "import { connect } from 'ubus';" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "function source_family(section)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "family: source_family(section)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "section.type == 'dhcpv6_duid' || section.type == 'dhcpv6_mac'" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "const dhcpv4_lease_file = '/tmp/dhcp.leases';" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "const dhcpv6_lease_file = '/tmp/odhcpd.leases';" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "const dhcpv6_lease_max_bytes = 262144;" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
@@ -350,7 +367,14 @@ check_dhcpv6_lease_fill_backend() {
 	! grep -nF "substr(address, 0, 2) == '3'" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "function add_dhcpv4_lease_entries(entries)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "readfile(dhcpv4_lease_file)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "function is_private_ipv4(address)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "substr(address, 0, 3) == '10.'" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "substr(address, 0, 4) == '172.'" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "substr(address, 0, 8) == '192.168.'" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	! grep -nF "ubus.call('luci-rpc', 'getHostHints')" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	! grep -nF "function dhcpv6_prefix_filter" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	! grep -nF "split(prefixes[0]" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	! grep -nF "entry.prefix_filter =" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "function add_ndp_entries(entries)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "const ip_cmd = '/sbin/ip';" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF -- "-6 neigh show" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
@@ -378,6 +402,30 @@ check_dhcpv6_lease_fill_backend() {
 	! grep -nF "req.args.path" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 }
 
+check_ipv6_prefix_source_guard() {
+	python3 - <<PYEOF
+from pathlib import Path
+
+source = Path('$ROOT_DIR/qddns/src/source.rs').read_text()
+config = Path('$ROOT_DIR/qddns/src/config.rs').read_text()
+rpcd = Path('$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc').read_text()
+settings = Path('$VIEW_DIR/settings.js').read_text()
+for bad in [
+    'addr.to_string().starts_with',
+    '.to_string().starts_with(prefix)',
+    'split(prefixes[0]',
+    'wan_interface',
+    'valid_prefix',
+    'mac_ipv6_filter',
+]:
+    haystack = '\\n'.join([source, config, rpcd, settings])
+    if bad in haystack:
+        raise SystemExit(f'forbidden IPv6 prefix path remains: {bad}')
+if 'prefix_len' not in source and 'prefix_length' not in source:
+    raise SystemExit('source.rs must use parsed IPv6 prefix length')
+PYEOF
+}
+
 check_default_config_numeric_sections() {
 	python3 - <<PYEOF
 from pathlib import Path
@@ -397,6 +445,20 @@ for line in config:
     m = re.match(r"\s*option (provider|source) '([^']+)'", line)
     if m and not m.group(2).isdigit():
         raise SystemExit(f'{m.group(1)} reference must use numeric ID, got {m.group(2)}')
+PYEOF
+}
+
+check_default_config_dhcpv6_interface() {
+	python3 - <<PYEOF
+from pathlib import Path
+
+config = Path('$DEFAULT_CONFIG_FILE').read_text()
+duid = config[config.index("option type 'dhcpv6_duid'"):]
+mac = config[config.index("option type 'dhcpv6_mac'"):]
+if "option interface" not in duid.split('\\n\\n', 1)[0]:
+    raise SystemExit('dhcpv6_duid sample must set interface')
+if "option interface" not in mac.split('\\n\\n', 1)[0]:
+    raise SystemExit('dhcpv6_mac sample must set interface')
 PYEOF
 }
 
@@ -421,10 +483,10 @@ check_name_visible_numeric_hidden_po() {
 		'Guided DDNS rule setup' \
 		'Start guided setup' \
 		'Start a short wizard that creates a complete rule with safe defaults. Use the advanced table below for later edits.' \
-		'1. Address' \
+		'1. Source' \
 		'2. DNS' \
 		'3. Confirm' \
-		'Choose the address to publish' \
+		'Choose Source IP' \
 		'Choose where to update DNS' \
 		'Confirm and create the rule' \
 		'Rule name is generated automatically from the record.' \
@@ -433,7 +495,7 @@ check_name_visible_numeric_hidden_po() {
 		'Add DDNS rule' \
 		'No providers available' \
 		'No sources available' \
-		'Provider and source choices show names only; rule links are saved automatically.' \
+		'Choose the source IP first, then choose the DNS location.' \
 		'Provider, source, zone, and record name are required.' \
 		'Record type must match the selected source address family.' \
 		'Enable after creation' \
@@ -451,8 +513,8 @@ check_name_visible_numeric_hidden_po() {
 		'Read current MAC' \
 		'Read current DHCPv6 lease candidates, then choose one to fill the DUID source fields.' \
 		'Read current LAN host candidates, then choose one to fill the MAC source fields.' \
-		'Choose a current DUID to fill DUID, IAID, hostname hint, and prefix filter.' \
-		'Choose a current MAC to fill MAC, hostname hint, and prefix filter.' \
+		'Choose a current DUID to fill DUID, IAID, interface, and hostname hint.' \
+		'Choose a current MAC to fill MAC, LAN IP identity, interface, and hostname hint.' \
 		'Fill from this lease' \
 		'No DHCPv6 leases found.' \
 		'No LAN hosts with public IPv6 found.' \
@@ -463,7 +525,11 @@ check_name_visible_numeric_hidden_po() {
 		'Unable to load host candidates.' \
 		'Unnamed host' \
 		'Hostname' \
+		'LAN IP' \
 		'Prefix' \
+		'Prefix narrowing' \
+		'Advanced narrowing after interface prefix matching; it cannot replace the interface.' \
+		'Required for DHCPv6 DUID/MAC sources; its public IPv6 prefix is the validity source.' \
 		'DUID' \
 		'IAID' \
 		'Log Output' \
@@ -588,7 +654,9 @@ run_step 'LuCI settings boundary guard' check_settings_boundary
 run_step 'LuCI name-visible numeric-hidden UI guard' check_name_visible_numeric_hidden_ui
 run_step 'LuCI DHCPv6 lease fill UI guard' check_dhcpv6_lease_fill_ui
 run_step 'LuCI DHCPv6 lease fill backend guard' check_dhcpv6_lease_fill_backend
+run_step 'IPv6 interface prefix source guard' check_ipv6_prefix_source_guard
 run_step 'Default numeric section guard' check_default_config_numeric_sections
+run_step 'Default DHCPv6 interface guard' check_default_config_dhcpv6_interface
 run_step 'LuCI name-visible numeric-hidden PO guard' check_name_visible_numeric_hidden_po
 run_step 'LuCI logs boundary guard' check_logs_boundary
 run_step 'LuCI theme private dependency guard' check_theme_private_dependencies

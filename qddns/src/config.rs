@@ -66,12 +66,14 @@ pub enum SourceKind {
     Dhcpv6Duid {
         duid: Option<ConfigText>,
         iaid: Option<ConfigText>,
+        interface: Option<ConfigText>,
         lease_file: Option<ConfigText>,
         prefix_filter: Option<ConfigText>,
         hostname_hint: Option<ConfigText>,
     },
     Dhcpv6Mac {
         mac: Option<ConfigText>,
+        interface: Option<ConfigText>,
         lease_file: Option<ConfigText>,
         prefix_filter: Option<ConfigText>,
         hostname_hint: Option<ConfigText>,
@@ -304,6 +306,25 @@ impl Config {
     }
 
     pub fn validate(&self) -> Result<()> {
+        for (source_id, source) in &self.sources {
+            match &source.kind {
+                SourceKind::Dhcpv6Duid { interface, .. }
+                | SourceKind::Dhcpv6Mac { interface, .. } => {
+                    if interface
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                        .is_none()
+                    {
+                        return Err(Error::new(format!(
+                            "source.{source_id}.interface missing required option"
+                        )));
+                    }
+                }
+                _ => {}
+            }
+        }
+
         for (rule_id, rule) in &self.rules {
             let source = self.sources.get(&rule.source).ok_or_else(|| {
                 Error::new(format!(
@@ -722,12 +743,14 @@ fn parse_source_kind(
         "dhcpv6_duid" => Ok(SourceKind::Dhcpv6Duid {
             duid: get_string(options, "duid"),
             iaid: get_string(options, "iaid"),
+            interface: get_string(options, "interface"),
             lease_file: get_string(options, "lease_file"),
             prefix_filter: get_string(options, "prefix_filter"),
             hostname_hint: get_string(options, "hostname_hint"),
         }),
         "dhcpv6_mac" => Ok(SourceKind::Dhcpv6Mac {
             mac: get_string(options, "mac"),
+            interface: get_string(options, "interface"),
             lease_file: get_string(options, "lease_file"),
             prefix_filter: get_string(options, "prefix_filter"),
             hostname_hint: get_string(options, "hostname_hint"),

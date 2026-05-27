@@ -84,10 +84,12 @@ config source 'duid'
     option type 'dhcpv6_duid'
     option duid '0001000130555374bcfce78c41cb'
     option iaid '6bcfce7'
+    option interface 'wan6'
 
 config source 'mac'
     option type 'dhcpv6_mac'
     option mac 'bc:fc:e7:8c:41:cb'
+    option interface 'wan6'
 
 config provider 'cf'
     option type 'cloudflare'
