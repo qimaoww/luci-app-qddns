@@ -245,6 +245,14 @@ return view.extend({
 		return String(fields.source?.getAttribute('data-probed-family') || this.sourceFamily(sourceId)).toLowerCase();
 	},
 
+	syncWizardRecordType: function(control, family) {
+		const normalized = String(family || '').toLowerCase();
+		const recordType = normalized === 'ipv6' ? 'AAAA' : normalized === 'ipv4' ? 'A' : '';
+
+		if (recordType && control)
+			control.value = recordType;
+	},
+
 	setWizardFeedback: function(feedback, message) {
 		feedback.textContent = message;
 		feedback.classList.add('alert-message', 'warning');
@@ -427,6 +435,7 @@ return view.extend({
 			}
 
 			const source = viewRef.findById(sources, sourceId);
+			viewRef.syncWizardRecordType(fields.recordType, source?.family);
 			if (!viewRef.isProbeableSourceType(source?.type)) {
 				setWizardSourceIp(_('N/A'), 'neutral');
 				if (stepIndex === 2)
@@ -457,6 +466,7 @@ return view.extend({
 				sourceProbe.family = result.family || '';
 				sourceProbe.detail = result.detail || '';
 				fields.source.setAttribute('data-probed-family', sourceProbe.family);
+				viewRef.syncWizardRecordType(fields.recordType, sourceProbe.family);
 				setWizardSourceIp(result.address, 'neutral');
 				if (stepIndex === 2)
 					updateWizardSummary();

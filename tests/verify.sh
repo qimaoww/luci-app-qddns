@@ -188,6 +188,14 @@ rules = Path(os.environ['VIEW_DIR'], 'rules.js').read_text()
 modal_start = rules.index('showRuleWizardModal: function')
 modal_end = rules.index('renderRuleWizard: function')
 modal = rules[modal_start:modal_end]
+if 'syncWizardRecordType: function(control, family)' not in rules:
+    raise SystemExit('rule wizard must sync A/AAAA from the selected source address family')
+if "normalized === 'ipv6' ? 'AAAA'" not in rules or "normalized === 'ipv4' ? 'A'" not in rules:
+    raise SystemExit('rule wizard record type sync must map ipv6 to AAAA and ipv4 to A')
+if 'viewRef.syncWizardRecordType(fields.recordType, source?.family)' not in modal:
+    raise SystemExit('rule wizard must sync record type immediately from saved source family')
+if 'viewRef.syncWizardRecordType(fields.recordType, sourceProbe.family)' not in modal:
+    raise SystemExit('rule wizard must sync record type from probed source IP family')
 for field in ["this.renderWizardField(_('Record type')", "this.renderWizardField(_('Provider')", "this.renderWizardField(_('Source')", "this.renderWizardField(_('Zone')", "this.renderWizardField(_('Record name')"]:
     if modal.count(field) != 1:
         raise SystemExit(f'{field} must appear exactly once as a field in the modal wizard')
