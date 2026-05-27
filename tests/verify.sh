@@ -382,6 +382,29 @@ check_dhcpv6_lease_fill_ui() {
 	grep -nF "sourceIpProbe.token++" "$VIEW_DIR/settings.js"
 	grep -nF "if (token !== sourceIpProbe.token)" "$VIEW_DIR/settings.js"
 	grep -nF "bindSourceOptionChange" "$VIEW_DIR/settings.js"
+	python3 - <<'PYEOF'
+import os
+from pathlib import Path
+
+settings = Path(os.environ['VIEW_DIR'], 'settings.js').read_text()
+
+def block_between(start_marker, end_marker):
+    start = settings.index(start_marker)
+    end = settings.index(end_marker, start)
+    return settings[start:end]
+
+getter = block_between('getSourceOptionValue: function(option, sectionId)', 'getSourceType: function(sectionId, optionSet)')
+if "!option.map?.root" not in getter:
+    raise SystemExit('getSourceOptionValue must not query UI widgets before the LuCI map root exists')
+if getter.index('!option.map?.root') > getter.index('option.getUIElement(sectionId)'):
+    raise SystemExit('getSourceOptionValue must guard map.root before getUIElement()')
+
+source_ip_cfg = block_between("o = s.option(form.DummyValue, '_source_ip', _('Source IP'))", "o = s.option(form.DummyValue, '_dhcpv6_status', _('Status'))")
+dhcpv6_cfg = block_between("o = s.option(form.DummyValue, '_dhcpv6_status', _('Status'))", "o = s.option(form.Value, 'duid', _('DUID'))")
+for name, block in [('_source_ip', source_ip_cfg), ('_dhcpv6_status', dhcpv6_cfg)]:
+    if 'if (arguments.length > 1)' not in block:
+        raise SystemExit(f'{name} cfgvalue must ignore LuCI load-phase setter calls')
+PYEOF
 	grep -nF "s.option(form.DummyValue, '_source_ip', _('Source IP'))" "$VIEW_DIR/settings.js"
 	grep -nF "o = s.option(form.Value, 'address', _('Address')); o.modalonly = true; o.depends('type', 'local_addr')" "$VIEW_DIR/settings.js"
 	grep -nF "_('Save and reload to read updated source IP.')" "$VIEW_DIR/settings.js"

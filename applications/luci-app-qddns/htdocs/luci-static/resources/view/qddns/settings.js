@@ -164,7 +164,7 @@ return view.extend({
 	},
 
 	getSourceOptionValue: function(option, sectionId) {
-		if (!option || typeof option.getUIElement != 'function')
+		if (!option || typeof option.getUIElement != 'function' || !option.map?.root)
 			return '';
 
 		const widget = option.getUIElement(sectionId);
@@ -705,6 +705,9 @@ return view.extend({
 		o = s.option(form.DummyValue, '_source_ip', _('Source IP'));
 		o.rawhtml = true;
 		o.cfgvalue = function(sectionId) {
+			if (arguments.length > 1)
+				return null;
+
 			return viewRef.renderSourceIpStatus(sectionId, viewRef.getDhcpv6OptionSet(this.section));
 		};
 		o = s.option(form.DummyValue, '_dhcpv6_status', _('Status'));
@@ -713,6 +716,9 @@ return view.extend({
 		o.depends('type', 'dhcpv6_duid');
 		o.depends('type', 'dhcpv6_mac');
 		o.cfgvalue = function(sectionId) {
+			if (arguments.length > 1)
+				return null;
+
 			return viewRef.renderDhcpv6LeaseStatus(sectionId, viewRef.getDhcpv6OptionSet(this.section));
 		};
 		o = s.option(form.Value, 'duid', _('DUID')); this.sourceDhcpv6Options.duid = o; o.modalonly = true; o.depends('type', 'dhcpv6_duid');
