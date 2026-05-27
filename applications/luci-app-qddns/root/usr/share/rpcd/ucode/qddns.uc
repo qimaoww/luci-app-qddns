@@ -303,6 +303,45 @@ function add_ndp_entries(entries) {
 	}
 }
 
+function add_ipv4_neighbor_entries(entries) {
+	let p = popen(`${ip_cmd} -4 neigh show 2>/dev/null`, 'r');
+	if (!p)
+		return;
+
+	let output = p.read('all') || '';
+	p.close();
+
+	for (let line in split(output, '\n')) {
+		line = trim(line || '');
+		if (!line)
+			continue;
+
+		let fields = split(line, /\s+/);
+		let address = fields[0] || '';
+		let lladdr_index = null;
+
+		if (!is_private_ipv4(address))
+			continue;
+
+		for (let index = 0; index < length(fields); index++) {
+			if (fields[index] == 'lladdr') {
+				lladdr_index = index;
+				break;
+			}
+		}
+
+		if (lladdr_index == null)
+			continue;
+
+		let mac = normalize_dhcpv6_mac(fields[lladdr_index + 1]);
+		let entry = entries[mac];
+		if (!entry)
+			continue;
+
+		push_unique(entry.ipv4, address);
+	}
+}
+
 function list_dhcpv6_leases(mode) {
 	let content = '';
 	let entries = {};
@@ -348,6 +387,7 @@ function list_dhcpv6_leases(mode) {
 
 	add_dhcpv4_lease_entries(entries);
 	add_ndp_entries(entries);
+	add_ipv4_neighbor_entries(entries);
 
 	let leases = [];
 	for (let mac in entries) {
