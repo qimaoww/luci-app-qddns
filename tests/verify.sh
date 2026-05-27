@@ -260,6 +260,21 @@ check_name_visible_numeric_hidden_ui() {
 	grep -nF "o.placeholder = _('Unnamed provider')" "$VIEW_DIR/settings.js"
 	! grep -nF "o.readonly = true;" "$VIEW_DIR/settings.js"
 	grep -nF "o = s.option(widgets.DeviceSelect, 'interface', _('Interface')" "$VIEW_DIR/settings.js"
+	python3 - <<'PYEOF'
+import os
+from pathlib import Path
+
+settings = Path(os.environ['VIEW_DIR'], 'settings.js').read_text().splitlines()
+start = next((i for i, line in enumerate(settings) if "o = s.option(widgets.DeviceSelect, 'interface', _('Interface')" in line), None)
+if start is None:
+    raise SystemExit('source interface DeviceSelect option is missing')
+end = next((i for i in range(start + 1, len(settings)) if '\to = s.option(' in settings[i]), len(settings))
+block = '\n'.join(settings[start:end])
+if 'o.multiple = false;' not in block:
+    raise SystemExit('source interface selector must be single-select')
+if 'o.multiple = true;' in block:
+    raise SystemExit('source interface selector must not enable multi-select')
+PYEOF
 	grep -nF "o.noaliases = true;" "$VIEW_DIR/settings.js"
 	grep -nF "o.nocreate = true;" "$VIEW_DIR/settings.js"
 	grep -nF "o.placeholder = _('Unnamed rule')" "$VIEW_DIR/rules.js"

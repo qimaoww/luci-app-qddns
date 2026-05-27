@@ -723,6 +723,7 @@ return view.extend({
 		o = s.option(form.Value, 'hostname_hint', _('Hostname hint')); this.sourceDhcpv6Options.hostnameHint = o; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac');
 		o = s.option(widgets.DeviceSelect, 'interface', _('Interface'), _('Required for DHCPv6 DUID/MAC sources; its public IPv6 prefix is the validity source.'));
 		this.sourceDhcpv6Options.interface = o;
+		o.multiple = false;
 		o.noaliases = true;
 		o.nocreate = true;
 		o.depends('type', 'interface');
