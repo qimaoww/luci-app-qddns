@@ -1,34 +1,34 @@
 # qddns
 
-`qddns` is a new OpenWrt/ImmortalWrt DDNS platform built from scratch around a Rust backend and a LuCI control panel.
+`qddns` 是一个面向 OpenWrt/ImmortalWrt 的 DDNS 平台，由 Rust 后端和 LuCI 控制面板组成。
 
-## Layout
+## 目录结构
 
 - `qddns/`
-  Rust library plus `qddnsctl` and `qddnsd`
+  Rust 库，以及 `qddnsctl`、`qddnsd`
 - `net/qddns/`
-  OpenWrt package for the backend daemon, CLI, init script, and default UCI config
+  后端守护进程、命令行工具、启动脚本和默认 UCI 配置的 OpenWrt 软件包
 - `applications/luci-app-qddns/`
-  LuCI view, menu entry, ACL, and rpcd ucode bridge
+  LuCI 页面、菜单入口、ACL 和 rpcd ucode 桥接
 
-## Current capabilities
+## 当前功能
 
-- UCI config parsing and validation
-- Source resolution for:
+- UCI 配置解析和校验
+- 来源 IP 解析：
   - `local_addr`
   - `interface`
   - `public_probe`
   - `script`
   - `dhcpv6_duid`
   - `dhcpv6_mac`
-- Runtime state persistence in `runtime.state`
-- Rule execution state machine with per-rule logs
-- Provider adapters for:
+- 运行态持久化到 `runtime.state`
+- 规则执行状态机和按规则记录的日志
+- 服务商适配：
   - `cloudflare`
   - `dnspod`
   - `aliyun`
   - `custom_http`
-- CLI:
+- 命令行工具：
   - `qddnsctl status`
   - `qddnsctl validate`
   - `qddnsctl sources list`
@@ -37,45 +37,45 @@
   - `qddnsctl rules run <id>`
   - `qddnsctl rules test <id>`
   - `qddnsctl rules status <id>`
-- Daemon scheduler with `--once` batch run and polling loop
-- LuCI overview console with source probing, rule actions, runtime status, and editable UCI sections
+- 守护进程调度器，支持 `--once` 批量执行和循环轮询
+- LuCI 概览控制台，支持来源 IP 探测、规则操作、运行态查看和 UCI 配置编辑
 
-## LAN IPv6 sources
+## 局域网 IPv6 来源
 
-`dhcpv6_duid` keeps the strict DHCPv6 lease lookup path: it matches DUID plus IAID in `/tmp/odhcpd.leases`, then accepts only public IPv6 candidates that match DHCPv6-PD route source prefixes from the configured WAN/upstream interface.
+`dhcpv6_duid` 保留严格的 DHCPv6 租约查找路径：先在 `/tmp/odhcpd.leases` 中匹配 DUID 和 IAID，再只接受匹配已配置 WAN/上游接口 DHCPv6-PD 路由来源前缀的公网 IPv6 候选地址。
 
-`dhcpv6_mac` is a separate MAC-based source. It normalizes MAC addresses, collects candidates from `/tmp/odhcpd.leases` and the IPv6 neighbor table, then deduplicates IPv6 addresses before selection. Only public IPv6 addresses under `2000::/3` that match DHCPv6-PD route source prefixes from the configured WAN/upstream interface are accepted; link-local, ULA, and documentation prefixes are ignored. If a host has more than one matching public IPv6 address, QDDNS selects the first matching candidate deterministically; set `prefix_filter` such as `240e:` or `2409:` only when you want advanced narrowing after WAN/PD source prefix matching. `prefix_filter` is not a replacement for `interface`.
+`dhcpv6_mac` 是独立的基于 MAC 的来源类型。它会规范化 MAC 地址，从 `/tmp/odhcpd.leases` 和 IPv6 邻居表收集候选地址，并在选择前对 IPv6 地址去重。只有位于 `2000::/3`、且匹配已配置 WAN/上游接口 DHCPv6-PD 路由来源前缀的公网 IPv6 会被接受；链路本地地址、ULA 和文档前缀都会被忽略。如果同一主机存在多个匹配的公网 IPv6，QDDNS 会确定性地选择第一个匹配候选；只有在 WAN/PD 来源前缀匹配之后还需要进一步收窄时，才设置 `prefix_filter`，例如 `240e:` 或 `2409:`。`prefix_filter` 不能替代 `interface`。
 
-The LuCI MAC picker shows MAC, hostname, LAN IPv4/private IPv4 hints, host interface, and public IPv6 prefixes. The LAN IPv4 and host interface display helps identify hosts and does not affect DDNS IPv6 validity; the source `interface` field remains the WAN/upstream interface used for prefix validation. It intentionally does not show, request, or return DUID/IAID fields for MAC selection. The picker reads `/tmp/dhcp.leases`, `/tmp/odhcpd.leases`, and the IPv4/IPv6 neighbor tables directly instead of calling `luci-rpc` from inside rpcd.
+LuCI 的 MAC 选择器会显示 MAC、主机名、LAN IPv4/私有 IPv4 提示、主机接口和公网 IPv6 前缀。LAN IPv4 和主机接口只用于帮助识别主机，不影响 DDNS IPv6 的有效性；来源配置里的 `interface` 字段仍然表示用于前缀校验的 WAN/上游接口。MAC 选择不会显示、请求或返回 DUID/IAID 字段。选择器直接读取 `/tmp/dhcp.leases`、`/tmp/odhcpd.leases` 以及 IPv4/IPv6 邻居表，不会在 rpcd 内部调用 `luci-rpc`。
 
-## Runtime requirements
+## 运行依赖
 
 - OpenWrt `procd`
 - `ip-full`
-- `ucode`, `ucode-mod-fs`, and `ucode-mod-uci`
-- Rust standard runtime for the target architecture
+- `ucode`、`ucode-mod-fs` 和 `ucode-mod-uci`
+- 目标架构对应的 Rust 标准运行时
 
-Core HTTP, JSON, HMAC/signing, and UTC timestamp handling are implemented inside the Rust backend. The backend no longer shells out to external network, crypto, or date utilities during normal operation.
+核心 HTTP、JSON、HMAC/签名和 UTC 时间戳处理都在 Rust 后端内部实现。后端在正常运行时不再调用外部网络、加密或日期工具。
 
-## Rust dependencies
+## Rust 依赖
 
-The backend intentionally uses small blocking dependencies instead of a large async stack:
+后端有意使用小型阻塞依赖，而不是引入大型异步技术栈：
 
-- `serde` and `serde_json` for runtime/provider/CLI JSON contracts
-- `ureq` with rustls-backed TLS for blocking HTTP/HTTPS
-- `hmac`, `sha1`, `sha2`, `hex`, and `base64` for provider signing
-- `percent-encoding` for canonical query construction
-- `time` for UTC timestamp formatting
+- `serde` 和 `serde_json` 用于运行态、服务商和 CLI 的 JSON 契约
+- `ureq` 结合 rustls TLS 支持，用于阻塞式 HTTP/HTTPS
+- `hmac`、`sha1`、`sha2`、`hex` 和 `base64` 用于服务商签名
+- `percent-encoding` 用于构造规范化查询参数
+- `time` 用于格式化 UTC 时间戳
 
-The OpenWrt package does not need runtime dependencies for external HTTP clients, OpenSSL command-line tools, or coreutils date utilities.
+OpenWrt 软件包不需要外部 HTTP 客户端、OpenSSL 命令行工具或 coreutils 日期工具作为运行时依赖。
 
-## Breaking config notes
+## 配置兼容性说明
 
-Configuration parsing is strict. Unknown options, invalid booleans/numbers, unsupported URL schemes, and missing provider credentials now fail validation with field-path errors such as `provider.cf.api_token: missing`.
+配置解析是严格模式。未知选项、非法布尔值/数字、不支持的 URL scheme、缺失的服务商凭据都会导致校验失败，并返回带字段路径的错误，例如 `provider.cf.api_token: missing`。
 
-Production `custom_http` provider URLs and `public_probe` source URLs must use `http://` or `https://`; `file://` is rejected. The legacy `command` source type is no longer accepted, and LuCI/rpcd source probing is limited to local, interface, DHCPv6 DUID, and MAC sources.
+生产环境的 `custom_http` 服务商 URL 和 `public_probe` 来源 URL 必须使用 `http://` 或 `https://`；`file://` 会被拒绝。旧版 `command` 来源类型不再接受，LuCI/rpcd 来源探测仅限本地地址、接口、DHCPv6 DUID 和 MAC 来源。
 
-## Verification
+## 验证
 
 ```sh
 cd qddns && CARGO_TARGET_DIR=/tmp/qddns-cargo-target cargo test -p qddns -- --nocapture
