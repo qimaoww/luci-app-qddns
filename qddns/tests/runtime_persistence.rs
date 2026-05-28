@@ -787,6 +787,17 @@ fn runtime_status_ignores_deleted_rule_states() {
     assert_eq!(json.pointer("/rules").and_then(Value::as_u64), Some(1));
 }
 
+#[test]
+fn runtime_status_reports_package_version() {
+    let (config, runtime) = recent_fixture(1);
+    let json = runtime_status_json(&config, &runtime);
+
+    assert_eq!(
+        json.pointer("/version").and_then(Value::as_str),
+        Some(env!("CARGO_PKG_VERSION"))
+    );
+}
+
 fn recent_fixture(count: u64) -> (Config, RuntimeState) {
     let mut config = Config::default();
     let mut runtime = RuntimeState::default();

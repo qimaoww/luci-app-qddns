@@ -40,6 +40,9 @@ msgstr "上次刷新"
 msgid "Daemon"
 msgstr "守护进程"
 
+msgid "Version"
+msgstr "版本"
+
 msgid "Service"
 msgstr "服务"
 

@@ -127,6 +127,7 @@ return view.extend({
 		const status = overview.status || {};
 		const cards = [
 			{ label: _('Daemon'), value: qddns.renderStatusBadge(status.running ? _('Running') : _('Stopped')) },
+			{ label: _('Version'), value: status.version || '-' },
 			{ label: _('Enabled Rules'), value: String(status.enabled_rules || 0) },
 			{ label: _('Rules'), value: String(status.rules || 0) },
 			{ label: _('Recent Activity'), value: this.getRecentActivity(overview), compact: true },

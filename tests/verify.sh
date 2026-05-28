@@ -58,7 +58,7 @@ check_po_format() {
 }
 
 check_po_core_msgids() {
-	for msgid in 'Overview' 'Rules' 'Settings' 'Logs' 'Run' 'Test' 'Probe' 'Close' 'Runtime Summary' 'Source Probe'; do
+	for msgid in 'Overview' 'Rules' 'Settings' 'Logs' 'Run' 'Test' 'Probe' 'Close' 'Runtime Summary' 'Source Probe' 'Version'; do
 		grep -nF "msgid \"$msgid\"" "$PO_FILE"
 	done
 }
@@ -102,6 +102,7 @@ PYEOF
 check_view_i18n_hooks() {
 	grep -nF "_('Overview Console')" "$VIEW_DIR/overview.js"
 	grep -nF "_('Runtime Summary')" "$VIEW_DIR/overview.js"
+	grep -nF "_('Version')" "$VIEW_DIR/overview.js"
 	grep -nF "_('Rule Console')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Run')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Test')" "$VIEW_DIR/rules.js"
@@ -1064,7 +1065,7 @@ run_step 'LuCI menu child pages guard' check_menu_child_pages
 run_step 'LuCI zh_Hans PO exists guard' test -f "$PO_FILE"
 run_step 'LuCI zh_Hans PO format guard' check_po_format
 run_step 'LuCI zh_Hans core msgid guard' check_po_core_msgids
-run_step 'LuCI zh_Hans core msgstr guard' grep -nE 'msgstr "概览"|msgstr "规则"|msgstr "设置"|msgstr "日志"|msgstr "运行"|msgstr "测试"|msgstr "运行摘要"|msgstr "来源探测"' "$PO_FILE"
+run_step 'LuCI zh_Hans core msgstr guard' grep -nE 'msgstr "概览"|msgstr "规则"|msgstr "设置"|msgstr "日志"|msgstr "运行"|msgstr "测试"|msgstr "运行摘要"|msgstr "来源探测"|msgstr "版本"' "$PO_FILE"
 run_step 'LuCI zh_Hans critical msgstr guard' check_po_critical_zh_msgstrs
 run_step 'LuCI view i18n hook guard' check_view_i18n_hooks
 run_step 'LuCI no duplicate internal page nav guard' check_no_internal_page_nav
@@ -1112,6 +1113,7 @@ run_step 'Selftest rules test' sh -c "cargo run --quiet --bin qddnsctl -- --conf
 run_step 'Selftest run rule' cargo run --quiet --bin qddnsctl -- --config "$ROOT_DIR/tests/selftest.conf" rules run home
 run_step 'Selftest status' cargo run --quiet --bin qddnsctl -- --config "$ROOT_DIR/tests/selftest.conf" status
 run_step 'Selftest daemon flag' sh -c "cargo run --quiet --bin qddnsctl -- --config '$ROOT_DIR/tests/selftest.conf' status | grep -q '\"running\":false'"
+run_step 'Selftest version field' sh -c "cargo run --quiet --bin qddnsctl -- --config '$ROOT_DIR/tests/selftest.conf' status | grep -q '\"version\":\"0.2.0\"'"
 run_step 'Selftest recent result status' sh -c "cargo run --quiet --bin qddnsctl -- --config '$ROOT_DIR/tests/selftest.conf' status | grep -q '\"status\":\"success\"'"
 run_step 'Selftest rule status' cargo run --quiet --bin qddnsctl -- --config "$ROOT_DIR/tests/selftest.conf" rules status home
 run_step 'Selftest rule status daemon flag' sh -c "cargo run --quiet --bin qddnsctl -- --config '$ROOT_DIR/tests/selftest.conf' rules status home | grep -q '\"running\":false'"

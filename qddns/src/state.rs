@@ -420,6 +420,7 @@ pub fn runtime_status_json(config: &Config, runtime: &RuntimeState) -> Value {
 
     json!({
         "ok": true,
+        "version": env!("CARGO_PKG_VERSION"),
         "enabled": config.main.enabled,
         "running": runtime.daemon_running,
         "sources": config.sources.len(),
