@@ -29,13 +29,13 @@ check_package_metadata() {
 	grep -nF '+ip-full' "$ROOT_DIR/net/qddns/Makefile"
 	grep -nF 'PKG_VERSION:=0.2.0' "$ROOT_DIR/applications/luci-app-qddns/Makefile"
 	grep -nF 'dhcpv6_mac' "$ROOT_DIR/README.md"
-	grep -nF 'deduplicates IPv6 addresses' "$ROOT_DIR/README.md"
-	grep -nF 'DHCPv6-PD route source prefixes' "$ROOT_DIR/README.md"
-	grep -nF 'selects the first matching candidate deterministically' "$ROOT_DIR/README.md"
-	grep -nF 'advanced narrowing after WAN/PD source prefix matching' "$ROOT_DIR/README.md"
+	grep -nF '对 IPv6 地址去重' "$ROOT_DIR/README.md"
+	grep -nF 'DHCPv6-PD 路由来源前缀' "$ROOT_DIR/README.md"
+	grep -nF '确定性地选择第一个匹配候选' "$ROOT_DIR/README.md"
+	grep -nF 'WAN/PD 来源前缀匹配之后还需要进一步收窄' "$ROOT_DIR/README.md"
 	grep -nF 'LAN IPv4' "$ROOT_DIR/README.md"
-	grep -nF 'IPv4/IPv6 neighbor tables' "$ROOT_DIR/README.md"
-	grep -nF 'does not show, request, or return DUID/IAID' "$ROOT_DIR/README.md"
+	grep -nF 'IPv4/IPv6 邻居表' "$ROOT_DIR/README.md"
+	grep -nF '不会显示、请求或返回 DUID/IAID' "$ROOT_DIR/README.md"
 	! grep -nF 'LuCI host hints' "$ROOT_DIR/README.md"
 }
 
@@ -58,7 +58,7 @@ check_po_format() {
 }
 
 check_po_core_msgids() {
-	for msgid in 'Overview' 'Rules' 'Settings' 'Logs' 'Run' 'Test' 'Probe' 'Close' 'Runtime Summary' 'Source Probe' 'Version'; do
+	for msgid in 'Overview' 'Rules' 'Settings' 'Logs' 'Run once' 'Probe' 'Close' 'Runtime Summary' 'Source Probe' 'Version'; do
 		grep -nF "msgid \"$msgid\"" "$PO_FILE"
 	done
 }
@@ -90,6 +90,8 @@ required = {
         '已填充所选局域网主机 MAC；WAN 接口请单独保持选中。',
     'Host interface':
         '主机接口',
+    'WAN/upstream interface':
+        'WAN/上游接口',
 }
 
 for msgid, expected in required.items():
@@ -104,8 +106,7 @@ check_view_i18n_hooks() {
 	grep -nF "_('Runtime Summary')" "$VIEW_DIR/overview.js"
 	grep -nF "_('Version')" "$VIEW_DIR/overview.js"
 	grep -nF "_('Rule Console')" "$VIEW_DIR/rules.js"
-	grep -nF "_('Run')" "$VIEW_DIR/rules.js"
-	grep -nF "_('Test')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Run once')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Settings')" "$VIEW_DIR/settings.js"
 	grep -nF "_('Source Probe')" "$VIEW_DIR/settings.js"
 	grep -nF "_('DHCPv6 DUID')" "$VIEW_DIR/settings.js"
@@ -169,7 +170,8 @@ check_overview_boundary() {
 }
 
 check_rules_boundary() {
-	grep -nE 'qddns\.(runRule|testRule|getRuleStatus)' "$VIEW_DIR/rules.js"
+	grep -nE 'qddns\.(runRule|getRuleStatus)' "$VIEW_DIR/rules.js"
+	! grep -nF 'qddns.testRule' "$VIEW_DIR/rules.js"
 	grep -nF "form.GridSection, 'rule'" "$VIEW_DIR/rules.js"
 	! grep -nE "form\.(NamedSection, 'main'|GridSection, 'source'|GridSection, 'provider')" "$VIEW_DIR/rules.js"
 }
@@ -195,10 +197,11 @@ check_rule_wizard() {
 	grep -nF "_('Source setup')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Create new source')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Use saved source')" "$VIEW_DIR/rules.js"
-	grep -nF "_('Save and probe source IP')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Probe source IP')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Probing source IP...')" "$VIEW_DIR/rules.js"
-	grep -nF "_('Source IP detected: %s')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Source IP detected: %s. The source will be saved with the rule.')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Unable to read source IP. Choose another source or fix the source configuration.')" "$VIEW_DIR/rules.js"
+	grep -nF "_('This source type cannot be previewed in LuCI. Confirm the record type manually; the backend will validate it when the rule runs.')" "$VIEW_DIR/rules.js"
 	grep -nF "renderWizardSourceIp" "$VIEW_DIR/rules.js"
 	grep -nF "updateWizardSourceProbe" "$VIEW_DIR/rules.js"
 	grep -nF "saveNewSource" "$VIEW_DIR/rules.js"
@@ -275,10 +278,12 @@ if 'viewRef.syncWizardRecordType(fields.recordType, sourceProbe.family)' not in 
     raise SystemExit('rule wizard must sync record type from probed source IP family')
 if "setWizardProbeFeedback(_('Probing source IP...'), 'loading')" not in modal:
     raise SystemExit('rule wizard must put source IP probe loading into the guide feedback')
-if "setWizardProbeFeedback(_('Source IP detected: %s').format(result.address), 'ready')" not in modal:
+if "setWizardProbeFeedback(_('Source IP detected: %s. The source will be saved with the rule.').format(result.address), 'ready')" not in modal:
     raise SystemExit('rule wizard must put detected source IP into the guide feedback')
-if "setWizardProbeFeedback(_('Unable to read source IP. Choose another source or fix the source configuration.'), 'error')" not in modal:
+if "setWizardProbeFeedback(message, 'error')" not in modal:
     raise SystemExit('rule wizard must put source IP probe failures into the guide feedback')
+if "setWizardSourceIp(_('Not previewable in LuCI'), 'warning')" not in modal:
+    raise SystemExit('rule wizard must allow saved non-previewable sources without presenting them as failed probes')
 if "const message = qddns.extractResultMessage(err, _('Unable to read source IP.'))" not in modal or "setWizardProbeFeedback(message, 'error')" not in modal:
     raise SystemExit('rule wizard must show saved source XHR/probe errors in the guide feedback')
 if "const message = qddns.extractResultMessage(result, _('Unable to read source IP.'))" not in save_block or "setWizardProbeFeedback(message, 'error')" not in save_block:
@@ -532,7 +537,7 @@ check_name_visible_numeric_hidden_ui() {
 	grep -nF "o.placeholder = _('Unnamed source')" "$VIEW_DIR/settings.js"
 	grep -nF "o.placeholder = _('Unnamed provider')" "$VIEW_DIR/settings.js"
 	! grep -nF "o.readonly = true;" "$VIEW_DIR/settings.js"
-	grep -nF "o = s.option(widgets.DeviceSelect, 'interface', _('Interface')" "$VIEW_DIR/settings.js"
+	grep -nF "o = s.option(widgets.DeviceSelect, 'interface', _('WAN/upstream interface')" "$VIEW_DIR/settings.js"
 	python3 - <<'PYEOF'
 import os
 from pathlib import Path
@@ -545,7 +550,7 @@ if source_start is None or provider_start is None:
 source_block = '\n'.join(settings[source_start:provider_start])
 if 's.nodescriptions = true;' not in source_block:
     raise SystemExit('source GridSection must suppress option description rows; they break named table alignment')
-start = next((i for i, line in enumerate(settings) if "o = s.option(widgets.DeviceSelect, 'interface', _('Interface')" in line), None)
+start = next((i for i, line in enumerate(settings) if "o = s.option(widgets.DeviceSelect, 'interface', _('WAN/upstream interface')" in line), None)
 if start is None:
     raise SystemExit('source interface DeviceSelect option is missing')
 end = next((i for i in range(start + 1, len(settings)) if '\to = s.option(' in settings[i]), len(settings))
@@ -912,15 +917,18 @@ check_name_visible_numeric_hidden_po() {
 		'IPv6' \
 		'Source name is required.' \
 		'Address is required.' \
-		'Interface is required.' \
+		'WAN/upstream interface' \
+		'WAN/upstream interface is required.' \
 		'Choose a lease candidate or enter the source values manually.' \
-		'Save and probe source IP' \
-		'Save and probe source IP before continuing.' \
+		'Probe source IP' \
+		'Probe source IP before continuing. The source will be saved with the rule.' \
 		'Create or choose a source before continuing.' \
 		'Source IP' \
 		'Probing source IP...' \
-		'Source IP detected: %s' \
+		'Source IP detected: %s. The source will be saved with the rule.' \
 		'Unable to read source IP. Choose another source or fix the source configuration.' \
+		'Not previewable in LuCI' \
+		'This source type cannot be previewed in LuCI. Confirm the record type manually; the backend will validate it when the rule runs.' \
 		'Loading...' \
 		'Source IP is still loading.' \
 		'Unable to read source IP.' \

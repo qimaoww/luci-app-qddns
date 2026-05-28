@@ -65,10 +65,6 @@ const QDDNS_SETTINGS_STYLE = [
 		'--qddns-surface-strong:rgba(127,127,127,0.14);',
 	'}',
 	'.qddns-settings-page{margin-bottom:var(--qddns-space-4)}',
-	'.qddns-settings-page .qddns-panel{margin-bottom:var(--qddns-space-4);padding:var(--qddns-space-4);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-md);background:var(--qddns-surface)}',
-	'.qddns-actions{display:flex;flex-wrap:wrap;gap:var(--qddns-space-2);max-width:100%}',
-	'.qddns-actions .cbi-button{margin:0;max-width:100%;white-space:normal}',
-	'.qddns-actions .cbi-button.qddns-busy{opacity:0.7;cursor:progress}',
 	'.qddns-dhcpv6-lease-status{display:grid;gap:var(--qddns-space-2);width:100%;max-width:100%;min-width:0;text-align:left}',
 	'.qddns-dhcpv6-lease-results{display:grid;gap:var(--qddns-space-2);width:100%;max-width:100%;min-width:0;text-align:left}',
 	'.qddns-dhcpv6-lease-list{display:grid;justify-items:stretch;gap:var(--qddns-space-2);width:100%;max-width:100%;min-width:0}',
@@ -86,9 +82,7 @@ const QDDNS_SETTINGS_STYLE = [
 	'.qddns-source-ip-status{display:block;max-width:100%;min-width:min(100%,8rem);overflow-wrap:anywhere;text-align:left}',
 	'.qddns-source-ip-status[data-tone="warning"]{opacity:0.78}',
 	'.qddns-source-ip-status[data-tone="negative"]{color:var(--qddns-negative-text,inherit)}',
-	'@media (max-width: 768px){',
-		'.qddns-settings-page .qddns-panel{padding:var(--qddns-space-3)}',
-	'}'
+	''
 ].join('');
 
 return view.extend({
@@ -103,6 +97,8 @@ return view.extend({
 	},
 
 	ensureSettingsStyle: function() {
+		qddns.ensureCommonStyle();
+
 		if (document.getElementById(QDDNS_SETTINGS_STYLE_ID))
 			return;
 
@@ -797,7 +793,7 @@ return view.extend({
 		o = s.option(form.Value, 'lease_file', _('Lease file')); this.sourceDhcpv6Options.leaseFile = o; o.placeholder = '/tmp/odhcpd.leases'; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac'); this.guardSourceOptionWrite(o, 'lease_file');
 		o = s.option(form.Value, 'prefix_filter', _('Prefix narrowing'), _('Advanced narrowing after WAN/PD source prefix matching; it cannot replace the interface.')); this.sourceDhcpv6Options.prefixFilter = o; o.placeholder = '240e:'; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac'); this.guardSourceOptionWrite(o, 'prefix_filter');
 		o = s.option(form.Value, 'hostname_hint', _('Hostname hint')); this.sourceDhcpv6Options.hostnameHint = o; o.modalonly = true; o.depends('type', 'dhcpv6_duid'); o.depends('type', 'dhcpv6_mac'); this.guardSourceOptionWrite(o, 'hostname_hint');
-		o = s.option(widgets.DeviceSelect, 'interface', _('Interface'), _('For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s); DHCPv6-PD route source prefixes from those interfaces validate LAN host IPv6 addresses.'));
+		o = s.option(widgets.DeviceSelect, 'interface', _('WAN/upstream interface'), _('For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s); DHCPv6-PD route source prefixes from those interfaces validate LAN host IPv6 addresses.'));
 		this.sourceDhcpv6Options.interface = o;
 		o.multiple = true;
 		o.cfgvalue = function(sectionId, value) {

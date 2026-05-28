@@ -11,19 +11,48 @@ const callDhcpv6Leases = rpc.declare({ object: 'qddns', method: 'list_dhcpv6_lea
 const callProbeSource = rpc.declare({ object: 'qddns', method: 'probe_source', params: ['id'], expect: {} });
 const callProbeSourceDraft = rpc.declare({ object: 'qddns', method: 'probe_source_draft', params: ['name', 'type', 'family', 'address', 'interface', 'duid', 'iaid', 'mac', 'lease_file', 'hostname_hint', 'prefix_filter'], expect: {} });
 const callRunRule = rpc.declare({ object: 'qddns', method: 'run_rule', params: ['id'], expect: {} });
-const callTestRule = rpc.declare({ object: 'qddns', method: 'test_rule', params: ['id'], expect: {} });
 const callGetLogs = rpc.declare({ object: 'qddns', method: 'get_logs', params: ['scope'], expect: {} });
 const callGetRuleStatus = rpc.declare({ object: 'qddns', method: 'get_rule_status', params: ['id'], expect: {} });
 const QDDNS_COMMON_STYLE_ID = 'qddns-common-style';
 const QDDNS_COMMON_STYLE = [
 	':root{',
+		'--qddns-space-1:0.25rem;',
 		'--qddns-space-2:0.5rem;',
 		'--qddns-space-3:0.75rem;',
+		'--qddns-space-4:1rem;',
+		'--qddns-space-5:1.5rem;',
+		'--qddns-radius-sm:0.5rem;',
+		'--qddns-radius-md:0.75rem;',
+		'--qddns-border:rgba(127,127,127,0.24);',
+		'--qddns-surface:rgba(127,127,127,0.08);',
+		'--qddns-surface-strong:rgba(127,127,127,0.14);',
+		'--qddns-positive:rgba(46,159,98,0.18);',
+		'--qddns-positive-text:rgb(35,115,72);',
+		'--qddns-negative:rgba(200,73,73,0.16);',
+		'--qddns-negative-text:rgb(146,47,47);',
+		'--qddns-warning:rgba(220,150,35,0.18);',
+		'--qddns-warning-text:rgb(145,97,14);',
+		'--qddns-neutral:rgba(127,127,127,0.12);',
+		'--qddns-neutral-text:inherit;',
 		'--qddns-table-min:56rem;',
 		'--qddns-form-table-min:72rem;',
 		'--qddns-cell-min:8rem;',
 		'--qddns-cell-wide:14rem;',
 	'}',
+	'.qddns-panel{margin-bottom:var(--qddns-space-4);padding:var(--qddns-space-4);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-md);background:var(--qddns-surface)}',
+	'.qddns-dashboard-note,.qddns-page-note{margin-bottom:var(--qddns-space-4)}',
+	'.qddns-actions{display:flex;flex-wrap:wrap;gap:var(--qddns-space-2);max-width:100%}',
+	'.qddns-actions .cbi-button{margin:0;max-width:100%;white-space:normal}',
+	'.qddns-actions .cbi-button.qddns-busy{opacity:0.7;cursor:progress}',
+	'.qddns-badge{display:inline-flex;align-items:center;justify-content:center;min-height:2rem;padding:0 var(--qddns-space-3);border-radius:999px;font-size:0.8125rem;font-weight:600;line-height:1.4;border:1px solid transparent}',
+	'.qddns-badge-positive{background:var(--qddns-positive);border-color:var(--qddns-positive);color:var(--qddns-positive-text)}',
+	'.qddns-badge-negative{background:var(--qddns-negative);border-color:var(--qddns-negative);color:var(--qddns-negative-text)}',
+	'.qddns-badge-warning{background:var(--qddns-warning);border-color:var(--qddns-warning);color:var(--qddns-warning-text)}',
+	'.qddns-badge-neutral{background:var(--qddns-neutral);border-color:var(--qddns-border);color:var(--qddns-neutral-text)}',
+	'.qddns-feedback{display:flex;flex-direction:column;gap:var(--qddns-space-2);padding:var(--qddns-space-4);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface)}',
+	'.qddns-feedback-negative{border-color:var(--qddns-negative);background:var(--qddns-negative);color:var(--qddns-negative-text)}',
+	'.qddns-empty-cell{text-align:center;opacity:0.72;padding:var(--qddns-space-4)}',
+	'.qddns-log-output{margin:0;max-height:20rem;overflow:auto;padding:var(--qddns-space-4);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface-strong);white-space:pre-wrap;word-break:break-word}',
 	'.qddns-table-wrap{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}',
 	'.qddns-table-wrap .qddns-table{width:100%;min-width:var(--qddns-table-min);margin-bottom:0;table-layout:auto}',
 	'.qddns-table-wrap .qddns-table th,.qddns-table-wrap .qddns-table td{min-width:var(--qddns-cell-min);vertical-align:top;white-space:normal;word-break:normal;overflow-wrap:break-word}',
@@ -39,6 +68,7 @@ const QDDNS_COMMON_STYLE = [
 	'.qddns-wide-form .cbi-section-table input[type="checkbox"]{min-width:auto}',
 	'@media (max-width: 768px){',
 		':root{--qddns-table-min:48rem;--qddns-form-table-min:64rem}',
+		'.qddns-panel{padding:var(--qddns-space-3)}',
 	'}'
 ].join('');
 
@@ -86,7 +116,6 @@ return baseclass.extend({
 		);
 	},
 	runRule: callRunRule,
-	testRule: callTestRule,
 	getLogs: callGetLogs,
 	getRuleStatus: callGetRuleStatus,
 
@@ -168,9 +197,9 @@ return baseclass.extend({
 		return E('span', { class: 'qddns-badge qddns-badge-' + (tone || 'neutral') }, label || '-');
 	},
 
-	renderStatusBadge: function(status, fallback) {
+	renderStatusBadge: function(status, fallback, toneStatus) {
 		const label = status || fallback || '-';
-		return this.renderBadge(label, this.statusTone(label));
+		return this.renderBadge(label, this.statusTone(toneStatus || status || fallback));
 	},
 
 	extractResultMessage: function(result, fallback) {

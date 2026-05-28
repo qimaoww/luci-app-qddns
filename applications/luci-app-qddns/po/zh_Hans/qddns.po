@@ -142,17 +142,11 @@ msgstr "操作"
 msgid "Add"
 msgstr "添加"
 
-msgid "Run"
-msgstr "运行"
-
-msgid "Test"
-msgstr "测试"
+msgid "Run once"
+msgstr "执行一次"
 
 msgid "Run Rule"
 msgstr "运行规则"
-
-msgid "Test Rule"
-msgstr "测试规则"
 
 msgid "Rule Status"
 msgstr "规则状态"
@@ -187,8 +181,8 @@ msgstr "级别"
 msgid "Scope"
 msgstr "范围"
 
-msgid "Review system logs or switch to a saved rule scope below. This page is read-only and does not expose run, test, or rule status actions."
-msgstr "在下方查看系统日志，或切换到已保存的规则日志范围。本页为只读页面，不提供运行、测试或规则状态操作。"
+msgid "Review system logs or switch to a saved rule scope below. This page is read-only and does not expose rule execution or status actions."
+msgstr "在下方查看系统日志，或切换到已保存的规则日志范围。本页为只读页面，不提供规则执行或状态操作。"
 
 msgid "No logs available"
 msgstr "暂无日志"
@@ -199,17 +193,14 @@ msgstr "无法加载所选范围的日志。"
 msgid "Only rules are editable on this page. Providers and sources live on the settings page."
 msgstr "本页仅允许编辑规则。提供商和来源位于设置页。"
 
-msgid "Run and test saved rules here. Runtime status comes from the live overview state; provider and source references come from saved providers and sources, so save and reload after changing related settings."
-msgstr "在此运行和测试已保存的规则。运行状态来自实时概览数据；提供商和来源引用来自已保存的提供商和来源，因此修改相关设置后请保存并重新加载。"
+msgid "Run saved rules once here. Runtime status comes from the live overview state; provider and source references come from saved providers and sources, so save and reload after changing related settings."
+msgstr "在此执行一次已保存规则。运行状态来自实时概览数据；提供商和来源引用来自已保存的提供商和来源，因此修改相关设置后请保存并重新加载。"
 
 msgid "No rules configured"
 msgstr "尚未配置规则"
 
 msgid "Unable to run the selected rule."
 msgstr "无法运行所选规则。"
-
-msgid "Unable to test the selected rule."
-msgstr "无法测试所选规则。"
 
 msgid "Unable to load rule status."
 msgstr "无法加载规则状态。"
@@ -327,6 +318,9 @@ msgstr "主机名提示"
 
 msgid "Interface"
 msgstr "接口"
+
+msgid "WAN/upstream interface"
+msgstr "WAN/上游接口"
 
 msgid "For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s). QDDNS uses DHCPv6-PD route source prefixes from them; lease cards only fill the LAN host identity."
 msgstr "DHCPv6 DUID/MAC 来源请选择 WAN/上游接口；QDDNS 使用这些接口的 DHCPv6-PD 路由来源前缀，租约卡片只填充局域网主机身份。"
@@ -581,17 +575,17 @@ msgstr "来源名称不能为空。"
 msgid "Address is required."
 msgstr "地址不能为空。"
 
-msgid "Interface is required."
-msgstr "接口不能为空。"
+msgid "WAN/upstream interface is required."
+msgstr "WAN/上游接口不能为空。"
 
 msgid "Choose a lease candidate or enter the source values manually."
 msgstr "请选择租约候选项，或手动填写来源值。"
 
-msgid "Save and probe source IP"
-msgstr "保存并探测来源 IP"
+msgid "Probe source IP"
+msgstr "探测来源 IP"
 
-msgid "Save and probe source IP before continuing."
-msgstr "继续前请先保存并探测来源 IP。"
+msgid "Probe source IP before continuing. The source will be saved with the rule."
+msgstr "继续前请先探测来源 IP。来源会随规则一起保存。"
 
 msgid "Create or choose a source before continuing."
 msgstr "继续前请先创建或选择来源。"
@@ -599,11 +593,17 @@ msgstr "继续前请先创建或选择来源。"
 msgid "Probing source IP..."
 msgstr "正在探测来源 IP..."
 
-msgid "Source IP detected: %s"
-msgstr "已探测到来源 IP：%s"
+msgid "Source IP detected: %s. The source will be saved with the rule."
+msgstr "已探测到来源 IP：%s。来源会随规则一起保存。"
 
 msgid "Unable to read source IP. Choose another source or fix the source configuration."
 msgstr "无法读取来源 IP。请选择其他来源或修复来源配置。"
+
+msgid "Not previewable in LuCI"
+msgstr "LuCI 中不可预览"
+
+msgid "This source type cannot be previewed in LuCI. Confirm the record type manually; the backend will validate it when the rule runs."
+msgstr "此来源类型无法在 LuCI 中预览。请手动确认记录类型；后端会在规则运行时继续校验。"
 
 msgid "Loading..."
 msgstr "正在读取..."

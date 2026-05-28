@@ -3,6 +3,7 @@
 /.rustup
 /.tmp
 /output/
+/.playwright-cli/
 node_modules
 .omo/
 .sisyphus/

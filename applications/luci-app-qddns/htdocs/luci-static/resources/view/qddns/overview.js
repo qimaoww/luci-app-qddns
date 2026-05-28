@@ -5,49 +5,21 @@
 
 const QDDNS_STYLE_ID = 'qddns-overview-style';
 const QDDNS_STYLE = [
-	':root{',
-		'--qddns-space-1:0.25rem;',
-		'--qddns-space-2:0.5rem;',
-		'--qddns-space-3:0.75rem;',
-		'--qddns-space-4:1rem;',
-		'--qddns-space-5:1.5rem;',
-		'--qddns-radius-sm:0.5rem;',
-		'--qddns-radius-md:0.75rem;',
-		'--qddns-border:rgba(127,127,127,0.24);',
-		'--qddns-surface:rgba(127,127,127,0.08);',
-		'--qddns-positive:rgba(46,159,98,0.18);',
-		'--qddns-positive-text:rgb(35,115,72);',
-		'--qddns-negative:rgba(200,73,73,0.16);',
-		'--qddns-negative-text:rgb(146,47,47);',
-		'--qddns-warning:rgba(220,150,35,0.18);',
-		'--qddns-warning-text:rgb(145,97,14);',
-		'--qddns-neutral:rgba(127,127,127,0.12);',
-		'--qddns-neutral-text:inherit;',
-	'}',
 	'.qddns-dashboard{margin-bottom:var(--qddns-space-5)}',
 	'.qddns-dashboard .qddns-panel,.qddns-dashboard .qddns-card{margin-bottom:var(--qddns-space-4)}',
 	'.qddns-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--qddns-space-3)}',
 	'.qddns-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));gap:var(--qddns-space-3)}',
-	'.qddns-card,.qddns-panel,.qddns-summary-item{padding:var(--qddns-space-4);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-md);background:var(--qddns-surface)}',
+	'.qddns-card,.qddns-summary-item{padding:var(--qddns-space-4);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-md);background:var(--qddns-surface)}',
 	'.qddns-card{display:flex;flex-direction:column;gap:var(--qddns-space-2);min-height:7.5rem;justify-content:center}',
 	'.qddns-card-label,.qddns-summary-item strong{font-size:0.75rem;letter-spacing:0.04em;opacity:0.72;text-transform:uppercase}',
 	'.qddns-card-value{font-size:1.5rem;font-weight:600;line-height:1.3;word-break:break-word}',
 	'.qddns-summary-item{display:flex;flex-direction:column;gap:var(--qddns-space-1)}',
 	'.qddns-summary-item span{font-size:1rem;line-height:1.4}',
-	'.qddns-table-wrap{overflow-x:auto}',
-	'.qddns-table-wrap .table{margin-bottom:0}',
-	'.qddns-empty-cell{text-align:center;opacity:0.72;padding:var(--qddns-space-4)}',
-	'.qddns-badge{display:inline-flex;align-items:center;justify-content:center;min-height:2rem;padding:0 var(--qddns-space-3);border-radius:999px;font-size:0.8125rem;font-weight:600;line-height:1.4;border:1px solid transparent}',
-	'.qddns-badge-positive{background:var(--qddns-positive);border-color:var(--qddns-positive);color:var(--qddns-positive-text)}',
-	'.qddns-badge-negative{background:var(--qddns-negative);border-color:var(--qddns-negative);color:var(--qddns-negative-text)}',
-	'.qddns-badge-warning{background:var(--qddns-warning);border-color:var(--qddns-warning);color:var(--qddns-warning-text)}',
-	'.qddns-badge-neutral{background:var(--qddns-neutral);border-color:var(--qddns-border);color:var(--qddns-neutral-text)}',
-	'.qddns-dashboard-note{margin-bottom:var(--qddns-space-4)}',
 	'@media (max-width: 1100px){',
 		'.qddns-cards{grid-template-columns:repeat(2,minmax(0,1fr))}',
 	'}',
 	'@media (max-width: 768px){',
-		'.qddns-card,.qddns-panel,.qddns-summary-item{padding:var(--qddns-space-3)}',
+		'.qddns-card,.qddns-summary-item{padding:var(--qddns-space-3)}',
 		'.qddns-card-value{font-size:1.25rem}',
 		'.qddns-cards{grid-template-columns:1fr}',
 	'}'
@@ -90,6 +62,8 @@ return view.extend({
 	},
 
 	ensureDashboardStyle: function() {
+		qddns.ensureCommonStyle();
+
 		if (document.getElementById(QDDNS_STYLE_ID))
 			return;
 
@@ -120,7 +94,7 @@ return view.extend({
 	renderOverviewCards: function(overview) {
 		const status = overview.status || {};
 		const cards = [
-			{ label: _('Daemon'), value: qddns.renderStatusBadge(status.running ? _('Running') : _('Stopped')) },
+			{ label: _('Daemon'), value: qddns.renderStatusBadge(status.running ? _('Running') : _('Stopped'), null, status.running ? 'running' : 'stopped') },
 			{ label: _('Version'), value: status.version || '-' },
 			{ label: _('Enabled Rules'), value: String(status.enabled_rules || 0) },
 			{ label: _('Rules'), value: String(status.rules || 0) }
@@ -158,8 +132,8 @@ return view.extend({
 		return E('div', { class: 'cbi-section qddns-panel qddns-summary' }, [
 			E('h3', {}, _('Runtime Summary')),
 			E('div', { class: 'qddns-summary-grid' }, [
-				E('div', { class: 'qddns-summary-item' }, [E('strong', {}, _('Service')), E('span', {}, [qddns.renderStatusBadge(status.running ? _('Running') : _('Stopped'))])]),
-				E('div', { class: 'qddns-summary-item' }, [E('strong', {}, _('Config')), E('span', {}, [qddns.renderStatusBadge(enabled)])]),
+				E('div', { class: 'qddns-summary-item' }, [E('strong', {}, _('Service')), E('span', {}, [qddns.renderStatusBadge(status.running ? _('Running') : _('Stopped'), null, status.running ? 'running' : 'stopped')])]),
+				E('div', { class: 'qddns-summary-item' }, [E('strong', {}, _('Config')), E('span', {}, [qddns.renderStatusBadge(enabled, null, overview.main?.enabled ? 'enabled' : 'disabled')])]),
 				E('div', { class: 'qddns-summary-item' }, [E('strong', {}, _('Sources')), E('span', {}, String(status.sources || 0))]),
 				E('div', { class: 'qddns-summary-item' }, [E('strong', {}, _('Providers')), E('span', {}, String(status.providers || 0))])
 			])

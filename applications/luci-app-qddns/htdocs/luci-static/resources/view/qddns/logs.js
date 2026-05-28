@@ -133,6 +133,8 @@ return view.extend({
 	},
 
 	renderLogsPage: function() {
+		qddns.ensureCommonStyle();
+
 		const currentChoice = this.getScopeChoices().filter(L.bind(function(choice) {
 			return choice.value === this.currentScope;
 		}, this))[0];
@@ -141,7 +143,7 @@ return view.extend({
 		return E('div', { id: 'qddns-logs-page' }, [
 			E('div', { class: 'cbi-section qddns-panel qddns-dashboard-note' }, [
 				E('h3', {}, _('Logs')),
-				E('p', { class: 'cbi-section-descr' }, _('Review system logs or switch to a saved rule scope below. This page is read-only and does not expose run, test, or rule status actions.'))
+				E('p', { class: 'cbi-section-descr' }, _('Review system logs or switch to a saved rule scope below. This page is read-only and does not expose rule execution or status actions.'))
 			]),
 			E('div', { class: 'cbi-section qddns-panel' }, [
 				E('h3', {}, _('Log Scope')),
