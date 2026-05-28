@@ -2,6 +2,7 @@
 /.cargo-home
 /.rustup
 /.tmp
+/output/
 node_modules
 .omo/
 .sisyphus/
