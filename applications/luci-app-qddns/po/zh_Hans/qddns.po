@@ -25,17 +25,11 @@ msgstr "规则面板"
 msgid "Runtime Summary"
 msgstr "运行摘要"
 
-msgid "Recent Activity"
-msgstr "最近活动"
-
 msgid "Recent Results"
 msgstr "最近结果"
 
 msgid "No runtime results yet"
 msgstr "暂无运行结果"
-
-msgid "Last Refresh"
-msgstr "上次刷新"
 
 msgid "Daemon"
 msgstr "守护进程"
@@ -75,12 +69,6 @@ msgstr "已禁用"
 
 msgid "Unknown"
 msgstr "未知"
-
-msgid "Updated"
-msgstr "已更新"
-
-msgid "Never"
-msgstr "从未"
 
 msgid "N/A"
 msgstr "无"
@@ -402,9 +390,6 @@ msgstr "在此管理守护进程默认值、来源定义和提供商凭据。可
 
 msgid "Runtime widgets refresh automatically. Use the dedicated rules, settings, and logs pages for actions, configuration, and diagnostics."
 msgstr "运行态组件会自动刷新。请使用专门的规则、设置和日志页面进行操作、配置和诊断。"
-
-msgid "No activity yet"
-msgstr "暂无活动"
 
 msgid "Request failed"
 msgstr "请求失败"

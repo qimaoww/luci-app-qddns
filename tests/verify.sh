@@ -116,6 +116,18 @@ check_view_i18n_hooks() {
 	grep -nF "_('N/A')" "$VIEW_DIR/shared.js"
 }
 
+check_overview_primary_cards() {
+	! grep -nF "_('Recent Activity')" "$VIEW_DIR/overview.js"
+	! grep -nF "_('Last Refresh')" "$VIEW_DIR/overview.js"
+	! grep -nF "getRecentActivity" "$VIEW_DIR/overview.js"
+	! grep -nF 'msgid "Recent Activity"' "$PO_FILE"
+	! grep -nF 'msgid "Last Refresh"' "$PO_FILE"
+	! grep -nF 'msgid "No activity yet"' "$PO_FILE"
+	grep -nF ".qddns-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--qddns-space-3)}" "$VIEW_DIR/overview.js"
+	grep -nF ".qddns-cards{grid-template-columns:repeat(2,minmax(0,1fr))}" "$VIEW_DIR/overview.js"
+	grep -nF ".qddns-cards{grid-template-columns:1fr}" "$VIEW_DIR/overview.js"
+}
+
 check_no_internal_page_nav() {
 	! grep -nF 'renderPageNav' "$VIEW_DIR/shared.js"
 	for file in "$VIEW_DIR"/*.js; do
@@ -571,7 +583,6 @@ PYEOF
 	grep -nF "this.getProviderLabel(rule.provider)" "$VIEW_DIR/rules.js"
 	grep -nF "choices.push({ value: rule.id, label: _('Rule') + ': ' + this.getRuleLabel(rule) })" "$VIEW_DIR/logs.js"
 	grep -nF "name: section.name || null" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "this.ruleLabel(latest.id)" "$VIEW_DIR/overview.js"
 	grep -nF "this.ruleLabel(item.id)" "$VIEW_DIR/overview.js"
 	grep -nF "getScopeLabel" "$VIEW_DIR/logs.js"
 	grep -nF "this.getScopeLabel(entry.scope || 'system')" "$VIEW_DIR/logs.js"
@@ -1068,6 +1079,7 @@ run_step 'LuCI zh_Hans core msgid guard' check_po_core_msgids
 run_step 'LuCI zh_Hans core msgstr guard' grep -nE 'msgstr "概览"|msgstr "规则"|msgstr "设置"|msgstr "日志"|msgstr "运行"|msgstr "测试"|msgstr "运行摘要"|msgstr "来源探测"|msgstr "版本"' "$PO_FILE"
 run_step 'LuCI zh_Hans critical msgstr guard' check_po_critical_zh_msgstrs
 run_step 'LuCI view i18n hook guard' check_view_i18n_hooks
+run_step 'LuCI overview primary cards guard' check_overview_primary_cards
 run_step 'LuCI no duplicate internal page nav guard' check_no_internal_page_nav
 	run_step 'LuCI overview boundary guard' check_overview_boundary
 	run_step 'LuCI rules boundary guard' check_rules_boundary

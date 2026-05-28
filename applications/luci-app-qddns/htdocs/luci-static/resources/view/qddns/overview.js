@@ -26,12 +26,12 @@ const QDDNS_STYLE = [
 	'}',
 	'.qddns-dashboard{margin-bottom:var(--qddns-space-5)}',
 	'.qddns-dashboard .qddns-panel,.qddns-dashboard .qddns-card{margin-bottom:var(--qddns-space-4)}',
-	'.qddns-cards,.qddns-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));gap:var(--qddns-space-3)}',
+	'.qddns-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--qddns-space-3)}',
+	'.qddns-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));gap:var(--qddns-space-3)}',
 	'.qddns-card,.qddns-panel,.qddns-summary-item{padding:var(--qddns-space-4);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-md);background:var(--qddns-surface)}',
 	'.qddns-card{display:flex;flex-direction:column;gap:var(--qddns-space-2);min-height:7.5rem;justify-content:center}',
 	'.qddns-card-label,.qddns-summary-item strong{font-size:0.75rem;letter-spacing:0.04em;opacity:0.72;text-transform:uppercase}',
 	'.qddns-card-value{font-size:1.5rem;font-weight:600;line-height:1.3;word-break:break-word}',
-	'.qddns-card-value.is-compact{font-size:1rem;font-weight:500}',
 	'.qddns-summary-item{display:flex;flex-direction:column;gap:var(--qddns-space-1)}',
 	'.qddns-summary-item span{font-size:1rem;line-height:1.4}',
 	'.qddns-table-wrap{overflow-x:auto}',
@@ -43,9 +43,13 @@ const QDDNS_STYLE = [
 	'.qddns-badge-warning{background:var(--qddns-warning);border-color:var(--qddns-warning);color:var(--qddns-warning-text)}',
 	'.qddns-badge-neutral{background:var(--qddns-neutral);border-color:var(--qddns-border);color:var(--qddns-neutral-text)}',
 	'.qddns-dashboard-note{margin-bottom:var(--qddns-space-4)}',
+	'@media (max-width: 1100px){',
+		'.qddns-cards{grid-template-columns:repeat(2,minmax(0,1fr))}',
+	'}',
 	'@media (max-width: 768px){',
 		'.qddns-card,.qddns-panel,.qddns-summary-item{padding:var(--qddns-space-3)}',
 		'.qddns-card-value{font-size:1.25rem}',
+		'.qddns-cards{grid-template-columns:1fr}',
 	'}'
 ].join('');
 
@@ -106,16 +110,6 @@ return view.extend({
 		}, this));
 	},
 
-	getRecentActivity: function(overview) {
-		const latest = overview.status?.recent_results?.[0];
-
-		if (!latest)
-			return _('No activity yet');
-
-		const summary = latest.last_result || latest.last_error || latest.status || _('Updated');
-		return '%s: %s'.format(this.ruleLabel(latest.id), summary);
-	},
-
 	renderDashboardIntro: function() {
 		return E('div', { class: 'cbi-section qddns-panel qddns-dashboard-note' }, [
 			E('h3', {}, _('Overview Console')),
@@ -129,15 +123,13 @@ return view.extend({
 			{ label: _('Daemon'), value: qddns.renderStatusBadge(status.running ? _('Running') : _('Stopped')) },
 			{ label: _('Version'), value: status.version || '-' },
 			{ label: _('Enabled Rules'), value: String(status.enabled_rules || 0) },
-			{ label: _('Rules'), value: String(status.rules || 0) },
-			{ label: _('Recent Activity'), value: this.getRecentActivity(overview), compact: true },
-			{ label: _('Last Refresh'), value: status.updated_at ? qddns.formatEpoch(status.updated_at) : _('Never'), compact: true }
+			{ label: _('Rules'), value: String(status.rules || 0) }
 		];
 
 		return E('div', { class: 'qddns-cards' }, cards.map(function(card) {
 			return E('div', { class: 'cbi-section qddns-card' }, [
 				E('div', { class: 'qddns-card-label' }, card.label),
-				E('div', { class: 'qddns-card-value' + (card.compact ? ' is-compact' : '') }, Array.isArray(card.value) ? card.value : [card.value])
+				E('div', { class: 'qddns-card-value' }, Array.isArray(card.value) ? card.value : [card.value])
 			]);
 		}));
 	},
