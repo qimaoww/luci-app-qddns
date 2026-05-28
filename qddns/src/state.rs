@@ -379,9 +379,21 @@ pub fn runtime_rule_status_json(
     ))
 }
 
+pub fn prune_runtime_rules(config: &Config, runtime: &mut RuntimeState) -> bool {
+    let before = runtime.rules.len();
+    runtime
+        .rules
+        .retain(|name, _| config.rules.contains_key(name));
+    runtime.rules.len() != before
+}
+
 pub fn runtime_status_json(config: &Config, runtime: &RuntimeState) -> Value {
     let enabled_rules = config.rules.values().filter(|rule| rule.enabled).count();
-    let mut recent_items = runtime.rules.iter().collect::<Vec<_>>();
+    let mut recent_items = runtime
+        .rules
+        .iter()
+        .filter(|(name, _)| config.rules.contains_key(*name))
+        .collect::<Vec<_>>();
     recent_items.sort_by(|(left_name, left_state), (right_name, right_state)| {
         match (rule_recent_time(left_state), rule_recent_time(right_state)) {
             (Some(left_time), Some(right_time)) => right_time
@@ -401,6 +413,7 @@ pub fn runtime_status_json(config: &Config, runtime: &RuntimeState) -> Value {
         runtime
             .rules
             .iter()
+            .filter(|(name, _)| config.rules.contains_key(*name))
             .map(|(name, state)| (name.clone(), rule_state_json(state)))
             .collect::<Map<_, _>>(),
     );

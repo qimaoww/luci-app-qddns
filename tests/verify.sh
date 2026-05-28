@@ -63,6 +63,42 @@ check_po_core_msgids() {
 	done
 }
 
+check_po_critical_zh_msgstrs() {
+	python3 - "$PO_FILE" <<'PYEOF'
+import re
+import sys
+import ast
+from pathlib import Path
+
+po = Path(sys.argv[1]).read_text()
+entries = {}
+for match in re.finditer(r'^msgid "((?:[^"\\]|\\.)*)"\nmsgstr "((?:[^"\\]|\\.)*)"', po, re.M):
+    msgid = ast.literal_eval('"' + match.group(1) + '"')
+    msgstr = ast.literal_eval('"' + match.group(2) + '"')
+    entries[msgid] = msgstr
+
+required = {
+    'Advanced narrowing after WAN/PD source prefix matching; it cannot replace the interface.':
+        'WAN/PD 来源前缀匹配后的高级收窄；不能替代接口。',
+    'For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s). QDDNS uses DHCPv6-PD route source prefixes from them; lease cards only fill the LAN host identity.':
+        'DHCPv6 DUID/MAC 来源请选择 WAN/上游接口；QDDNS 使用这些接口的 DHCPv6-PD 路由来源前缀，租约卡片只填充局域网主机身份。',
+    'For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s); DHCPv6-PD route source prefixes from those interfaces validate LAN host IPv6 addresses.':
+        'DHCPv6 DUID/MAC 来源请选择 WAN/上游接口；这些接口的 DHCPv6-PD 路由来源前缀用于校验局域网主机 IPv6。',
+    'Choose a current MAC to fill MAC, LAN IP identity, and hostname hint. Keep the WAN interface selected separately.':
+        '选择当前 MAC 来填充 MAC、局域网 IP 识别信息和主机名提示；WAN 接口请单独保持选中。',
+    'Selected LAN host MAC has been filled. Keep the WAN interface selected separately.':
+        '已填充所选局域网主机 MAC；WAN 接口请单独保持选中。',
+    'Host interface':
+        '主机接口',
+}
+
+for msgid, expected in required.items():
+    actual = entries.get(msgid)
+    if actual != expected:
+        raise SystemExit(f'critical zh translation mismatch for {msgid!r}: {actual!r}')
+PYEOF
+}
+
 check_view_i18n_hooks() {
 	grep -nF "_('Overview Console')" "$VIEW_DIR/overview.js"
 	grep -nF "_('Runtime Summary')" "$VIEW_DIR/overview.js"
@@ -1029,6 +1065,7 @@ run_step 'LuCI zh_Hans PO exists guard' test -f "$PO_FILE"
 run_step 'LuCI zh_Hans PO format guard' check_po_format
 run_step 'LuCI zh_Hans core msgid guard' check_po_core_msgids
 run_step 'LuCI zh_Hans core msgstr guard' grep -nE 'msgstr "概览"|msgstr "规则"|msgstr "设置"|msgstr "日志"|msgstr "运行"|msgstr "测试"|msgstr "运行摘要"|msgstr "来源探测"' "$PO_FILE"
+run_step 'LuCI zh_Hans critical msgstr guard' check_po_critical_zh_msgstrs
 run_step 'LuCI view i18n hook guard' check_view_i18n_hooks
 run_step 'LuCI no duplicate internal page nav guard' check_no_internal_page_nav
 	run_step 'LuCI overview boundary guard' check_overview_boundary

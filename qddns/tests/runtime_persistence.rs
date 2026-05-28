@@ -108,6 +108,23 @@ config rule 'home'
     .unwrap();
 }
 
+fn write_empty_config(path: &Path, state_dir: &Path, log_dir: &Path) {
+    fs::write(
+        path,
+        format!(
+            r#"
+config qddns 'main'
+    option enabled '1'
+    option state_dir '{}'
+    option log_dir '{}'
+"#,
+            state_dir.display(),
+            log_dir.display()
+        ),
+    )
+    .unwrap();
+}
+
 fn start_rule_mock() -> Option<MockHttpServer> {
     match MockHttpServer::try_responses(vec![
         MockResponse::new(200, "198.51.100.99\n"),
@@ -278,6 +295,103 @@ fn daemon_once_batch_keeps_runtime_marked_not_running() {
     );
     assert!(!state_dir.join("daemon.status").exists());
     assert_eq!(server.requests().len(), 2);
+}
+
+#[test]
+fn daemon_once_prunes_runtime_for_deleted_rules() {
+    let temp = TempDir::new("qddns-runtime-test");
+    let config_path = temp.path().join("qddns.conf");
+    let state_dir = temp.path().join("state");
+    let log_dir = temp.path().join("logs");
+    fs::create_dir_all(&state_dir).unwrap();
+    fs::create_dir_all(&log_dir).unwrap();
+    write_empty_config(&config_path, &state_dir, &log_dir);
+    fs::write(
+        state_dir.join("runtime.state"),
+        serialize_runtime_state(&RuntimeState {
+            daemon_running: true,
+            updated_at: Some(123),
+            rules: BTreeMap::from([(
+                "deleted".into(),
+                RuleState {
+                    status: "success".into(),
+                    current_ip: Some("198.51.100.200".into()),
+                    remote_ip: Some("198.51.100.200".into()),
+                    last_result: Some("unchanged".into()),
+                    last_error: None,
+                    last_update: Some(120),
+                    last_check: Some(123),
+                    next_run: Some(183),
+                    retry_attempts: 0,
+                },
+            )]),
+        }),
+    )
+    .unwrap();
+
+    daemon::run(DaemonOptions {
+        config: config_path.display().to_string(),
+        once: true,
+    })
+    .unwrap();
+
+    let state_text = fs::read_to_string(state_dir.join("runtime.state")).unwrap();
+    let parsed = qddns::state::parse_runtime_state(&state_text).unwrap();
+    assert!(parsed.rules.is_empty(), "state file was: {state_text}");
+}
+
+#[test]
+fn status_read_prunes_runtime_for_deleted_rules_on_disk() {
+    let temp = TempDir::new("qddns-runtime-test");
+    let config_path = temp.path().join("qddns.conf");
+    let state_dir = temp.path().join("state");
+    let log_dir = temp.path().join("logs");
+    fs::create_dir_all(&state_dir).unwrap();
+    fs::create_dir_all(&log_dir).unwrap();
+    write_empty_config(&config_path, &state_dir, &log_dir);
+    fs::write(
+        state_dir.join("runtime.state"),
+        serialize_runtime_state(&RuntimeState {
+            daemon_running: true,
+            updated_at: Some(123),
+            rules: BTreeMap::from([("deleted".into(), RuleState::default())]),
+        }),
+    )
+    .unwrap();
+
+    let runtime = daemon::read_runtime_status(config_path.to_str().unwrap()).unwrap();
+
+    assert!(runtime.rules.is_empty());
+    let state_text = fs::read_to_string(state_dir.join("runtime.state")).unwrap();
+    let parsed = qddns::state::parse_runtime_state(&state_text).unwrap();
+    assert!(parsed.rules.is_empty(), "state file was: {state_text}");
+}
+
+#[test]
+fn manual_run_missing_rule_does_not_reinsert_deleted_runtime_state() {
+    let temp = TempDir::new("qddns-runtime-test");
+    let config_path = temp.path().join("qddns.conf");
+    let state_dir = temp.path().join("state");
+    let log_dir = temp.path().join("logs");
+    fs::create_dir_all(&state_dir).unwrap();
+    fs::create_dir_all(&log_dir).unwrap();
+    write_empty_config(&config_path, &state_dir, &log_dir);
+    fs::write(
+        state_dir.join("runtime.state"),
+        serialize_runtime_state(&RuntimeState {
+            daemon_running: true,
+            updated_at: Some(123),
+            rules: BTreeMap::from([("deleted".into(), RuleState::default())]),
+        }),
+    )
+    .unwrap();
+
+    let err = daemon::run_rule_once(config_path.to_str().unwrap(), "deleted").unwrap_err();
+
+    assert!(err.to_string().contains("missing rule 'deleted'"));
+    let state_text = fs::read_to_string(state_dir.join("runtime.state")).unwrap();
+    let parsed = qddns::state::parse_runtime_state(&state_text).unwrap();
+    assert!(parsed.rules.is_empty(), "state file was: {state_text}");
 }
 
 #[test]
@@ -610,13 +724,28 @@ fn recent_results_limits_to_eight_entries() {
 
 #[test]
 fn recent_results_missing_time_sorts_last() {
-    let (config, mut runtime) = recent_fixture(2);
-    runtime
-        .rules
-        .insert("z_missing".into(), RuleState::default());
-    runtime
-        .rules
-        .insert("a_missing".into(), RuleState::default());
+    let (mut config, mut runtime) = recent_fixture(2);
+    for id in ["z_missing", "a_missing"] {
+        config.rules.insert(
+            id.into(),
+            RuleConfig {
+                name: id.into(),
+                enabled: true,
+                provider: "custom".into(),
+                source: "wan4".into(),
+                record_type: "A".into(),
+                zone: "example.com".into(),
+                record_name: id.into(),
+                ttl: 300,
+                proxied: false,
+                check_interval: 60,
+                force_interval: 3600,
+                retry_count: 3,
+                retry_backoff: 30,
+            },
+        );
+        runtime.rules.insert(id.into(), RuleState::default());
+    }
 
     let json = runtime_status_json(&config, &runtime);
     let ids = recent_ids(&json);
@@ -627,6 +756,35 @@ fn recent_results_missing_time_sorts_last() {
         ["a_missing".to_string(), "z_missing".to_string()],
         "missing-time entries should sort last by id"
     );
+}
+
+#[test]
+fn runtime_status_ignores_deleted_rule_states() {
+    let (mut config, mut runtime) = recent_fixture(2);
+    config.rules.remove("rule0");
+    runtime.rules.insert(
+        "deleted".into(),
+        RuleState {
+            status: "success".into(),
+            current_ip: Some("198.51.100.200".into()),
+            remote_ip: Some("198.51.100.200".into()),
+            last_result: Some("unchanged".into()),
+            last_error: None,
+            last_update: Some(999),
+            last_check: Some(999),
+            next_run: Some(1059),
+            retry_attempts: 0,
+        },
+    );
+
+    let json = runtime_status_json(&config, &runtime);
+    let ids = recent_ids(&json);
+
+    assert_eq!(ids, ["rule1".to_string()]);
+    assert!(json.pointer("/rule_states/rule1").is_some());
+    assert!(json.pointer("/rule_states/rule0").is_none());
+    assert!(json.pointer("/rule_states/deleted").is_none());
+    assert_eq!(json.pointer("/rules").and_then(Value::as_u64), Some(1));
 }
 
 fn recent_fixture(count: u64) -> (Config, RuntimeState) {

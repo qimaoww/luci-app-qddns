@@ -14,7 +14,8 @@ use crate::provider::{ProviderAdapter, RemoteRecord, ShellProviderAdapter, SyncO
 use crate::runner::{run_rule, SourceAdapter};
 use crate::source::{resolve_source_with_http, SourceResolution};
 use crate::state::{
-    runtime_rule_state, RuleResult, RuleState, RuleStatus, RuntimeState, StateStore,
+    prune_runtime_rules, runtime_rule_state, RuleResult, RuleState, RuleStatus, RuntimeState,
+    StateStore,
 };
 use serde_json::json;
 
@@ -34,6 +35,7 @@ pub fn run(options: DaemonOptions) -> Result<()> {
 
     if options.once {
         let mut runtime = load_runtime_state(&config.main.state_dir).unwrap_or_default();
+        prune_runtime_rules(&config, &mut runtime);
         runtime.daemon_running = false;
         runtime.updated_at = Some(unix_now());
         let provider_adapter = ShellProviderAdapter::new(config.main.timeout);
@@ -59,6 +61,7 @@ pub fn run(options: DaemonOptions) -> Result<()> {
     }
 
     let mut runtime = load_runtime_state(&config.main.state_dir).unwrap_or_default();
+    prune_runtime_rules(&config, &mut runtime);
     runtime.daemon_running = true;
     runtime.updated_at = Some(unix_now());
     write_runtime_state(&config.main.state_dir, &runtime)?;
@@ -69,6 +72,7 @@ pub fn run(options: DaemonOptions) -> Result<()> {
         let now = unix_now();
         let current = Config::load_from_path(Path::new(&options.config))?;
         current.validate()?;
+        prune_runtime_rules(&current, &mut runtime);
         runtime.daemon_running = true;
         let provider_adapter = ShellProviderAdapter::new(current.main.timeout);
 
@@ -145,6 +149,13 @@ pub fn run_rule_once(config_path: &str, rule_id: &str) -> Result<()> {
     let config = Config::load_from_path(Path::new(config_path))?;
     config.validate()?;
     let mut runtime = load_runtime_state(&config.main.state_dir).unwrap_or_default();
+    let pruned = prune_runtime_rules(&config, &mut runtime);
+    if !config.rules.contains_key(rule_id) {
+        if pruned {
+            write_runtime_state(&config.main.state_dir, &runtime)?;
+        }
+        return Err(Error::new(format!("missing rule '{rule_id}'")));
+    }
     let provider_adapter = ShellProviderAdapter::new(config.main.timeout);
     let result = run_rule_once_with_runtime(&config, &mut runtime, rule_id, &provider_adapter);
     runtime.updated_at = Some(unix_now());
@@ -167,14 +178,20 @@ pub fn run_rule_once(config_path: &str, rule_id: &str) -> Result<()> {
 pub fn read_runtime_status(config_path: &str) -> Result<RuntimeState> {
     let config = Config::load_from_path(Path::new(config_path))?;
     config.validate()?;
-    let runtime = load_runtime_state(&config.main.state_dir).unwrap_or_default();
+    let mut runtime = load_runtime_state(&config.main.state_dir).unwrap_or_default();
+    if prune_runtime_rules(&config, &mut runtime) {
+        write_runtime_state(&config.main.state_dir, &runtime)?;
+    }
     Ok(runtime)
 }
 
 pub fn read_rule_status(config_path: &str, rule_id: &str) -> Result<RuleState> {
     let config = Config::load_from_path(Path::new(config_path))?;
     config.validate()?;
-    let runtime = load_runtime_state(&config.main.state_dir).unwrap_or_default();
+    let mut runtime = load_runtime_state(&config.main.state_dir).unwrap_or_default();
+    if prune_runtime_rules(&config, &mut runtime) {
+        write_runtime_state(&config.main.state_dir, &runtime)?;
+    }
     runtime_rule_state(&config, &runtime, rule_id)
 }
 
