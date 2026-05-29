@@ -1,5 +1,13 @@
 msgid ""
-msgstr "Content-Type: text/plain; charset=UTF-8"
+msgstr ""
+"Project-Id-Version: luci-app-qddns\n"
+"PO-Revision-Date: 2026-05-29 00:00+0800\n"
+"Last-Translator: QDDNS Maintainers\n"
+"Language-Team: Chinese (Simplified)\n"
+"Language: zh_Hans\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
 
 msgid "QDDNS"
 msgstr "QDDNS"
@@ -514,9 +522,6 @@ msgstr "请输入显示在表格和规则选择器中的提供商名称。"
 msgid "Name shown in tables and rule selectors."
 msgstr "名称会显示在表格和规则选择器中。"
 
-msgid "Manage daemon defaults, source definitions, and provider credentials here. Use the source probe panel below to validate saved sources before using them on the rules page."
-msgstr "在此管理守护进程默认值、来源定义和提供商凭据。可使用下方来源探测面板验证已保存的来源，再在规则页使用。"
-
 msgid "New rule name"
 msgstr "新增规则名称"
 
@@ -536,14 +541,23 @@ msgstr "一步创建完整 DDNS 规则。后续编辑可使用下方高级规则
 msgid "Start guided setup"
 msgstr "开始引导添加"
 
-msgid "1. Source"
-msgstr "1. 来源"
+msgid "1. Source IP"
+msgstr "1. 来源 IP"
 
-msgid "2. DNS"
-msgstr "2. DNS"
+msgid "select and probe"
+msgstr "选择并探测"
 
-msgid "3. Confirm"
-msgstr "3. 确认"
+msgid "2. DNS record"
+msgstr "2. DNS 记录"
+
+msgid "provider and name"
+msgstr "提供商与记录名"
+
+msgid "3. Create"
+msgstr "3. 创建"
+
+msgid "review and save"
+msgstr "确认并保存"
 
 msgid "Choose Source IP"
 msgstr "选择来源 IP"
@@ -551,8 +565,8 @@ msgstr "选择来源 IP"
 msgid "Choose where to update DNS"
 msgstr "选择要更新的 DNS"
 
-msgid "Confirm and create the rule"
-msgstr "确认并创建规则"
+msgid "Review and create"
+msgstr "确认并创建"
 
 msgid "Rule name is generated automatically from the record."
 msgstr "规则名称会根据记录自动生成。"
@@ -580,6 +594,12 @@ msgstr "没有可用来源"
 
 msgid "Choose the source IP first, then choose the DNS location."
 msgstr "先选择要发布的来源 IP，再选择 DNS 位置。"
+
+msgid "Enter provider, zone, and record name."
+msgstr "填写提供商、域和记录名。"
+
+msgid "Review the source IP and DNS record before creating the rule."
+msgstr "创建规则前请确认来源 IP 和 DNS 记录。"
 
 msgid "Source setup"
 msgstr "来源设置"
@@ -629,11 +649,11 @@ msgstr "继续前请先创建或选择来源。"
 msgid "Probing source IP..."
 msgstr "正在探测来源 IP..."
 
-msgid "Source IP detected: %s. The source will be saved with the rule."
-msgstr "已探测到来源 IP：%s。来源会随规则一起保存。"
+msgid "Source IP detected: %s. Record type was set to %s. The source will be saved with the rule."
+msgstr "已探测到来源 IP：%s。记录类型已设为 %s。来源会随规则一起保存。"
 
-msgid "Source IP detected: %s. The saved source will be used for this rule."
-msgstr "已探测到来源 IP：%s。将使用该已保存来源创建规则。"
+msgid "Source IP detected: %s. Record type was set to %s. The saved source will be used for this rule."
+msgstr "已探测到来源 IP：%s。记录类型已设为 %s。将使用该已保存来源创建规则。"
 
 msgid "Unable to read source IP. Choose another source or fix the source configuration."
 msgstr "无法读取来源 IP。请选择其他来源或修复来源配置。"
@@ -643,6 +663,9 @@ msgstr "LuCI 中不可预览"
 
 msgid "This source type cannot be previewed in LuCI. Confirm the record type manually; the backend will validate it when the rule runs."
 msgstr "此来源类型无法在 LuCI 中预览。请手动确认记录类型；后端会在规则运行时继续校验。"
+
+msgid "This source type cannot be previewed in LuCI. Record type was set from the saved source family; the backend will validate it when the rule runs."
+msgstr "此来源类型无法在 LuCI 中预览。记录类型已按已保存来源的协议族设置；后端会在规则运行时继续校验。"
 
 msgid "Loading..."
 msgstr "正在读取..."
@@ -673,9 +696,6 @@ msgstr "无法添加 DDNS 规则。"
 
 msgid "Enable after creation"
 msgstr "创建后启用"
-
-msgid "Status"
-msgstr "状态"
 
 msgid "Read current DUID"
 msgstr "读取当前 DUID"
@@ -748,3 +768,84 @@ msgstr "提供商、域和记录名不能为空。"
 
 msgid "Confirm"
 msgstr "确认"
+
+msgid "Automatically set from the source IP family."
+msgstr "根据来源 IP 协议族自动设置。"
+
+msgid "Saved source"
+msgstr "已保存来源"
+
+msgid "Select a saved source; the wizard will probe it and set A/AAAA automatically."
+msgstr "选择已保存来源；向导会探测它并自动设置 A/AAAA。"
+
+msgid "WAN prefix source"
+msgstr "WAN 前缀来源"
+
+msgid "Choose the WAN/upstream interface that owns the delegated IPv6 prefix. Do not select LAN here."
+msgstr "选择拥有下发 IPv6 前缀的 WAN/上游接口。这里不要选择 LAN。"
+
+msgid "Choose WAN/upstream interface(s). Interface sources publish the interface address; DHCPv6 DUID/MAC sources use WAN/PD route source prefixes to filter valid LAN host IPv6 addresses."
+msgstr "选择 WAN/上游接口。接口来源会发布该接口地址；DHCPv6 DUID/MAC 来源会使用 WAN/PD 路由来源前缀过滤有效的局域网主机 IPv6。"
+
+msgid "Choose the WAN/upstream interface whose current address should be published."
+msgstr "选择要发布当前地址的 WAN/上游接口。"
+
+msgid "recommended WAN"
+msgstr "推荐 WAN"
+
+msgid "verify upstream"
+msgstr "确认上游"
+
+msgid "Recommended WAN/upstream interface"
+msgstr "推荐的 WAN/上游接口"
+
+msgid "Only choose this if it is the real WAN/upstream interface"
+msgstr "仅在它确实是 WAN/上游接口时选择"
+
+msgid "LAN host identity"
+msgstr "局域网主机身份"
+
+msgid "Lease cards fill the LAN host identity only; the WAN interface remains the prefix source."
+msgstr "租约卡片只填充局域网主机身份；WAN 接口仍然是前缀来源。"
+
+msgid "Source definition"
+msgstr "来源定义"
+
+msgid "Name the source and choose how QDDNS should read the current IP."
+msgstr "命名来源，并选择 QDDNS 读取当前 IP 的方式。"
+
+msgid "Start with the IP source. For DHCPv6 DUID/MAC, WAN/upstream interfaces filter valid IPv6 addresses; lease candidates only identify the LAN host."
+msgstr "先配置 IP 来源。对 DHCPv6 DUID/MAC，WAN/上游接口用于过滤有效 IPv6；租约候选只用于识别局域网主机。"
+
+msgid "Create a source now or use one that is already saved."
+msgstr "现在创建来源，或使用已保存来源。"
+
+msgid "Mode"
+msgstr "模式"
+
+msgid "Automatically set after source IP detection; manual only when the source cannot be previewed."
+msgstr "探测来源 IP 后自动设置；只有来源无法预览时才需要手动选择。"
+
+msgid "Source IP check"
+msgstr "来源 IP 检查"
+
+msgid "Probe the source before continuing. A/AAAA is locked to the detected IP family."
+msgstr "继续前先探测来源。A/AAAA 会锁定为探测到的 IP 协议族。"
+
+msgid "Use a saved provider, then enter the DNS zone and host record to update."
+msgstr "使用已保存提供商，然后填写要更新的 DNS 域和主机记录。"
+
+msgid "The record type is already matched to the detected source IP family."
+msgstr "记录类型已匹配探测到的来源 IP 协议族。"
+
+msgid "IPv4 source"
+msgstr "IPv4 来源"
+
+msgid "IPv6 source"
+msgstr "IPv6 来源"
+
+msgid "source family unknown"
+msgstr "来源协议族未知"
+
+msgid "Activation"
+msgstr "启用状态"

@@ -100,6 +100,10 @@ function interfaceRank(name) {
 	return 2;
 }
 
+function isLikelyWanInterfaceName(name) {
+	return interfaceRank(name) === 0;
+}
+
 function isElement(node, tagName) {
 	return node && node.nodeType === 1 && node.tagName && node.tagName.toLowerCase() === tagName;
 }
@@ -175,6 +179,7 @@ return baseclass.extend({
 	getRuleStatus: callGetRuleStatus,
 
 	normalizeList: normalizeList,
+	isLikelyWanInterfaceName: isLikelyWanInterfaceName,
 
 	normalizeInterfaces: function(data) {
 		const values = Array.isArray(data) ? data : data?.interfaces;

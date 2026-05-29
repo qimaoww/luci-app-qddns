@@ -58,6 +58,22 @@ check_menu_child_pages() {
 check_po_format() {
 	grep -n '^msgid ' "$PO_FILE"
 	grep -n '^msgstr ' "$PO_FILE"
+	msgfmt -c -o /tmp/qddns.zh_Hans.mo "$PO_FILE"
+	python3 - "$PO_FILE" <<'PYEOF'
+import ast
+import re
+import sys
+from collections import Counter
+from pathlib import Path
+
+po = Path(sys.argv[1]).read_text()
+msgids = []
+for match in re.finditer(r'^msgid "((?:[^"\\]|\\.)*)"', po, re.M):
+    msgids.append(ast.literal_eval('"' + match.group(1) + '"'))
+duplicates = [msgid for msgid, count in Counter(msgids).items() if count > 1 and msgid]
+if duplicates:
+    raise SystemExit('duplicate zh_Hans msgid(s): ' + ', '.join(duplicates))
+PYEOF
 }
 
 check_po_core_msgids() {
@@ -101,8 +117,8 @@ required = {
         '规则控制台',
     'Copy template values into a new provider without exposing credentials in the main table.':
         '将模板值复制到新的提供商中，不在主表格暴露凭据。',
-    'Source IP detected: %s. The saved source will be used for this rule.':
-        '已探测到来源 IP：%s。将使用该已保存来源创建规则。',
+    'Source IP detected: %s. Record type was set to %s. The saved source will be used for this rule.':
+        '已探测到来源 IP：%s。记录类型已设为 %s。将使用该已保存来源创建规则。',
     'Start a short wizard that creates a complete rule with safe defaults. Use the advanced table below for later edits.':
         '启动一个简短向导，用安全默认值创建完整规则。下方高级规则表格用于后续编辑。',
     'Success':
@@ -245,10 +261,10 @@ check_rule_wizard() {
 	grep -nF "showRuleWizardModal" "$VIEW_DIR/rules.js"
 	grep -nF "ui.showModal(_('Guided DDNS rule setup')" "$VIEW_DIR/rules.js"
 	grep -nF "data-wizard-panel" "$VIEW_DIR/rules.js"
-	grep -nF "_('1. Source')" "$VIEW_DIR/rules.js"
-	grep -nF "_('2. DNS')" "$VIEW_DIR/rules.js"
-	grep -nF "_('3. Confirm')" "$VIEW_DIR/rules.js"
-	grep -nF "_('Confirm and create the rule')" "$VIEW_DIR/rules.js"
+	grep -nF "_('1. Source IP')" "$VIEW_DIR/rules.js"
+	grep -nF "_('2. DNS record')" "$VIEW_DIR/rules.js"
+	grep -nF "_('3. Create')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Review and create')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Rule name is generated automatically from the record.')" "$VIEW_DIR/rules.js"
 	grep -nF "wizardRuleName" "$VIEW_DIR/rules.js"
 	grep -nF "_('Next')" "$VIEW_DIR/rules.js"
@@ -259,8 +275,8 @@ check_rule_wizard() {
 	grep -nF "_('Use saved source')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Probe source IP')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Probing source IP...')" "$VIEW_DIR/rules.js"
-	grep -nF "_('Source IP detected: %s. The source will be saved with the rule.')" "$VIEW_DIR/rules.js"
-	grep -nF "_('Source IP detected: %s. The saved source will be used for this rule.')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Source IP detected: %s. Record type was set to %s. The source will be saved with the rule.')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Source IP detected: %s. Record type was set to %s. The saved source will be used for this rule.')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Unable to read source IP. Choose another source or fix the source configuration.')" "$VIEW_DIR/rules.js"
 	grep -nF "_('This source type cannot be previewed in LuCI. Confirm the record type manually; the backend will validate it when the rule runs.')" "$VIEW_DIR/rules.js"
 	grep -nF "renderWizardSourceIp" "$VIEW_DIR/rules.js"
@@ -279,7 +295,7 @@ check_rule_wizard() {
 	grep -nF "sourceVersion !== sourceCreate.version" "$VIEW_DIR/rules.js"
 	grep -nF "uci.add('qddns', 'source', sectionId)" "$VIEW_DIR/rules.js"
 	grep -nF "uci.set('qddns', sectionId, 'type', sourceData.type)" "$VIEW_DIR/rules.js"
-	grep -nF "setSourceOption(option, sourceOptionValue(sourceData, option))" "$VIEW_DIR/rules.js"
+	grep -nF "this.wizardSourceOptionValue(sourceData, option)" "$VIEW_DIR/rules.js"
 	grep -nF "fields.source.addEventListener('change'" "$VIEW_DIR/rules.js"
 	grep -nF "fields.recordType.addEventListener('change'" "$VIEW_DIR/rules.js"
 	grep -nF "_('Source IP')" "$VIEW_DIR/rules.js"
@@ -312,7 +328,10 @@ check_rule_wizard() {
 	grep -nF "_('Record type must match the selected source address family.')" "$VIEW_DIR/rules.js"
 	grep -nF "return uci.save().then(function()" "$VIEW_DIR/rules.js"
 	grep -nF "window.location.reload()" "$VIEW_DIR/rules.js"
-	grep -nF "select.appendChild(E('option', { value: choice.id }, [choice.name || emptyText]))" "$VIEW_DIR/rules.js"
+	grep -nF "renderWizardSelect: function(choices, emptyText, itemFallback)" "$VIEW_DIR/rules.js"
+	grep -nF "choice.name || itemFallback || _('Unnamed item')" "$VIEW_DIR/rules.js"
+	grep -nF "this.renderWizardSelect(providers, _('No providers available'), _('Unnamed provider'))" "$VIEW_DIR/rules.js"
+	grep -nF "this.renderWizardSelect(sources, _('No sources available'), _('Unnamed source'))" "$VIEW_DIR/rules.js"
 	grep -nF "probeSourceDraft: function(source)" "$VIEW_DIR/shared.js"
 	grep -nF "probe_source_draft" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF '"probe_source_draft"' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/acl.d/luci-app-qddns.json"
@@ -333,10 +352,18 @@ if 'syncWizardRecordType: function(control, family)' not in rules:
     raise SystemExit('rule wizard must sync A/AAAA from the selected source address family')
 if "normalized === 'ipv6' ? 'AAAA'" not in rules or "normalized === 'ipv4' ? 'A'" not in rules:
     raise SystemExit('rule wizard record type sync must map ipv6 to AAAA and ipv4 to A')
+if "control.disabled = true;" not in rules or "control.setAttribute('data-auto-record-type', '1')" not in rules or "control.disabled = false;" not in rules:
+    raise SystemExit('rule wizard must lock A/AAAA while source family is known and unlock it when unknown')
+if "function syncNewSourceRecordType()" not in modal or "isDhcpv6SourceType(sourceType) ? 'ipv6'" not in modal:
+    raise SystemExit('rule wizard must infer A/AAAA immediately while creating a new source')
 if 'viewRef.syncWizardRecordType(fields.recordType, source?.family)' not in modal:
     raise SystemExit('rule wizard must sync record type immediately from saved source family')
 if 'viewRef.syncWizardRecordType(fields.recordType, sourceProbe.family)' not in modal:
     raise SystemExit('rule wizard must sync record type from probed source IP family')
+if "feedback.setAttribute('data-source-ip-guide', 'warning')" not in rules or "feedback.setAttribute('data-source-ip-guide', 'idle')" not in rules:
+    raise SystemExit('rule wizard feedback helpers must keep guide state in sync with warning/idle styling')
+if "wizardFeedbackForStep: function(stepIndex)" not in rules or "return _('Enter provider, zone, and record name.');" not in rules or "return _('Review the source IP and DNS record before creating the rule.');" not in rules:
+    raise SystemExit('rule wizard feedback must follow the active step instead of reusing source-step text everywhere')
 if "setWizardProbeFeedback(_('Probing source IP...'), 'loading')" not in modal:
     raise SystemExit('rule wizard must put source IP probe loading into the guide feedback')
 if "function sourceDetectedMessage(address)" not in modal:
@@ -369,10 +396,19 @@ if "setSourceInterfaceValue(lease?.interface" in modal:
     raise SystemExit('rule wizard must not copy LAN host interfaces into the source WAN interface field')
 if "lease?.host_interface" not in modal:
     raise SystemExit('rule wizard must display LAN host interfaces separately from source WAN interfaces')
+if "const prefixes = qddns.normalizeList(lease?.prefixes);" not in modal or "fields.sourcePrefixFilter.value = prefixes.length === 1 ? prefixes[0] : '';" not in modal:
+    raise SystemExit('rule wizard must carry a unique lease prefix into prefix narrowing for DHCPv6 sources')
 if "nextButton.disabled = stepIndex === 0 && sourceProbe.loading" not in modal:
     raise SystemExit('rule wizard must disable Next while source IP probing is loading')
 if "fields.source?.getAttribute('data-source-ip-error') === '1'" not in rules:
     raise SystemExit('rule wizard must block the source step after a failed source IP probe')
+for css in [
+    ".qddns-rule-wizard-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--qddns-space-2)}",
+    ".qddns-rule-wizard-step{display:grid;align-content:start;gap:var(--qddns-space-1);min-width:0;padding:var(--qddns-space-2) var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-neutral);text-align:left}",
+    ".qddns-rule-wizard-step small{font-weight:400;opacity:0.72;line-height:1.35}",
+]:
+    if css not in rules:
+        raise SystemExit(f'rule wizard step indicator must keep a clear aligned flow: missing {css}')
 for css in [
     "--qddns-rule-wizard-width:min(64rem,94vw);",
     "--qddns-rule-wizard-field-min:18rem;",
@@ -382,12 +418,19 @@ for css in [
     ".qddns-rule-wizard-modal{box-sizing:border-box;display:grid;align-items:stretch;justify-items:stretch;gap:var(--qddns-space-4);width:100%;max-width:100%;min-width:0;text-align:left;line-height:1.45}",
     ".qddns-rule-wizard-panel{display:grid;justify-items:stretch;gap:var(--qddns-space-3);width:100%;max-width:100%;min-width:0;justify-self:stretch;text-align:left}",
     ".qddns-rule-wizard-panel h4{justify-self:start;margin:0;padding:0;text-align:left;font-size:1.05rem;font-weight:700;line-height:1.35!important}",
+    ".qddns-rule-wizard-lead{margin:0;max-width:52rem;color:inherit;opacity:0.82;text-align:left}",
+    ".qddns-rule-wizard-section{display:grid;gap:var(--qddns-space-3);box-sizing:border-box;width:100%;min-width:0;padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:rgba(127,127,127,0.045);text-align:left}",
+    ".qddns-rule-wizard-section-head{display:grid;grid-template-columns:minmax(var(--qddns-rule-wizard-side-label),max-content) minmax(0,1fr);align-items:start;gap:var(--qddns-space-2);min-width:0;text-align:left}",
+    ".qddns-rule-wizard-section-title{font-weight:700;line-height:1.35;text-align:left}",
+    ".qddns-rule-wizard-section-desc{min-width:0;opacity:0.72;overflow-wrap:anywhere;text-align:left}",
     ".qddns-rule-wizard-grid{display:grid;align-items:start;justify-items:stretch;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--qddns-rule-wizard-field-min)),1fr));gap:var(--qddns-space-3);width:100%;min-width:0}",
     ".qddns-rule-wizard-grid-narrow{grid-template-columns:minmax(0,18rem);max-width:18rem}",
     ".qddns-rule-wizard-field{display:flex;flex-direction:column;gap:var(--qddns-space-1);min-width:0;text-align:left}",
     ".qddns-rule-wizard-field label{font-weight:600;line-height:1.35;text-align:left}",
     ".qddns-rule-wizard-source-panel{display:grid;justify-items:stretch;gap:var(--qddns-space-3);width:100%;min-width:0;text-align:left}",
     ".qddns-rule-wizard-source-actions{align-items:center;justify-content:flex-start}",
+    ".qddns-rule-wizard-detection-grid{display:grid;align-items:start;justify-items:stretch;grid-template-columns:minmax(0,1.4fr) minmax(12rem,0.75fr) auto;gap:var(--qddns-space-3);width:100%;min-width:0}",
+    ".qddns-rule-wizard-probe-action-field{align-self:stretch;justify-content:end}",
     ".qddns-rule-wizard-source-status{display:grid;justify-items:start;gap:var(--qddns-space-1);box-sizing:border-box;width:100%;min-width:0;padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);text-align:left}",
     ".qddns-rule-wizard-footer-actions{width:100%;max-width:100%;justify-self:stretch;justify-content:flex-end}",
     ".qddns-rule-wizard-summary-row{display:grid;grid-template-columns:minmax(var(--qddns-rule-wizard-meta-label),max-content) minmax(0,1fr);gap:var(--qddns-space-2);min-width:0;text-align:left}",
@@ -404,6 +447,14 @@ if "ui.showModal(_('Guided DDNS rule setup'), [modal], 'qddns-rule-wizard-dialog
     raise SystemExit('rule wizard modal title must use the qddns dialog class for left-aligned layout')
 if "E('div', { class: 'qddns-actions qddns-rule-wizard-footer-actions' }" not in modal:
     raise SystemExit('rule wizard modal footer actions must be scoped separately from source actions')
+if "_('Source IP check')" not in modal or "sourceDetectionGroup" not in modal:
+    raise SystemExit('rule wizard must group source IP probe and A/AAAA record type in one aligned section')
+if "renderWizardStep(0, _('1. Source IP'), _('select and probe'))" not in modal:
+    raise SystemExit('rule wizard steps must show clear source/DNS/create flow labels')
+if "step.classList.toggle('is-complete', index < stepIndex)" not in rules or "step.setAttribute('aria-current', 'step')" not in rules:
+    raise SystemExit('rule wizard steps must expose current and complete state')
+if "sourcePrefixTitle.textContent = _('WAN/upstream interface');" not in modal or "sourcePrefixTitle.textContent = _('WAN prefix source');" not in modal:
+    raise SystemExit('rule wizard must explain interface source differently from DHCPv6 prefix filtering')
 for required in [
     "sourceMode: E('select'",
     "E('option', { value: 'new' }, [_('Create new source')])",
@@ -413,11 +464,18 @@ for required in [
     "qddns.listDhcpv6Leases(mode)",
     "qddns.probeSourceDraft(sourceData)",
     "sourceVersion !== sourceCreate.version",
-    "uci.add('qddns', 'source', sectionId)",
-    "uci.set('qddns', sectionId, 'type', sourceData.type)",
 ]:
     if required not in modal:
         raise SystemExit(f'rule wizard must support full source creation flow: missing {required}')
+for required in [
+    "stageWizardSource: function(sectionId, sourceData)",
+    "uci.add('qddns', 'source', sectionId)",
+    "uci.set('qddns', sectionId, 'type', sourceData.type)",
+    "this.stageWizardSource(source, draftSource.data)",
+    "const sourceDraft = currentSourceMode() === 'new' && sourceCreate.clean && sourceCreate.id && sourceCreate.data",
+]:
+    if required not in rules:
+        raise SystemExit(f'rule wizard must stage draft sources only during final rule creation: missing {required}')
 if "fields.source?.getAttribute('data-source-create-dirty') === '1'" not in rules:
     raise SystemExit('rule wizard must block Next when a newly created source has unsaved changes')
 if "function buildSourceData()" not in modal:
@@ -438,22 +496,22 @@ for required_reset in [
 ]:
     if required_reset not in reset_block:
         raise SystemExit(f'rule wizard must not retain old source-type state: missing {required_reset}')
-if "const sourceOptions = ['family', 'address', 'interface', 'duid', 'iaid', 'mac', 'lease_file', 'hostname_hint', 'prefix_filter'];" not in save_block:
+if "const sourceOptions = ['family', 'address', 'interface', 'duid', 'iaid', 'mac', 'lease_file', 'hostname_hint', 'prefix_filter'];" not in rules:
     raise SystemExit('new source wizard must clear options that are hidden by the current source type')
 if 'uci.save()' in save_block:
     raise SystemExit('new source wizard must probe a draft source before staging it, not uci.save before probing')
-if save_block.index('qddns.probeSourceDraft(sourceData)') > save_block.index("uci.add('qddns', 'source', sectionId)"):
-    raise SystemExit('new source wizard must not stage the source until draft probing succeeds')
+if "uci.add('qddns', 'source'" in save_block or "uci.set('qddns', sectionId" in save_block:
+    raise SystemExit('new source wizard must only cache a draft probe result; final creation stages UCI once')
 if 'function restoreNewSourceProbe()' not in modal:
     raise SystemExit('rule wizard must restore a clean draft-probed source without using the saved-source probe path')
-if 'sourceCreate.address = result.address' not in save_block or 'sourceCreate.family = probedFamily' not in save_block:
+if 'sourceCreate.address = result.address' not in save_block or 'sourceCreate.family = probedFamily' not in save_block or 'sourceCreate.data = Object.assign({}, sourceData)' not in save_block:
     raise SystemExit('rule wizard must cache the successful draft probe result on the staged new source')
 if "result.family || viewRef.inferSourceFamily(result.address" not in save_block:
     raise SystemExit('rule wizard must infer A/AAAA family from the probed address when backend omits family')
-if save_block.index('const probedFamily = result.family || viewRef.inferSourceFamily') > save_block.index('sourceOptions.forEach(function(option)'):
-    raise SystemExit('new source wizard must persist the probed family before writing UCI source options')
+if save_block.index('sourceData.family = probedFamily') > save_block.index('sourceCreate.data = Object.assign({}, sourceData)'):
+    raise SystemExit('new source wizard must cache the probed family in the draft source data')
 if 'sourceData.family = probedFamily' not in save_block:
-    raise SystemExit('new source wizard must store the probed family in the staged source configuration')
+    raise SystemExit('new source wizard must store the probed family in the draft source configuration')
 clean_start = modal.index('if (sourceCreate.clean && sourceCreate.id)')
 clean_end = modal.index('} else {', clean_start)
 clean_branch = modal[clean_start:clean_end]
@@ -486,7 +544,7 @@ if rpcd.index('function push_unique') > rpcd.index('function interface_values'):
 source_family = rpcd[rpcd.index('function source_family(section)'):rpcd.index('function section_to_obj(section)')]
 if source_family.index("section.type == 'dhcpv6_duid' || section.type == 'dhcpv6_mac'") > source_family.index("family == 'ipv4' || family == 'ipv6'"):
     raise SystemExit('rpcd source_family must force DHCPv6 sources to ipv6 before honoring stale family options')
-if "sourceCreate.clean = false;" not in save_block or "setEffectiveSource('', sourceData.name || _('Unnamed source'))" not in save_block:
+if "sourceCreate.clean = false;" not in save_block or "sourceCreate.data = null;" not in save_block or "setEffectiveSource('', sourceData.name || _('Unnamed source'))" not in save_block:
     raise SystemExit('new source wizard must clear stale draft probe cache after a failed reprobe')
 for required_interface_merge in [
 	    'interfaces: []',
@@ -501,10 +559,11 @@ update_source_mode = modal[modal.index('function updateSourceMode()'):modal.inde
 saved_mode_branch = update_source_mode[update_source_mode.index('} else {'):]
 if 'sourceCreate.version++' not in saved_mode_branch:
     raise SystemExit('rule wizard must invalidate pending draft source probes when switching to saved source mode')
-failed_result = save_block[save_block.index('if (qddns.isFailedResult(result) || !result.address)'):save_block.index("if (!sourceCreate.id)")]
+failed_result = save_block[save_block.index('if (qddns.isFailedResult(result) || !result.address)'):save_block.index('const probedFamily = result.family || viewRef.inferSourceFamily')]
 for required_clear in [
     'sourceProbe.address = \'\';',
     'sourceProbe.family = \'\';',
+    'sourceCreate.data = null;',
     "fields.source.removeAttribute('data-probed-family');",
 ]:
     if required_clear not in failed_result:
@@ -513,6 +572,7 @@ catch_block = save_block[save_block.index('}).catch(function(err)'):]
 for required_clear in [
     'sourceProbe.address = \'\';',
     'sourceProbe.family = \'\';',
+    'sourceCreate.data = null;',
     "fields.source.removeAttribute('data-probed-family');",
 ]:
     if required_clear not in catch_block:
@@ -525,6 +585,7 @@ if modal.index("this.renderWizardField(_('Source')") > modal.index("this.renderW
 if "fields.source.focus" not in modal:
     raise SystemExit('source field must receive initial focus')
 PYEOF
+	grep -nF "m.section(form.GridSection, 'rule', _('Rule List'), _('Rule references use the latest saved providers and sources loaded with this page. Save and reload after adding referenced providers or sources on the settings page.'))" "$VIEW_DIR/rules.js"
 	! grep -nF "this.renderWizardField(_('Rule name'), fields.name)" "$VIEW_DIR/rules.js"
 	! grep -nF "name: E('input'" "$VIEW_DIR/rules.js"
 	! grep -nF "this.renderWizardField(_('TTL'), fields.ttl)" "$VIEW_DIR/rules.js"
@@ -976,13 +1037,16 @@ check_name_visible_numeric_hidden_po() {
 		'Guided DDNS rule setup' \
 		'Start guided setup' \
 		'Start a short wizard that creates a complete rule with safe defaults. Use the advanced table below for later edits.' \
-		'1. Source' \
-		'2. DNS' \
-		'3. Confirm' \
-		'Choose Source IP' \
-		'Choose where to update DNS' \
-		'Confirm and create the rule' \
-		'Rule name is generated automatically from the record.' \
+			'1. Source IP' \
+			'select and probe' \
+			'2. DNS record' \
+			'provider and name' \
+			'3. Create' \
+			'review and save' \
+			'Choose Source IP' \
+			'Choose where to update DNS' \
+			'Review and create' \
+			'Rule name is generated automatically from the record.' \
 		'Back' \
 		'Next' \
 		'Add DDNS rule' \
@@ -1007,11 +1071,14 @@ check_name_visible_numeric_hidden_po() {
 		'Create or choose a source before continuing.' \
 			'Source IP' \
 			'Probing source IP...' \
-			'Source IP detected: %s. The source will be saved with the rule.' \
-			'Source IP detected: %s. The saved source will be used for this rule.' \
-			'Unable to read source IP. Choose another source or fix the source configuration.' \
-			'Not previewable in LuCI' \
-		'This source type cannot be previewed in LuCI. Confirm the record type manually; the backend will validate it when the rule runs.' \
+				'Enter provider, zone, and record name.' \
+				'Review the source IP and DNS record before creating the rule.' \
+				'Source IP detected: %s. Record type was set to %s. The source will be saved with the rule.' \
+				'Source IP detected: %s. Record type was set to %s. The saved source will be used for this rule.' \
+				'Unable to read source IP. Choose another source or fix the source configuration.' \
+				'Not previewable in LuCI' \
+			'This source type cannot be previewed in LuCI. Confirm the record type manually; the backend will validate it when the rule runs.' \
+			'This source type cannot be previewed in LuCI. Record type was set from the saved source family; the backend will validate it when the rule runs.' \
 		'Loading...' \
 		'Source IP is still loading.' \
 		'Unable to read source IP.' \
@@ -1048,10 +1115,20 @@ check_name_visible_numeric_hidden_po() {
 			'LAN IP' \
 			'Host interface' \
 			'Prefix' \
-			'Prefix narrowing' \
-			'Advanced narrowing after WAN/PD source prefix matching; it cannot replace the interface.' \
-			'For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s). QDDNS uses DHCPv6-PD route source prefixes from them; lease cards only fill the LAN host identity.' \
-			'For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s); DHCPv6-PD route source prefixes from those interfaces validate LAN host IPv6 addresses.' \
+				'Prefix narrowing' \
+				'Advanced narrowing after WAN/PD source prefix matching; it cannot replace the interface.' \
+				'Choose WAN/upstream interface(s). Interface sources publish the interface address; DHCPv6 DUID/MAC sources use WAN/PD route source prefixes to filter valid LAN host IPv6 addresses.' \
+				'For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s); DHCPv6-PD route source prefixes from those interfaces validate LAN host IPv6 addresses.' \
+				'recommended WAN' \
+				'verify upstream' \
+				'Recommended WAN/upstream interface' \
+				'Only choose this if it is the real WAN/upstream interface' \
+				'Source IP check' \
+				'Probe the source before continuing. A/AAAA is locked to the detected IP family.' \
+				'IPv4 source' \
+				'IPv6 source' \
+				'source family unknown' \
+				'Choose the WAN/upstream interface whose current address should be published.' \
 		'DUID' \
 		'IAID' \
 		'Log Output' \
