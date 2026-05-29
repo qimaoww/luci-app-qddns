@@ -269,7 +269,7 @@ check_rule_wizard() {
 	grep -nF "wizardRuleName" "$VIEW_DIR/rules.js"
 	grep -nF "_('Next')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Back')" "$VIEW_DIR/rules.js"
-	grep -nF "_('Choose the source IP first, then choose the DNS location.')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Create or choose an IP source and probe it, then choose the DNS location.')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Mode')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Create new source')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Use saved source')" "$VIEW_DIR/rules.js"
@@ -402,8 +402,10 @@ if "setSourceInterfaceValue(lease?.interface" in modal:
     raise SystemExit('rule wizard must not copy LAN host interfaces into the source WAN interface field')
 if "lease?.host_interface" not in modal:
     raise SystemExit('rule wizard must display LAN host interfaces separately from source WAN interfaces')
-if "const prefixes = qddns.normalizeList(lease?.prefixes);" not in modal or "fields.sourcePrefixFilter.value = prefixes.length === 1 ? prefixes[0] : '';" not in modal:
-    raise SystemExit('rule wizard must carry a unique lease prefix into prefix narrowing for DHCPv6 sources')
+if "fields.sourcePrefixFilter.value = prefixes.length === 1 ? prefixes[0] : '';" in modal:
+    raise SystemExit('rule wizard lease cards must not copy LAN host prefixes into prefix narrowing')
+if "qddns.renderLeaseMeta(_('Prefix'), prefixes.length ? prefixes.join('\\n') : '-')" not in modal:
+    raise SystemExit('rule wizard lease cards must keep prefixes as read-only host context')
 if "nextButton.disabled = stepIndex === 0 && sourceProbe.loading" not in modal:
     raise SystemExit('rule wizard must disable Next while source IP probing is loading')
 if "fields.source?.getAttribute('data-source-ip-error') === '1'" not in rules:
@@ -426,7 +428,7 @@ for css in [
     ".qddns-rule-wizard-panel h4{justify-self:start;margin:0;padding:0;text-align:left;font-size:1.05rem;font-weight:700;line-height:1.35!important}",
     ".qddns-rule-wizard-lead{margin:0;max-width:52rem;color:inherit;opacity:0.82;text-align:left}",
     ".qddns-rule-wizard-section{display:grid;gap:var(--qddns-space-3);box-sizing:border-box;width:100%;min-width:0;padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:rgba(127,127,127,0.045);text-align:left}",
-    ".qddns-rule-wizard-section-head{display:grid;grid-template-columns:minmax(var(--qddns-rule-wizard-side-label),max-content) minmax(0,1fr);align-items:start;gap:var(--qddns-space-2);min-width:0;text-align:left}",
+    ".qddns-rule-wizard-section-head{display:grid;grid-template-columns:1fr;align-items:start;gap:var(--qddns-space-1);min-width:0;text-align:left}",
     ".qddns-rule-wizard-section-title{font-weight:700;line-height:1.35;text-align:left}",
     ".qddns-rule-wizard-section-desc{min-width:0;opacity:0.72;overflow-wrap:anywhere;text-align:left}",
     ".qddns-rule-wizard-grid{display:grid;align-items:start;justify-items:stretch;grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--qddns-rule-wizard-field-min)),1fr));gap:var(--qddns-space-3);width:100%;min-width:0}",
@@ -435,9 +437,10 @@ for css in [
     ".qddns-rule-wizard-field label{font-weight:600;line-height:1.35;text-align:left}",
     ".qddns-rule-wizard-source-panel{display:grid;justify-items:stretch;gap:var(--qddns-space-3);width:100%;min-width:0;text-align:left}",
     ".qddns-rule-wizard-source-actions{align-items:center;justify-content:flex-start}",
-    ".qddns-rule-wizard-detection-grid{display:grid;align-items:start;justify-items:stretch;grid-template-columns:minmax(0,1.4fr) minmax(12rem,0.75fr) auto;gap:var(--qddns-space-3);width:100%;min-width:0}",
-    ".qddns-rule-wizard-probe-action-field{align-self:center;align-items:center;justify-content:flex-start}",
-    ".qddns-rule-wizard-source-status{display:grid;justify-items:start;gap:var(--qddns-space-1);box-sizing:border-box;width:100%;min-width:0;padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);text-align:left}",
+    ".qddns-rule-wizard-detection-grid{display:grid;align-items:end;justify-items:stretch;grid-template-columns:minmax(0,1fr) minmax(10rem,14rem) max-content;gap:var(--qddns-space-3);width:100%;min-width:0}",
+    ".qddns-rule-wizard-probe-action-field{align-self:end;align-items:center;justify-content:flex-start;min-height:2.4rem}",
+    ".qddns-rule-wizard-modal .qddns-rule-wizard-probe-action-field{justify-content:flex-start}",
+    ".qddns-rule-wizard-source-status{display:grid;align-content:center;justify-items:start;box-sizing:border-box;width:100%;min-height:2.4rem;min-width:0;padding:0 var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);text-align:left}",
     ".qddns-rule-wizard-footer-actions{width:100%;max-width:100%;justify-self:stretch;justify-content:flex-end}",
     ".qddns-rule-wizard-summary-row{display:grid;grid-template-columns:minmax(var(--qddns-rule-wizard-meta-label),max-content) minmax(0,1fr);gap:var(--qddns-space-2);min-width:0;text-align:left}",
 ]:
@@ -455,6 +458,10 @@ if "E('div', { class: 'qddns-actions qddns-rule-wizard-footer-actions' }" not in
     raise SystemExit('rule wizard modal footer actions must be scoped separately from source actions')
 if "_('Source IP check')" not in modal or "sourceDetectionGroup" not in modal:
     raise SystemExit('rule wizard must group source IP probe and A/AAAA record type in one aligned section')
+if "this.renderWizardField(_('Source IP'), this.renderWizardSourceIp(sourceIpStatus))" not in modal:
+    raise SystemExit('rule wizard source IP status must align with other detection fields')
+if "_('Automatically set after source IP detection; manual only when the source cannot be previewed.')" in modal:
+    raise SystemExit('rule wizard must avoid duplicate record type guidance inside the compact detection row')
 if "renderWizardStep(0, _('1. Source IP'), _('select and probe'))" not in modal:
     raise SystemExit('rule wizard steps must show clear source/DNS/create flow labels')
 if "step.classList.toggle('is-complete', index < stepIndex)" not in rules or "step.setAttribute('aria-current', 'step')" not in rules:
@@ -1050,7 +1057,7 @@ check_name_visible_numeric_hidden_po() {
 			'provider and name' \
 			'3. Create' \
 			'review and save' \
-			'Choose Source IP' \
+			'Choose source IP' \
 			'Choose where to update DNS' \
 			'Review and create' \
 			'Rule name is generated automatically from the record.' \
@@ -1059,7 +1066,7 @@ check_name_visible_numeric_hidden_po() {
 		'Add DDNS rule' \
 		'No providers available' \
 		'No sources available' \
-		'Choose the source IP first, then choose the DNS location.' \
+		'Create or choose an IP source and probe it, then choose the DNS location.' \
 		'Create new source' \
 		'Use saved source' \
 		'Source name' \
@@ -1123,7 +1130,7 @@ check_name_visible_numeric_hidden_po() {
 			'Prefix' \
 				'Prefix narrowing' \
 				'Advanced narrowing after WAN/PD source prefix matching; it cannot replace the interface.' \
-				'Choose WAN/upstream interface(s). Interface sources publish the interface address; DHCPv6 DUID/MAC sources use WAN/PD route source prefixes to filter valid LAN host IPv6 addresses.' \
+				'Select WAN/upstream interface(s).' \
 				'For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s); DHCPv6-PD route source prefixes from those interfaces validate LAN host IPv6 addresses.' \
 				'recommended WAN' \
 				'verify upstream' \

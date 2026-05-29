@@ -562,7 +562,7 @@ msgstr "3. 创建"
 msgid "review and save"
 msgstr "确认并保存"
 
-msgid "Choose Source IP"
+msgid "Choose source IP"
 msgstr "选择来源 IP"
 
 msgid "Choose where to update DNS"
@@ -595,8 +595,8 @@ msgstr "没有可用提供商"
 msgid "No sources available"
 msgstr "没有可用来源"
 
-msgid "Choose the source IP first, then choose the DNS location."
-msgstr "先选择要发布的来源 IP，再选择 DNS 位置。"
+msgid "Create or choose an IP source and probe it, then choose the DNS location."
+msgstr "先创建或选择 IP 来源并探测当前 IP，再选择 DNS 位置。"
 
 msgid "Enter provider, zone, and record name."
 msgstr "填写提供商、域和记录名。"
@@ -784,8 +784,8 @@ msgstr "WAN 前缀来源"
 msgid "Choose the WAN/upstream interface that owns the delegated IPv6 prefix. Do not select LAN here."
 msgstr "选择拥有下发 IPv6 前缀的 WAN/上游接口。这里不要选择 LAN。"
 
-msgid "Choose WAN/upstream interface(s). Interface sources publish the interface address; DHCPv6 DUID/MAC sources use WAN/PD route source prefixes to filter valid LAN host IPv6 addresses."
-msgstr "选择 WAN/上游接口。接口来源会发布该接口地址；DHCPv6 DUID/MAC 来源会使用 WAN/PD 路由来源前缀过滤有效的局域网主机 IPv6。"
+msgid "Select WAN/upstream interface(s)."
+msgstr "选择 WAN/上游接口，可多选。"
 
 msgid "Choose the WAN/upstream interface whose current address should be published."
 msgstr "选择要发布当前地址的 WAN/上游接口。"
@@ -814,14 +814,11 @@ msgstr "来源定义"
 msgid "Name the source and choose how QDDNS should read the current IP."
 msgstr "命名来源，并选择 QDDNS 读取当前 IP 的方式。"
 
-msgid "Start with the IP source. For DHCPv6 DUID/MAC, WAN/upstream interfaces filter valid IPv6 addresses; lease candidates only identify the LAN host."
-msgstr "先配置 IP 来源。对 DHCPv6 DUID/MAC，WAN/上游接口用于过滤有效 IPv6；租约候选只用于识别局域网主机。"
+msgid "Start with an IP source. For DHCPv6 DUID/MAC, WAN/upstream interfaces use WAN/PD route source prefixes to filter valid LAN host IPv6 addresses; lease candidates only identify the LAN host."
+msgstr "先配置 IP 来源。对 DHCPv6 DUID/MAC，WAN/上游接口会使用 WAN/PD 路由来源前缀过滤有效的局域网主机 IPv6；租约候选只用于识别局域网主机。"
 
 msgid "Mode"
 msgstr "模式"
-
-msgid "Automatically set after source IP detection; manual only when the source cannot be previewed."
-msgstr "探测来源 IP 后自动设置；只有来源无法预览时才需要手动选择。"
 
 msgid "Source IP check"
 msgstr "来源 IP 检查"
