@@ -604,9 +604,6 @@ msgstr "填写提供商、域和记录名。"
 msgid "Review the source IP and DNS record before creating the rule."
 msgstr "创建规则前请确认来源 IP 和 DNS 记录。"
 
-msgid "Source setup"
-msgstr "来源设置"
-
 msgid "Create new source"
 msgstr "创建新来源"
 
@@ -819,9 +816,6 @@ msgstr "命名来源，并选择 QDDNS 读取当前 IP 的方式。"
 
 msgid "Start with the IP source. For DHCPv6 DUID/MAC, WAN/upstream interfaces filter valid IPv6 addresses; lease candidates only identify the LAN host."
 msgstr "先配置 IP 来源。对 DHCPv6 DUID/MAC，WAN/上游接口用于过滤有效 IPv6；租约候选只用于识别局域网主机。"
-
-msgid "Create a source now or use one that is already saved."
-msgstr "现在创建来源，或使用已保存来源。"
 
 msgid "Mode"
 msgstr "模式"

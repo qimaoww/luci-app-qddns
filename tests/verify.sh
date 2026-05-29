@@ -270,7 +270,7 @@ check_rule_wizard() {
 	grep -nF "_('Next')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Back')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Choose the source IP first, then choose the DNS location.')" "$VIEW_DIR/rules.js"
-	grep -nF "_('Source setup')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Mode')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Create new source')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Use saved source')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Probe source IP')" "$VIEW_DIR/rules.js"
@@ -417,7 +417,7 @@ for css in [
         raise SystemExit(f'rule wizard step indicator must keep a clear aligned flow: missing {css}')
 for css in [
     "--qddns-rule-wizard-width:min(64rem,94vw);",
-    "--qddns-rule-wizard-field-min:18rem;",
+    "--qddns-rule-wizard-field-min:14rem;",
     "--qddns-rule-wizard-meta-label:5.5rem;",
     ".modal.qddns-rule-wizard-dialog{align-items:stretch;width:var(--qddns-rule-wizard-width);max-width:94vw}",
     ".modal.qddns-rule-wizard-dialog>h4{box-sizing:border-box;width:100%;margin:0 0 var(--qddns-space-3);padding:0;text-align:left;font-size:1.2rem;font-weight:700;line-height:1.3!important}",
@@ -436,7 +436,7 @@ for css in [
     ".qddns-rule-wizard-source-panel{display:grid;justify-items:stretch;gap:var(--qddns-space-3);width:100%;min-width:0;text-align:left}",
     ".qddns-rule-wizard-source-actions{align-items:center;justify-content:flex-start}",
     ".qddns-rule-wizard-detection-grid{display:grid;align-items:start;justify-items:stretch;grid-template-columns:minmax(0,1.4fr) minmax(12rem,0.75fr) auto;gap:var(--qddns-space-3);width:100%;min-width:0}",
-    ".qddns-rule-wizard-probe-action-field{align-self:stretch;justify-content:end}",
+    ".qddns-rule-wizard-probe-action-field{align-self:center;align-items:center;justify-content:flex-start}",
     ".qddns-rule-wizard-source-status{display:grid;justify-items:start;gap:var(--qddns-space-1);box-sizing:border-box;width:100%;min-width:0;padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);text-align:left}",
     ".qddns-rule-wizard-footer-actions{width:100%;max-width:100%;justify-self:stretch;justify-content:flex-end}",
     ".qddns-rule-wizard-summary-row{display:grid;grid-template-columns:minmax(var(--qddns-rule-wizard-meta-label),max-content) minmax(0,1fr);gap:var(--qddns-space-2);min-width:0;text-align:left}",
@@ -1060,7 +1060,6 @@ check_name_visible_numeric_hidden_po() {
 		'No providers available' \
 		'No sources available' \
 		'Choose the source IP first, then choose the DNS location.' \
-		'Source setup' \
 		'Create new source' \
 		'Use saved source' \
 		'Source name' \

@@ -13,7 +13,7 @@ const QDDNS_STYLE = [
 		'--qddns-rule-type-width:8rem;',
 		'--qddns-rule-action-min:10rem;',
 		'--qddns-rule-wizard-width:min(64rem,94vw);',
-		'--qddns-rule-wizard-field-min:18rem;',
+		'--qddns-rule-wizard-field-min:14rem;',
 		'--qddns-rule-wizard-meta-label:5.5rem;',
 		'--qddns-rule-wizard-side-label:7rem;',
 	'}',
@@ -62,7 +62,7 @@ const QDDNS_STYLE = [
 	'.qddns-rule-wizard-source-panel{display:grid;justify-items:stretch;gap:var(--qddns-space-3);width:100%;min-width:0;text-align:left}',
 	'.qddns-rule-wizard-source-actions{align-items:center;justify-content:flex-start}',
 	'.qddns-rule-wizard-detection-grid{display:grid;align-items:start;justify-items:stretch;grid-template-columns:minmax(0,1.4fr) minmax(12rem,0.75fr) auto;gap:var(--qddns-space-3);width:100%;min-width:0}',
-	'.qddns-rule-wizard-probe-action-field{align-self:stretch;justify-content:end}',
+	'.qddns-rule-wizard-probe-action-field{align-self:center;align-items:center;justify-content:flex-start}',
 	'.qddns-rule-wizard-switch{display:flex;align-items:center;gap:var(--qddns-space-2);min-height:2.4rem}',
 	'.qddns-rule-wizard-summary{display:grid;gap:var(--qddns-space-2);padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface-strong)}',
 	'.qddns-rule-wizard-summary-row{display:grid;grid-template-columns:minmax(var(--qddns-rule-wizard-meta-label),max-content) minmax(0,1fr);gap:var(--qddns-space-2);min-width:0;text-align:left}',
@@ -635,14 +635,8 @@ return view.extend({
 			E('div', { 'data-wizard-panel': '0', class: 'qddns-rule-wizard-panel' }, [
 				E('h4', {}, _('Choose Source IP')),
 				E('p', { class: 'qddns-rule-wizard-lead' }, _('Start with the IP source. For DHCPv6 DUID/MAC, WAN/upstream interfaces filter valid IPv6 addresses; lease candidates only identify the LAN host.')),
-				E('div', { class: 'qddns-rule-wizard-section' }, [
-					E('div', { class: 'qddns-rule-wizard-section-head' }, [
-						E('span', { class: 'qddns-rule-wizard-section-title' }, _('Source setup')),
-						E('span', { class: 'qddns-rule-wizard-section-desc' }, _('Create a source now or use one that is already saved.'))
-					]),
-					E('div', { class: 'qddns-rule-wizard-grid qddns-rule-wizard-grid-narrow' }, [
-						this.renderWizardField(_('Mode'), fields.sourceMode)
-					])
+				E('div', { class: 'qddns-rule-wizard-grid qddns-rule-wizard-grid-narrow' }, [
+					this.renderWizardField(_('Mode'), fields.sourceMode)
 				]),
 				savedSourcePanel,
 				newSourcePanel,
