@@ -559,8 +559,8 @@ msgstr "提供商与记录名"
 msgid "3. Create"
 msgstr "3. 创建"
 
-msgid "review and save"
-msgstr "确认并保存"
+msgid "save and apply"
+msgstr "保存并应用"
 
 msgid "Choose source IP"
 msgstr "选择来源 IP"
@@ -588,6 +588,9 @@ msgstr "家庭 DDNS"
 
 msgid "Add DDNS rule"
 msgstr "添加 DDNS 规则"
+
+msgid "Save and apply"
+msgstr "保存并应用"
 
 msgid "No providers available"
 msgstr "没有可用提供商"
@@ -685,11 +688,11 @@ msgstr "提供商、来源、域和记录名不能为空。"
 msgid "Record type must match the selected source address family."
 msgstr "记录类型必须与所选来源的地址协议族匹配。"
 
-msgid "Saving rule..."
-msgstr "正在保存规则..."
+msgid "Saving and applying rule..."
+msgstr "正在保存并应用规则..."
 
-msgid "Rule has been staged. Reloading rules page..."
-msgstr "规则已暂存，正在重新加载规则页..."
+msgid "Rule has been saved. Applying changes..."
+msgstr "规则已保存，正在应用配置..."
 
 msgid "Unable to add the DDNS rule."
 msgstr "无法添加 DDNS 规则。"
@@ -784,23 +787,14 @@ msgstr "WAN 前缀来源"
 msgid "Choose the WAN/upstream interface that owns the delegated IPv6 prefix. Do not select LAN here."
 msgstr "选择拥有下发 IPv6 前缀的 WAN/上游接口。这里不要选择 LAN。"
 
-msgid "Select WAN/upstream interface(s)."
-msgstr "选择 WAN/上游接口，可多选。"
+msgid "Select WAN/upstream interface(s). Verify the real upstream path before probing."
+msgstr "选择 WAN/上游接口，可多选。探测前请确认真实上游路径。"
+
+msgid "Select this interface only when it is the WAN/upstream interface for this source."
+msgstr "仅当此接口是该来源的 WAN/上游接口时才选择。"
 
 msgid "Choose the WAN/upstream interface whose current address should be published."
 msgstr "选择要发布当前地址的 WAN/上游接口。"
-
-msgid "recommended WAN"
-msgstr "推荐 WAN"
-
-msgid "verify upstream"
-msgstr "确认上游"
-
-msgid "Recommended WAN/upstream interface"
-msgstr "推荐的 WAN/上游接口"
-
-msgid "Only choose this if it is the real WAN/upstream interface"
-msgstr "仅在它确实是 WAN/上游接口时选择"
 
 msgid "LAN host identity"
 msgstr "局域网主机身份"
@@ -813,6 +807,12 @@ msgstr "来源定义"
 
 msgid "Name the source and choose how QDDNS should read the current IP."
 msgstr "命名来源，并选择 QDDNS 读取当前 IP 的方式。"
+
+msgid "Source path"
+msgstr "来源路径"
+
+msgid "Choose whether to create a source now or use one already saved."
+msgstr "选择现在创建来源，或使用已保存来源。"
 
 msgid "Start with an IP source. For DHCPv6 DUID/MAC, WAN/upstream interfaces use WAN/PD route source prefixes to filter valid LAN host IPv6 addresses; lease candidates only identify the LAN host."
 msgstr "先配置 IP 来源。对 DHCPv6 DUID/MAC，WAN/上游接口会使用 WAN/PD 路由来源前缀过滤有效的局域网主机 IPv6；租约候选只用于识别局域网主机。"

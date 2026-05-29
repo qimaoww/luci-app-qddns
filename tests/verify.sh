@@ -111,6 +111,20 @@ required = {
         '主机接口',
     'WAN/upstream interface':
         'WAN/上游接口',
+    'Select WAN/upstream interface(s). Verify the real upstream path before probing.':
+        '选择 WAN/上游接口，可多选。探测前请确认真实上游路径。',
+    'Select this interface only when it is the WAN/upstream interface for this source.':
+        '仅当此接口是该来源的 WAN/上游接口时才选择。',
+    'Source path':
+        '来源路径',
+    'Choose whether to create a source now or use one already saved.':
+        '选择现在创建来源，或使用已保存来源。',
+    'Save and apply':
+        '保存并应用',
+    'Saving and applying rule...':
+        '正在保存并应用规则...',
+    'Rule has been saved. Applying changes...':
+        '规则已保存，正在应用配置...',
     'Overview Console':
         '概览控制台',
     'Rule Console':
@@ -327,7 +341,9 @@ check_rule_wizard() {
 	grep -nF "data-probed-family" "$VIEW_DIR/rules.js"
 	grep -nF "_('Record type must match the selected source address family.')" "$VIEW_DIR/rules.js"
 	grep -nF "return uci.save().then(function()" "$VIEW_DIR/rules.js"
-	grep -nF "window.location.reload()" "$VIEW_DIR/rules.js"
+	grep -nF "ui.changes.apply(true)" "$VIEW_DIR/rules.js"
+	! grep -nF "Rule has been staged. Reloading rules page..." "$VIEW_DIR/rules.js"
+	! grep -nF "window.location.reload()" "$VIEW_DIR/rules.js"
 	grep -nF "renderWizardSelect: function(choices, emptyText, itemFallback)" "$VIEW_DIR/rules.js"
 	grep -nF "choice.name || itemFallback || _('Unnamed item')" "$VIEW_DIR/rules.js"
 	grep -nF "this.renderWizardSelect(providers, _('No providers available'), _('Unnamed provider'))" "$VIEW_DIR/rules.js"
@@ -388,15 +404,45 @@ if "const message = qddns.extractResultMessage(err, _('Unable to read source IP.
     raise SystemExit('rule wizard must show saved source XHR/probe errors in the guide feedback')
 if "const message = qddns.extractResultMessage(result, _('Unable to read source IP.'))" not in save_block or "setWizardProbeFeedback(message, 'error')" not in save_block:
     raise SystemExit('rule wizard must show backend draft probe errors instead of replacing them with a generic message')
+source_type_start = modal.index("sourceType: E('select'")
+source_type_end = modal.index("sourceFamily: E('select'", source_type_start)
+source_type_block = modal[source_type_start:source_type_end]
+if source_type_block.index("value: 'local_addr'") < source_type_block.index("value: 'dhcpv6_mac'"):
+    raise SystemExit('rule wizard source type choices must keep Local address at the bottom')
+create_rule_block = rules[rules.index('createRuleFromWizard: function'):rules.index('showRuleWizardModal: function')]
+if "feedback.textContent = _('Saving and applying rule...')" not in create_rule_block or "ui.changes.apply(true)" not in create_rule_block:
+    raise SystemExit('rule wizard final action must save and immediately apply staged config')
+if "Rule has been staged. Reloading rules page..." in rules or "window.location.reload()" in create_rule_block:
+    raise SystemExit('rule wizard final action must not stop at a staged save/reload')
+if "'require network';" not in rules or "network.getDevices()" not in rules:
+    raise SystemExit('rule wizard must load LuCI network device data for DeviceSelect-style interface choices')
 if "qddns.listInterfaces()" not in rules or "catalog.interfaces = qddns.normalizeInterfaces(data[3])" not in rules:
-    raise SystemExit('rule wizard must load interfaces for the multi-select source field')
-if "function interfaceRank(name)" not in shared or "value.indexOf('pppoe-') === 0" not in shared:
-    raise SystemExit('rule wizard interface list must prioritize WAN/PPPoE choices')
-if "sourceInterface: this.renderWizardInterfaceSelect(data?.catalog?.interfaces)" not in modal:
-    raise SystemExit('rule wizard must render the source interface as a multi-select')
-if "control?.multiple" not in rules or "selectedOptions" not in rules:
-    raise SystemExit('rule wizard value helper must read multi-selected interfaces')
-if "function setSourceInterfaceValue(value)" not in modal:
+    raise SystemExit('rule wizard must keep rpcd interface fallback data for the source field')
+if "function interfaceRank(name)" in shared or "isLikelyWanInterfaceName" in shared:
+    raise SystemExit('rule wizard must not guess WAN/upstream interfaces from interface names')
+if "return left.name.localeCompare(right.name);" not in shared:
+    raise SystemExit('rule wizard interface list must use stable name sorting without WAN heuristics')
+if "sourceInterface: this.renderWizardInterfaceSelect(data?.catalog)" not in modal:
+    raise SystemExit('rule wizard must render the source interface from the full catalog')
+if "new ui.Dropdown([], choices" not in rules or "dropdown.classList.add('qddns-rule-wizard-interface-select')" not in rules:
+    raise SystemExit('rule wizard source interface must use LuCI Dropdown styling instead of a raw multi-select')
+if ".modal.qddns-rule-wizard-dialog{align-items:stretch;width:var(--qddns-rule-wizard-width);max-width:94vw;max-height:calc(100vh - var(--qddns-space-4));overflow:auto}" not in rules:
+    raise SystemExit('rule wizard dialog must constrain height and scroll internally on shorter viewports')
+if "L.resource('icons/%s%s.svg'.format(type" not in rules or "getI18n" not in rules or "getNetworks" not in rules:
+    raise SystemExit('rule wizard interface dropdown must show LuCI device icons and network aliases')
+if "' \"%s\"'.format(name)" in rules:
+    raise SystemExit('rule wizard interface dropdown must not duplicate the device name beside LuCI getI18n labels')
+if "recommended WAN" in rules or "verify upstream" in rules or "data-qddns-wan-interface" in rules or "selectDefaultWanInterfaces" in rules:
+    raise SystemExit('rule wizard must not recommend or auto-select WAN/upstream interfaces by name')
+if "_('Select this interface only when it is the WAN/upstream interface for this source.')" not in rules:
+    raise SystemExit('rule wizard interface options must tell the user to verify the real upstream interface')
+if "_('Source path')" not in modal or "_('Choose whether to create a source now or use one already saved.')" not in modal:
+    raise SystemExit('rule wizard must present source mode as an aligned source path section')
+if "control?.classList?.contains('cbi-dropdown')" not in rules or "input[type=\"hidden\"]" not in rules or "selectedOptions" not in rules:
+    raise SystemExit('rule wizard value helper must read LuCI dropdown and native select values')
+if "cbi-dropdown-change" not in modal:
+    raise SystemExit('rule wizard must mark the new source dirty when the interface dropdown changes')
+if "function setSourceInterfaceValue(value)" not in modal or "L.dom.findClassInstance(fields.sourceInterface)" not in modal:
     raise SystemExit('rule wizard must keep the source interface multi-select helper')
 if "setSourceInterfaceValue(lease?.interface" in modal:
     raise SystemExit('rule wizard must not copy LAN host interfaces into the source WAN interface field')
@@ -421,7 +467,7 @@ for css in [
     "--qddns-rule-wizard-width:min(64rem,94vw);",
     "--qddns-rule-wizard-field-min:14rem;",
     "--qddns-rule-wizard-meta-label:5.5rem;",
-    ".modal.qddns-rule-wizard-dialog{align-items:stretch;width:var(--qddns-rule-wizard-width);max-width:94vw}",
+    ".modal.qddns-rule-wizard-dialog{align-items:stretch;width:var(--qddns-rule-wizard-width);max-width:94vw;max-height:calc(100vh - var(--qddns-space-4));overflow:auto}",
     ".modal.qddns-rule-wizard-dialog>h4{box-sizing:border-box;width:100%;margin:0 0 var(--qddns-space-3);padding:0;text-align:left;font-size:1.2rem;font-weight:700;line-height:1.3!important}",
     ".qddns-rule-wizard-modal{box-sizing:border-box;display:grid;align-items:stretch;justify-items:stretch;gap:var(--qddns-space-4);width:100%;max-width:100%;min-width:0;text-align:left;line-height:1.45}",
     ".qddns-rule-wizard-panel{display:grid;justify-items:stretch;gap:var(--qddns-space-3);width:100%;max-width:100%;min-width:0;justify-self:stretch;text-align:left}",
@@ -1056,7 +1102,7 @@ check_name_visible_numeric_hidden_po() {
 			'2. DNS record' \
 			'provider and name' \
 			'3. Create' \
-			'review and save' \
+			'save and apply' \
 			'Choose source IP' \
 			'Choose where to update DNS' \
 			'Review and create' \
@@ -1064,6 +1110,7 @@ check_name_visible_numeric_hidden_po() {
 		'Back' \
 		'Next' \
 		'Add DDNS rule' \
+		'Save and apply' \
 		'No providers available' \
 		'No sources available' \
 		'Create or choose an IP source and probe it, then choose the DNS location.' \
@@ -1099,8 +1146,8 @@ check_name_visible_numeric_hidden_po() {
 		'Provider, source, zone, and record name are required.' \
 		'Record type must match the selected source address family.' \
 		'Enable after creation' \
-		'Saving rule...' \
-		'Rule has been staged. Reloading rules page...' \
+		'Saving and applying rule...' \
+		'Rule has been saved. Applying changes...' \
 		'Unable to add the DDNS rule.' \
 		'Source is required.' \
 		'Provider, zone, and record name are required.' \
@@ -1130,12 +1177,11 @@ check_name_visible_numeric_hidden_po() {
 			'Prefix' \
 				'Prefix narrowing' \
 				'Advanced narrowing after WAN/PD source prefix matching; it cannot replace the interface.' \
-				'Select WAN/upstream interface(s).' \
+				'Select WAN/upstream interface(s). Verify the real upstream path before probing.' \
+				'Select this interface only when it is the WAN/upstream interface for this source.' \
 				'For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s); DHCPv6-PD route source prefixes from those interfaces validate LAN host IPv6 addresses.' \
-				'recommended WAN' \
-				'verify upstream' \
-				'Recommended WAN/upstream interface' \
-				'Only choose this if it is the real WAN/upstream interface' \
+				'Source path' \
+				'Choose whether to create a source now or use one already saved.' \
 				'Source IP check' \
 				'Probe the source before continuing. A/AAAA is locked to the detected IP family.' \
 				'IPv4 source' \

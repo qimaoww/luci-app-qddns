@@ -3,6 +3,7 @@
 'require uci';
 'require ui';
 'require form';
+'require network';
 'require view.qddns.shared as qddns';
 
 const QDDNS_STYLE_ID = 'qddns-rules-style';
@@ -36,7 +37,7 @@ const QDDNS_STYLE = [
 	'.qddns-rule-wizard-entry-text{display:grid;flex:1 1 22rem;gap:var(--qddns-space-1);min-width:16rem;max-width:42rem}',
 	'.qddns-rule-wizard-entry-text h3,.qddns-rule-wizard-entry-text p{margin:0}',
 	'.qddns-rule-wizard-primary{font-size:1rem;font-weight:700;padding:var(--qddns-space-3) var(--qddns-space-4)}',
-	'.modal.qddns-rule-wizard-dialog{align-items:stretch;width:var(--qddns-rule-wizard-width);max-width:94vw}',
+	'.modal.qddns-rule-wizard-dialog{align-items:stretch;width:var(--qddns-rule-wizard-width);max-width:94vw;max-height:calc(100vh - var(--qddns-space-4));overflow:auto}',
 	'.modal.qddns-rule-wizard-dialog>h4{box-sizing:border-box;width:100%;margin:0 0 var(--qddns-space-3);padding:0;text-align:left;font-size:1.2rem;font-weight:700;line-height:1.3!important}',
 	'.qddns-rule-wizard-modal{box-sizing:border-box;display:grid;align-items:stretch;justify-items:stretch;gap:var(--qddns-space-4);width:100%;max-width:100%;min-width:0;text-align:left;line-height:1.45}',
 	'.qddns-rule-wizard-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--qddns-space-2)}',
@@ -57,6 +58,7 @@ const QDDNS_STYLE = [
 	'.qddns-rule-wizard-field label{font-weight:600;line-height:1.35;text-align:left}',
 	'.qddns-rule-wizard-field .cbi-value-description{margin:0;text-align:left}',
 	'.qddns-rule-wizard-field .cbi-input-text,.qddns-rule-wizard-field .cbi-input-select{box-sizing:border-box;width:100%;min-width:0;max-width:100%}',
+	'.qddns-rule-wizard-field .cbi-dropdown{box-sizing:border-box;width:100%;min-width:0;max-width:100%}',
 	'.qddns-rule-wizard-field .cbi-input-select[data-auto-record-type="1"]{opacity:0.82}',
 	'.qddns-rule-wizard-source-panel{display:grid;justify-items:stretch;gap:var(--qddns-space-3);width:100%;min-width:0;text-align:left}',
 	'.qddns-rule-wizard-source-actions{align-items:center;justify-content:flex-start}',
@@ -99,10 +101,12 @@ return view.extend({
 			L.resolveDefault(qddns.listRules(), { providers: [], rules: [] }),
 			L.resolveDefault(qddns.listSources(), { result: [] }),
 			uci.load('qddns'),
-			L.resolveDefault(qddns.listInterfaces(), { interfaces: [] })
+			L.resolveDefault(qddns.listInterfaces(), { interfaces: [] }),
+			L.resolveDefault(network.getDevices(), [])
 		]).then(function(data) {
 			const catalog = qddns.normalizeCatalogState(data[0], data[1]);
 			catalog.interfaces = qddns.normalizeInterfaces(data[3]);
+			catalog.interfaceDevices = qddns.normalizeList(data[4]);
 			return catalog;
 		});
 	},
@@ -113,7 +117,8 @@ return view.extend({
 			catalog: {
 				rules: qddns.normalizeRulesData(catalog?.rules),
 				sources: qddns.normalizeList(catalog?.sources),
-				interfaces: qddns.normalizeInterfaces(catalog?.interfaces)
+				interfaces: qddns.normalizeInterfaces(catalog?.interfaces),
+				interfaceDevices: qddns.normalizeList(catalog?.interfaceDevices)
 			}
 		};
 	},
@@ -208,21 +213,59 @@ return view.extend({
 		return select;
 	},
 
-	renderWizardInterfaceSelect: function(interfaces) {
-		const select = E('select', { class: 'cbi-input-select qddns-rule-wizard-interface-select', multiple: 'multiple', size: 4 });
+	renderWizardInterfaceSelect: function(catalog) {
+		const choices = {};
+		const order = [];
 
-		qddns.normalizeInterfaces(interfaces).forEach(function(item) {
-			const likelyWan = qddns.isLikelyWanInterfaceName(item.name);
-			const label = likelyWan ? '%s (%s)'.format(item.name, _('recommended WAN')) : '%s (%s)'.format(item.name, _('verify upstream'));
-			const option = E('option', { value: item.name, title: likelyWan ? _('Recommended WAN/upstream interface') : _('Only choose this if it is the real WAN/upstream interface') }, [label]);
+		function addChoice(name, node) {
+			if (!name || name === 'lo' || choices[name])
+				return;
 
-			if (likelyWan)
-				option.setAttribute('data-qddns-wan-interface', '1');
+			choices[name] = node || E('span', {
+				title: _('Select this interface only when it is the WAN/upstream interface for this source.')
+			}, [name]);
+			order.push(name);
+		}
 
-			select.appendChild(option);
+		qddns.normalizeList(catalog?.interfaceDevices).forEach(function(device) {
+			const name = device?.getName?.();
+			const type = device?.getType?.() || 'ethernet';
+			const networks = qddns.normalizeList(device?.getNetworks?.()).map(function(net) {
+				return net?.getName?.();
+			}).filter(function(netName) {
+				return netName;
+			});
+			const label = E([
+				E('img', {
+					title: device?.getI18n?.() || name,
+					src: L.resource('icons/%s%s.svg'.format(type, device?.isUp?.() ? '' : '_disabled'))
+				}),
+				E('span', { class: 'hide-open' }, [name]),
+				E('span', { class: 'hide-close', title: _('Select this interface only when it is the WAN/upstream interface for this source.') }, [
+					device?.getI18n?.() || name,
+					networks.length ? ' (%s)'.format(networks.join(', ')) : ''
+				])
+			]);
+
+			addChoice(name, label);
 		});
 
-		return select;
+		qddns.normalizeInterfaces(catalog?.interfaces).forEach(function(item) {
+			addChoice(item.name);
+		});
+
+		const dropdown = new ui.Dropdown([], choices, {
+			sort: order,
+			multiple: true,
+			optional: true,
+			select_placeholder: E('em', _('unspecified')),
+			display_items: 3,
+			dropdown_items: 7,
+			create: false
+		}).render();
+
+		dropdown.classList.add('qddns-rule-wizard-interface-select');
+		return dropdown;
 	},
 
 	renderWizardSourceIp: function(statusNode) {
@@ -232,6 +275,21 @@ return view.extend({
 	},
 
 	wizardValue: function(control) {
+		if (control?.classList?.contains('cbi-dropdown')) {
+			const values = Array.from(control.querySelectorAll('input[type="hidden"]')).map(function(input) {
+				return String(input.value || '').trim();
+			}).filter(function(value) {
+				return value;
+			});
+
+			if (values.length)
+				return values.join(',');
+
+			return String(control.value || '').trim().split(/\s+/).filter(function(value) {
+				return value;
+			}).join(',');
+		}
+
 		if (control?.multiple)
 			return Array.from(control.selectedOptions || []).map(function(option) {
 				return String(option.value || '').trim();
@@ -448,7 +506,7 @@ return view.extend({
 
 		button.disabled = true;
 		button.classList.add('qddns-busy');
-		feedback.textContent = _('Saving rule...');
+		feedback.textContent = _('Saving and applying rule...');
 		feedback.classList.remove('alert-message', 'warning');
 
 		if (draftSource) {
@@ -471,8 +529,8 @@ return view.extend({
 		uci.set('qddns', sectionId, 'retry_backoff', '30');
 
 		return uci.save().then(function() {
-			ui.addNotification(null, E('p', _('Rule has been staged. Reloading rules page...')), 'info');
-			window.location.reload();
+			feedback.textContent = _('Rule has been saved. Applying changes...');
+			ui.changes.apply(true);
 		}).catch(L.bind(function(err) {
 			if (typeof uci.remove == 'function') {
 				uci.remove('qddns', sectionId);
@@ -496,10 +554,10 @@ return view.extend({
 			]),
 			sourceName: E('input', { type: 'text', class: 'cbi-input-text', placeholder: _('Source name') }),
 			sourceType: E('select', { class: 'cbi-input-select' }, [
-				E('option', { value: 'local_addr' }, [_('Local address')]),
 				E('option', { value: 'interface' }, [_('Interface')]),
 				E('option', { value: 'dhcpv6_duid' }, [_('DHCPv6 DUID')]),
-				E('option', { value: 'dhcpv6_mac' }, [_('MAC')])
+				E('option', { value: 'dhcpv6_mac' }, [_('MAC')]),
+				E('option', { value: 'local_addr' }, [_('Local address')])
 			]),
 			sourceFamily: E('select', { class: 'cbi-input-select' }, [
 				E('option', { value: '' }, [_('Auto')]),
@@ -507,7 +565,7 @@ return view.extend({
 				E('option', { value: 'ipv6' }, [_('IPv6')])
 			]),
 			sourceAddress: E('input', { type: 'text', class: 'cbi-input-text', placeholder: '198.51.100.10 / 2001:db8::10' }),
-			sourceInterface: this.renderWizardInterfaceSelect(data?.catalog?.interfaces),
+			sourceInterface: this.renderWizardInterfaceSelect(data?.catalog),
 			sourceDuid: E('input', { type: 'text', class: 'cbi-input-text' }),
 			sourceIaid: E('input', { type: 'text', class: 'cbi-input-text' }),
 			sourceMac: E('input', { type: 'text', class: 'cbi-input-text', placeholder: 'aa:bb:cc:dd:ee:ff' }),
@@ -532,13 +590,22 @@ return view.extend({
 		const sourceLeaseButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' }, [_('Read current DUID')]);
 		const sourceLeaseResults = E('div', { class: 'qddns-lease-results' });
 		const saveSourceButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' }, [_('Probe source IP')]);
-		const saveButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-add' }, [_('Add DDNS rule')]);
+		const saveButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-add' }, [_('Save and apply')]);
 		const previousButton = E('button', { type: 'button', class: 'btn cbi-button' }, [_('Back')]);
 		const nextButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' }, [_('Next')]);
 		const summary = E('div', { class: 'qddns-rule-wizard-summary' });
 		let stepIndex = 0;
 		fields.source.value = '';
 
+		const sourceModeGroup = E('div', { class: 'qddns-rule-wizard-section' }, [
+			E('div', { class: 'qddns-rule-wizard-section-head' }, [
+				E('span', { class: 'qddns-rule-wizard-section-title' }, _('Source path')),
+				E('span', { class: 'qddns-rule-wizard-section-desc' }, _('Choose whether to create a source now or use one already saved.'))
+			]),
+			E('div', { class: 'qddns-rule-wizard-grid qddns-rule-wizard-grid-narrow' }, [
+				this.renderWizardField(_('Mode'), fields.sourceMode)
+			])
+		]);
 		const savedSourcePanel = E('div', { class: 'qddns-rule-wizard-source-panel', 'data-source-panel': 'saved' }, [
 			E('div', { class: 'qddns-rule-wizard-section' }, [
 				E('div', { class: 'qddns-rule-wizard-section-head' }, [
@@ -552,7 +619,7 @@ return view.extend({
 		]);
 		const sourceFamilyField = this.renderWizardField(_('Family'), fields.sourceFamily);
 		const sourceAddressField = this.renderWizardField(_('Address'), fields.sourceAddress);
-		const sourceInterfaceField = this.renderWizardField(_('WAN/upstream interface'), fields.sourceInterface, _('Select WAN/upstream interface(s).'));
+		const sourceInterfaceField = this.renderWizardField(_('WAN/upstream interface'), fields.sourceInterface, _('Select WAN/upstream interface(s). Verify the real upstream path before probing.'));
 		const sourceDuidField = this.renderWizardField(_('DUID'), fields.sourceDuid);
 		const sourceIaidField = this.renderWizardField(_('IAID'), fields.sourceIaid);
 		const sourceMacField = this.renderWizardField(_('MAC'), fields.sourceMac);
@@ -627,14 +694,12 @@ return view.extend({
 			E('div', { class: 'qddns-rule-wizard-steps' }, [
 				renderWizardStep(0, _('1. Source IP'), _('select and probe')),
 				renderWizardStep(1, _('2. DNS record'), _('provider and name')),
-				renderWizardStep(2, _('3. Create'), _('review and save'))
+				renderWizardStep(2, _('3. Create'), _('save and apply'))
 			]),
 			E('div', { 'data-wizard-panel': '0', class: 'qddns-rule-wizard-panel' }, [
 				E('h4', {}, _('Choose source IP')),
 				E('p', { class: 'qddns-rule-wizard-lead' }, _('Start with an IP source. For DHCPv6 DUID/MAC, WAN/upstream interfaces use WAN/PD route source prefixes to filter valid LAN host IPv6 addresses; lease candidates only identify the LAN host.')),
-				E('div', { class: 'qddns-rule-wizard-grid qddns-rule-wizard-grid-narrow' }, [
-					this.renderWizardField(_('Mode'), fields.sourceMode)
-				]),
+				sourceModeGroup,
 				savedSourcePanel,
 				newSourcePanel,
 				sourceDetectionGroup
@@ -777,17 +842,6 @@ return view.extend({
 			sourcePrefixDescription.textContent = _('Choose the WAN/upstream interface that owns the delegated IPv6 prefix. Do not select LAN here.');
 		}
 
-		function selectDefaultWanInterfaces() {
-			if (viewRef.wizardValue(fields.sourceInterface))
-				return;
-
-			for (let index = 0; index < fields.sourceInterface.options.length; index++) {
-				const option = fields.sourceInterface.options[index];
-				if (option.getAttribute('data-qddns-wan-interface') === '1')
-					option.selected = true;
-			}
-		}
-
 		function syncNewSourceRecordType() {
 			const sourceType = fields.sourceType.value;
 			const family = isDhcpv6SourceType(sourceType) ? 'ipv6' : (viewRef.wizardValue(fields.sourceFamily) || (sourceType === 'local_addr' ? viewRef.inferSourceFamily(viewRef.wizardValue(fields.sourceAddress)) : ''));
@@ -818,8 +872,6 @@ return view.extend({
 				resetSourceTypeFields(sourceType);
 			else if (isDhcpv6Source)
 				fields.sourceFamily.value = 'ipv6';
-			if (sourceType === 'interface' || isDhcpv6Source)
-				selectDefaultWanInterfaces();
 			syncNewSourceRecordType();
 			resetLeaseResults();
 			if (!skipDirty)
@@ -1022,6 +1074,9 @@ return view.extend({
 		}
 
 		function ensureSourceInterfaceOption(value) {
+			if (!fields.sourceInterface?.options)
+				return;
+
 			interfaceValues(value).forEach(function(name) {
 				for (let index = 0; index < fields.sourceInterface.options.length; index++)
 					if (fields.sourceInterface.options[index].value === name)
@@ -1033,6 +1088,21 @@ return view.extend({
 
 		function setSourceInterfaceValue(value) {
 			const selected = interfaceValues(value);
+
+			if (fields.sourceInterface?.classList?.contains('cbi-dropdown')) {
+				const dropdown = L.dom.findClassInstance(fields.sourceInterface);
+				const values = {};
+
+				selected.forEach(function(name) {
+					values[name] = true;
+				});
+
+				if (dropdown?.setValues)
+					dropdown.setValues(fields.sourceInterface, values);
+
+				return;
+			}
+
 			ensureSourceInterfaceOption(selected.join(','));
 
 			for (let index = 0; index < fields.sourceInterface.options.length; index++)
@@ -1350,6 +1420,7 @@ return view.extend({
 		].forEach(function(field) {
 			field.addEventListener('input', function() { markNewSourceDirty(); });
 			field.addEventListener('change', function() { markNewSourceDirty(); });
+			field.addEventListener('cbi-dropdown-change', function() { markNewSourceDirty(); });
 		});
 
 		sourceLeaseButton.addEventListener('click', loadWizardLeases);
