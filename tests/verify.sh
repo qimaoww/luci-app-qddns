@@ -370,8 +370,14 @@ if "function sourceDetectedMessage(address)" not in modal:
     raise SystemExit('rule wizard must centralize source IP detected guide feedback')
 if "function ensureSavedSourceSelected()" not in modal or "ensureSavedSourceSelected();" not in modal:
     raise SystemExit('rule wizard must select and probe the first saved source when switching to saved source mode')
+if "function probeCurrentSource()" not in modal or "return currentSourceMode() === 'new' ? saveNewSource() : updateWizardSourceProbe();" not in modal:
+    raise SystemExit('rule wizard must let saved-source users retry source IP probing after failures')
+if "saveSourceButton.style.display = stepIndex === 0 ? '' : 'none';" not in modal:
+    raise SystemExit('rule wizard source IP probe action must stay visible on the source step for both new and saved sources')
 if "The saved source will be used for this rule." not in modal:
     raise SystemExit('rule wizard must not claim saved sources will be saved with the rule')
+if "Select a saved source; the wizard will probe it and set A/AAAA automatically." in modal:
+    raise SystemExit('rule wizard saved-source copy must not promise every saved source is previewable')
 if "setWizardProbeFeedback(sourceDetectedMessage(result.address), 'ready')" not in modal:
     raise SystemExit('rule wizard must put detected source IP into the guide feedback')
 if "setWizardProbeFeedback(message, 'error')" not in modal:
@@ -1019,6 +1025,7 @@ PYEOF
 check_name_visible_numeric_hidden_po() {
 	for msgid in \
 		'Name' \
+		'Unnamed item' \
 		'Unnamed source' \
 		'Unnamed provider' \
 		'Unnamed rule' \

@@ -546,7 +546,7 @@ return view.extend({
 			E('div', { class: 'qddns-rule-wizard-section' }, [
 				E('div', { class: 'qddns-rule-wizard-section-head' }, [
 					E('span', { class: 'qddns-rule-wizard-section-title' }, _('Saved source')),
-					E('span', { class: 'qddns-rule-wizard-section-desc' }, _('Select a saved source; the wizard will probe it and set A/AAAA automatically.'))
+					E('span', { class: 'qddns-rule-wizard-section-desc' }, _('Select a saved source. Previewable sources are probed automatically; otherwise A/AAAA follows the saved family or stays manual.'))
 				]),
 				E('div', { class: 'qddns-rule-wizard-grid' }, [
 					this.renderWizardField(_('Source'), fields.source)
@@ -878,7 +878,7 @@ return view.extend({
 
 			savedSourcePanel.style.display = useNewSource ? 'none' : '';
 			newSourcePanel.style.display = useNewSource ? '' : 'none';
-			saveSourceButton.style.display = useNewSource && stepIndex === 0 ? '' : 'none';
+			saveSourceButton.style.display = stepIndex === 0 ? '' : 'none';
 			if (useNewSource) {
 				if (sourceCreate.clean && sourceCreate.id) {
 					setEffectiveSource(sourceCreate.id, viewRef.wizardValue(fields.sourceName) || _('Unnamed source'));
@@ -1294,11 +1294,15 @@ return view.extend({
 			});
 		}
 
+		function probeCurrentSource() {
+			return currentSourceMode() === 'new' ? saveNewSource() : updateWizardSourceProbe();
+		}
+
 		function updateButtons() {
 			previousButton.style.display = stepIndex ? '' : 'none';
 			nextButton.style.display = stepIndex < 2 ? '' : 'none';
 			saveButton.style.display = stepIndex === 2 ? '' : 'none';
-			saveSourceButton.style.display = stepIndex === 0 && currentSourceMode() === 'new' ? '' : 'none';
+			saveSourceButton.style.display = stepIndex === 0 ? '' : 'none';
 			nextButton.disabled = stepIndex === 0 && sourceProbe.loading;
 			if (stepIndex === 0 && !effectiveSourceId())
 				nextButton.disabled = true;
@@ -1360,7 +1364,7 @@ return view.extend({
 		});
 
 		sourceLeaseButton.addEventListener('click', loadWizardLeases);
-		saveSourceButton.addEventListener('click', saveNewSource);
+		saveSourceButton.addEventListener('click', probeCurrentSource);
 
 		nextButton.addEventListener('click', L.bind(function() {
 			if (!this.validateWizardStep(fields, feedback, stepIndex))

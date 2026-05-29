@@ -465,6 +465,9 @@ msgstr "复制模板"
 msgid "Name"
 msgstr "名称"
 
+msgid "Unnamed item"
+msgstr "未命名项目"
+
 msgid "Unnamed source"
 msgstr "未命名来源"
 
@@ -775,8 +778,8 @@ msgstr "根据来源 IP 协议族自动设置。"
 msgid "Saved source"
 msgstr "已保存来源"
 
-msgid "Select a saved source; the wizard will probe it and set A/AAAA automatically."
-msgstr "选择已保存来源；向导会探测它并自动设置 A/AAAA。"
+msgid "Select a saved source. Previewable sources are probed automatically; otherwise A/AAAA follows the saved family or stays manual."
+msgstr "选择已保存来源。可预览来源会自动探测；否则 A/AAAA 按已保存的协议族设置，或保留手动选择。"
 
 msgid "WAN prefix source"
 msgstr "WAN 前缀来源"
