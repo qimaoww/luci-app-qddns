@@ -13,7 +13,8 @@ use qddns::config::{
 use qddns::daemon::{self, DaemonOptions};
 use qddns::logstore::{append_log, read_logs, LogEntry};
 use qddns::state::{
-    runtime_status_json, serialize_runtime_state, RuleState, RuntimeState, StateStore,
+    runtime_rule_status_json, runtime_status_json, serialize_runtime_state, RuleState,
+    RuntimeState, StateStore,
 };
 use serde_json::Value;
 
@@ -785,6 +786,41 @@ fn runtime_status_ignores_deleted_rule_states() {
     assert!(json.pointer("/rule_states/rule0").is_none());
     assert!(json.pointer("/rule_states/deleted").is_none());
     assert_eq!(json.pointer("/rules").and_then(Value::as_u64), Some(1));
+}
+
+#[test]
+fn runtime_status_hides_disabled_rule_runtime_state() {
+    let (mut config, runtime) = recent_fixture(2);
+    config.rules.get_mut("rule0").unwrap().enabled = false;
+
+    let json = runtime_status_json(&config, &runtime);
+    let ids = recent_ids(&json);
+
+    assert_eq!(ids, ["rule1".to_string()]);
+    assert!(json.pointer("/rule_states/rule1").is_some());
+    assert!(json.pointer("/rule_states/rule0").is_none());
+    assert_eq!(json.pointer("/rules").and_then(Value::as_u64), Some(2));
+    assert_eq!(
+        json.pointer("/enabled_rules").and_then(Value::as_u64),
+        Some(1)
+    );
+}
+
+#[test]
+fn runtime_rule_status_reports_disabled_without_stale_success() {
+    let (mut config, runtime) = recent_fixture(1);
+    config.rules.get_mut("rule0").unwrap().enabled = false;
+
+    let json = runtime_rule_status_json(&config, &runtime, "rule0").unwrap();
+
+    assert_eq!(json.pointer("/ok").and_then(Value::as_bool), Some(true));
+    assert_eq!(
+        json.pointer("/status").and_then(Value::as_str),
+        Some("disabled")
+    );
+    assert_eq!(json.pointer("/current_ip"), Some(&Value::Null));
+    assert_eq!(json.pointer("/remote_ip"), Some(&Value::Null));
+    assert_eq!(json.pointer("/last_result"), Some(&Value::Null));
 }
 
 #[test]

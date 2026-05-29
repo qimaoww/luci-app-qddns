@@ -17,10 +17,10 @@ msgid "Logs"
 msgstr "日志"
 
 msgid "Overview Console"
-msgstr "概览面板"
+msgstr "概览控制台"
 
 msgid "Rule Console"
-msgstr "规则面板"
+msgstr "规则控制台"
 
 msgid "Runtime Summary"
 msgstr "运行摘要"
@@ -69,6 +69,42 @@ msgstr "已禁用"
 
 msgid "Unknown"
 msgstr "未知"
+
+msgid "OK"
+msgstr "正常"
+
+msgid "Success"
+msgstr "成功"
+
+msgid "Synced"
+msgstr "已同步"
+
+msgid "Updated"
+msgstr "已更新"
+
+msgid "Unchanged"
+msgstr "未变化"
+
+msgid "Error"
+msgstr "错误"
+
+msgid "Failed"
+msgstr "失败"
+
+msgid "Invalid"
+msgstr "无效"
+
+msgid "Pending"
+msgstr "等待中"
+
+msgid "Testing"
+msgstr "测试中"
+
+msgid "Queued"
+msgstr "排队中"
+
+msgid "Warning"
+msgstr "警告"
 
 msgid "N/A"
 msgstr "无"
@@ -449,7 +485,7 @@ msgid "Create a new named provider from a safe template. The name can be changed
 msgstr "从安全模板创建新的具名提供商。名称之后仍可修改。"
 
 msgid "Copy template values into a new provider without exposing credentials in the main table."
-msgstr "将模板值复制到新的提供商中，不在主表暴露凭据。"
+msgstr "将模板值复制到新的提供商中，不在主表格暴露凭据。"
 
 msgid "Configure daemon defaults, source definitions, and provider credentials here. Save and reload after adding providers or sources so dependent rules can pick up the latest choices."
 msgstr "在此配置守护进程默认值、来源定义和提供商凭据。新增提供商或来源后，请保存并重新加载，以便依赖规则获取最新选项。"
@@ -596,6 +632,9 @@ msgstr "正在探测来源 IP..."
 msgid "Source IP detected: %s. The source will be saved with the rule."
 msgstr "已探测到来源 IP：%s。来源会随规则一起保存。"
 
+msgid "Source IP detected: %s. The saved source will be used for this rule."
+msgstr "已探测到来源 IP：%s。将使用该已保存来源创建规则。"
+
 msgid "Unable to read source IP. Choose another source or fix the source configuration."
 msgstr "无法读取来源 IP。请选择其他来源或修复来源配置。"
 
@@ -696,7 +735,7 @@ msgid "Unnamed host"
 msgstr "未命名主机"
 
 msgid "Start a short wizard that creates a complete rule with safe defaults. Use the advanced table below for later edits."
-msgstr "启动一个简短向导，用安全默认值创建完整规则。下方高级表格用于后续编辑。"
+msgstr "启动一个简短向导，用安全默认值创建完整规则。下方高级规则表格用于后续编辑。"
 
 msgid "DNS record"
 msgstr "DNS 记录"

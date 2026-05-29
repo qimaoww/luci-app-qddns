@@ -53,30 +53,8 @@ const SOURCE_FIELDS_BY_TYPE = {
 	dhcpv6_mac: ['interface', 'mac', 'lease_file', 'hostname_hint', 'prefix_filter']
 };
 const QDDNS_SETTINGS_STYLE = [
-	':root{',
-		'--qddns-space-1:0.25rem;',
-		'--qddns-space-2:0.5rem;',
-		'--qddns-space-3:0.75rem;',
-		'--qddns-space-4:1rem;',
-		'--qddns-radius-sm:0.5rem;',
-		'--qddns-radius-md:0.75rem;',
-		'--qddns-border:rgba(127,127,127,0.24);',
-		'--qddns-surface:rgba(127,127,127,0.08);',
-		'--qddns-surface-strong:rgba(127,127,127,0.14);',
-	'}',
 	'.qddns-settings-page{margin-bottom:var(--qddns-space-4)}',
 	'.qddns-dhcpv6-lease-status{display:grid;gap:var(--qddns-space-2);width:100%;max-width:100%;min-width:0;text-align:left}',
-	'.qddns-dhcpv6-lease-results{display:grid;gap:var(--qddns-space-2);width:100%;max-width:100%;min-width:0;text-align:left}',
-	'.qddns-dhcpv6-lease-list{display:grid;justify-items:stretch;gap:var(--qddns-space-2);width:100%;max-width:100%;min-width:0}',
-	'.qddns-dhcpv6-lease-card{appearance:none;box-sizing:border-box;display:grid;align-items:start;justify-items:stretch;justify-content:stretch;gap:var(--qddns-space-2);width:100%!important;min-width:0;margin:0;padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);color:inherit;font:inherit;line-height:1.35;text-align:left!important;text-transform:none;cursor:pointer}',
-	'.qddns-dhcpv6-lease-card:hover,.qddns-dhcpv6-lease-card:focus,.qddns-dhcpv6-lease-card.is-selected{border-color:currentColor;background:var(--qddns-surface-strong)}',
-	'.qddns-dhcpv6-lease-card-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:var(--qddns-space-2);width:100%;justify-self:stretch;min-width:0;text-align:left}',
-	'.qddns-dhcpv6-lease-title{justify-self:start;min-width:0;font-weight:600;text-align:left;overflow-wrap:anywhere}',
-	'.qddns-dhcpv6-lease-action{justify-self:end;max-width:100%;padding:0.1rem 0.4rem;border-radius:999px;background:var(--qddns-surface-strong);font-size:0.9em;line-height:1.35;opacity:0.85;text-align:center;white-space:nowrap}',
-	'.qddns-dhcpv6-lease-meta{display:grid;grid-template-columns:1fr;gap:var(--qddns-space-1);width:100%;justify-self:stretch;min-width:0;text-align:left}',
-	'.qddns-dhcpv6-lease-meta-item{display:grid;grid-template-columns:minmax(4.75rem,max-content) minmax(0,1fr);gap:var(--qddns-space-1);width:100%;justify-self:stretch;min-width:0;text-align:left;overflow-wrap:break-word;word-break:normal}',
-	'.qddns-dhcpv6-lease-meta-label{min-width:4.75rem;opacity:0.72}',
-	'.qddns-dhcpv6-lease-meta-value{min-width:0;overflow-wrap:anywhere;word-break:normal;white-space:pre-wrap;text-align:left}',
 	'.qddns-source-ip-probe{display:flex;flex-wrap:wrap;align-items:center;gap:var(--qddns-space-2);max-width:100%;min-width:0}',
 	'.qddns-source-ip-probe .cbi-button{margin:0}',
 	'.qddns-source-ip-status{display:block;max-width:100%;min-width:min(100%,8rem);overflow-wrap:anywhere;text-align:left}',
@@ -233,10 +211,6 @@ return view.extend({
 		return this.getSourceOptionValue(optionSet?.type, sectionId) || uci.get('qddns', sectionId, 'type') || '';
 	},
 
-	isProbeableSourceType: function(sourceType) {
-		return ['local_addr', 'interface', 'dhcpv6_duid', 'dhcpv6_mac'].indexOf(sourceType) > -1;
-	},
-
 	setSourceIpStatus: function(node, message, tone) {
 		node.textContent = message || _('N/A');
 		node.setAttribute('data-tone', tone || 'neutral');
@@ -268,8 +242,13 @@ return view.extend({
 		const probeButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' }, [_('Probe')]);
 		const sourceIpProbe = { token: 0 };
 
+		probeButton.disabled = !qddns.isProbeableSourceType(this.getSourceType(sectionId, optionSet));
+		if (probeButton.disabled)
+			this.setSourceIpStatus(node, _('Not previewable in LuCI'), 'warning');
+
 		this.bindSourceOptionChange(sectionId, optionSet, L.bind(function() {
 			sourceIpProbe.token++;
+			probeButton.disabled = true;
 			this.setSourceIpStatus(node, _('Save and reload to read updated source IP.'), 'warning');
 		}, this));
 
@@ -287,8 +266,8 @@ return view.extend({
 		sourceIpProbe.token++;
 		const token = sourceIpProbe.token;
 
-		if (!this.isProbeableSourceType(sourceType)) {
-			this.setSourceIpStatus(node, _('N/A'), 'neutral');
+		if (!qddns.isProbeableSourceType(sourceType)) {
+			this.setSourceIpStatus(node, _('Not previewable in LuCI'), 'warning');
 			return Promise.resolve();
 		}
 
@@ -382,7 +361,7 @@ return view.extend({
 		this.ensureSettingsStyle();
 
 		const loadButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' });
-		const results = E('div', { class: 'qddns-dhcpv6-lease-results' });
+			const results = E('div', { class: 'qddns-lease-results' });
 		const resetResults = L.bind(function() {
 			const isDuidSource = this.isDhcpv6DuidSource(sectionId, optionSet);
 
@@ -403,54 +382,29 @@ return view.extend({
 		]);
 	},
 
-	renderDhcpv6LeaseMeta: function(label, value) {
-		return E('span', { class: 'qddns-dhcpv6-lease-meta-item' }, [
-			E('span', { class: 'qddns-dhcpv6-lease-meta-label' }, label + ': '),
-			E('span', { class: 'qddns-dhcpv6-lease-meta-value' }, value || '-')
-		]);
-	},
-
 	renderDhcpv6LeaseCard: function(sectionId, lease, feedback, optionSet) {
 		const prefixes = qddns.normalizeList(lease?.prefixes);
 		const ipv4 = qddns.normalizeList(lease?.ipv4);
 		const isDuidSource = this.isDhcpv6DuidSource(sectionId, optionSet);
 		const identityMeta = isDuidSource ? [
-			this.renderDhcpv6LeaseMeta(_('DUID'), lease?.duid || '-'),
-			this.renderDhcpv6LeaseMeta(_('IAID'), lease?.iaid || '-')
+			qddns.renderLeaseMeta(_('DUID'), lease?.duid || '-'),
+			qddns.renderLeaseMeta(_('IAID'), lease?.iaid || '-')
 		] : [
-			this.renderDhcpv6LeaseMeta(_('MAC'), lease?.mac || '-'),
-			this.renderDhcpv6LeaseMeta(_('LAN IP'), ipv4.length ? ipv4.join(', ') : '-')
+			qddns.renderLeaseMeta(_('MAC'), lease?.mac || '-'),
+			qddns.renderLeaseMeta(_('LAN IP'), ipv4.length ? ipv4.join(', ') : '-')
 		];
-		const card = E('button', {
-			type: 'button',
-			class: 'qddns-dhcpv6-lease-card',
-			'aria-pressed': 'false',
-			title: _('Fill from this lease')
-			}, [
-				E('span', { class: 'qddns-dhcpv6-lease-card-head' }, [
-					E('span', { class: 'qddns-dhcpv6-lease-title' }, lease?.hostname || _('Unnamed host')),
-					E('span', { class: 'qddns-dhcpv6-lease-action' }, _('Fill from this lease'))
-				]),
-				E('span', { class: 'qddns-dhcpv6-lease-meta' }, identityMeta.concat([
-					this.renderDhcpv6LeaseMeta(_('Prefix'), prefixes.length ? prefixes.join('\n') : '-'),
-					this.renderDhcpv6LeaseMeta(_('Host interface'), lease?.host_interface || '-')
-				]))
-			]);
 
-		card.addEventListener('click', L.bind(function() {
-			const selected = card.parentNode?.querySelector('.qddns-dhcpv6-lease-card.is-selected');
-
-			if (selected) {
-				selected.classList.remove('is-selected');
-				selected.setAttribute('aria-pressed', 'false');
-			}
-
-			card.classList.add('is-selected');
-			card.setAttribute('aria-pressed', 'true');
-			this.fillDhcpv6Lease(sectionId, lease, feedback, optionSet);
-		}, this));
-
-		return card;
+		return qddns.renderLeaseCard({
+			title: lease?.hostname || _('Unnamed host'),
+			actionLabel: _('Fill from this lease'),
+			meta: identityMeta.concat([
+				qddns.renderLeaseMeta(_('Prefix'), prefixes.length ? prefixes.join('\n') : '-'),
+				qddns.renderLeaseMeta(_('Host interface'), lease?.host_interface || '-')
+			]),
+			onSelect: L.bind(function() {
+				this.fillDhcpv6Lease(sectionId, lease, feedback, optionSet);
+			}, this)
+		});
 	},
 
 	renderDhcpv6LeaseResults: function(sectionId, leases, optionSet) {
@@ -460,11 +414,11 @@ return view.extend({
 		const feedback = E('div', { class: 'cbi-value-description' }, list.length ? (isDuidSource ? _('Choose a current DUID to fill DUID, IAID, and hostname hint. Keep the WAN interface selected separately.') : _('Choose a current MAC to fill MAC, LAN IP identity, and hostname hint. Keep the WAN interface selected separately.')) : emptyMessage);
 
 		if (!list.length)
-			return E('div', { class: 'qddns-dhcpv6-lease-results' }, [feedback]);
+			return E('div', { class: 'qddns-lease-results' }, [feedback]);
 
-		return E('div', { class: 'qddns-dhcpv6-lease-results' }, [
+		return E('div', { class: 'qddns-lease-results' }, [
 			feedback,
-			E('div', { class: 'qddns-dhcpv6-lease-list' }, list.map(L.bind(function(lease) {
+			E('div', { class: 'qddns-lease-list' }, list.map(L.bind(function(lease) {
 				return this.renderDhcpv6LeaseCard(sectionId, lease, feedback, optionSet);
 			}, this)))
 		]);
@@ -480,7 +434,7 @@ return view.extend({
 		if (!field)
 			return;
 
-		const existing = field.querySelector('.qddns-dhcpv6-lease-results');
+		const existing = field.querySelector('.qddns-lease-results');
 		if (existing)
 			existing.remove();
 
@@ -569,7 +523,7 @@ return view.extend({
 
 		return E('div', { class: 'cbi-section qddns-panel' }, [
 			E('h3', {}, _('Provider templates')),
-		E('p', { class: 'cbi-section-descr' }, _('Create a new named provider from a safe template. The name can be changed later.')),
+			E('p', { class: 'cbi-section-descr' }, _('Create a new named provider from a safe template. The name can be changed later.')),
 			E('p', { class: 'cbi-section-descr' }, _('Copy template values into a new provider without exposing credentials in the main table.')),
 			E('div', { class: 'cbi-value' }, [
 				E('label', { class: 'cbi-value-title' }, _('Provider name')),
@@ -590,30 +544,36 @@ return view.extend({
 		return qddns.renderTableSection(_('Source Probe'), [
 			_('Name'), _('Type'), _('Family'), _('Hint'), _('Actions')
 		], qddns.normalizeList(sources).map(L.bind(function(src) {
-			const probeButton = E('button', { class: 'btn cbi-button cbi-button-action' }, [_('Probe')]);
 			const sourceName = this.getSourceLabel(src);
+			let actionNode;
 
-			probeButton.addEventListener('click', function() {
-				return qddns.handleReadAction(probeButton, _('Source Probe'), function() {
-					return qddns.probeSource(src.id);
-				}, function(result) {
-					qddns.showInfoModal(_('Source Probe'), [
-						E('div', { class: 'qddns-modal-meta' }, [
-							E('p', {}, '%s: %s'.format(_('Source'), sourceName)),
-							E('p', {}, '%s: %s'.format(_('Address'), result.address || _('N/A'))),
-							E('p', {}, '%s: %s'.format(_('Family'), result.family || _('N/A'))),
-							E('p', {}, '%s: %s'.format(_('Detail'), result.detail || _('N/A')))
-						])
-					]);
-				}, _('Unable to probe the selected source.'));
-			});
+			if (!qddns.isProbeableSourceType(src.type)) {
+				actionNode = qddns.renderBadge(_('Not previewable in LuCI'), 'warning');
+			} else {
+				const probeButton = E('button', { class: 'btn cbi-button cbi-button-action' }, [_('Probe')]);
+				probeButton.addEventListener('click', function() {
+					return qddns.handleReadAction(probeButton, _('Source Probe'), function() {
+						return qddns.probeSource(src.id);
+					}, function(result) {
+						qddns.showInfoModal(_('Source Probe'), [
+							E('div', { class: 'qddns-modal-meta' }, [
+								E('p', {}, '%s: %s'.format(_('Source'), sourceName)),
+								E('p', {}, '%s: %s'.format(_('Address'), result.address || _('N/A'))),
+								E('p', {}, '%s: %s'.format(_('Family'), result.family || _('N/A'))),
+								E('p', {}, '%s: %s'.format(_('Detail'), result.detail || _('N/A')))
+							])
+						]);
+					}, _('Unable to probe the selected source.'));
+				});
+				actionNode = probeButton;
+			}
 
 			return [
 				sourceName,
 				src.type || '-',
 				src.family || '-',
 				src.hint || '-',
-				probeButton
+				actionNode
 			];
 		}, this)), _('No sources configured'));
 	},

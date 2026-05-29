@@ -8,23 +8,6 @@
 const QDDNS_STYLE_ID = 'qddns-rules-style';
 const QDDNS_STYLE = [
 	':root{',
-		'--qddns-space-1:0.25rem;',
-		'--qddns-space-2:0.5rem;',
-		'--qddns-space-3:0.75rem;',
-		'--qddns-space-4:1rem;',
-		'--qddns-radius-sm:0.5rem;',
-		'--qddns-radius-md:0.75rem;',
-		'--qddns-border:rgba(127,127,127,0.24);',
-		'--qddns-surface:rgba(127,127,127,0.08);',
-		'--qddns-surface-strong:rgba(127,127,127,0.14);',
-		'--qddns-positive:rgba(46,159,98,0.18);',
-		'--qddns-positive-text:rgb(35,115,72);',
-		'--qddns-negative:rgba(200,73,73,0.16);',
-		'--qddns-negative-text:rgb(146,47,47);',
-		'--qddns-warning:rgba(220,150,35,0.18);',
-		'--qddns-warning-text:rgb(145,97,14);',
-		'--qddns-neutral:rgba(127,127,127,0.12);',
-		'--qddns-neutral-text:inherit;',
 		'--qddns-rule-console-min:46rem;',
 		'--qddns-rule-toggle-width:6.5rem;',
 		'--qddns-rule-type-width:8rem;',
@@ -38,16 +21,14 @@ const QDDNS_STYLE = [
 	'.qddns-table-wrap .table{margin-bottom:0}',
 	'.qddns-rules-console-table .qddns-table{min-width:var(--qddns-rule-console-min);table-layout:fixed}',
 	'.qddns-rules-console-table .qddns-table th,.qddns-rules-console-table .qddns-table td{min-width:0;overflow-wrap:anywhere}',
+	'.qddns-rules-console-table .qddns-table th:first-child,.qddns-rules-console-table .qddns-table td:first-child{white-space:normal}',
 	'.qddns-rules-console-table .qddns-table th:last-child,.qddns-rules-console-table .qddns-table td:last-child{width:var(--qddns-rule-action-min);min-width:var(--qddns-rule-action-min)}',
-	'.qddns-rules-form.qddns-wide-form{width:100%;max-width:100%;overflow-x:visible}',
-	'.qddns-rules-form.qddns-wide-form .cbi-map{width:100%;min-width:0}',
-	'.qddns-rules-form.qddns-wide-form .cbi-section-table{width:100%;min-width:0;table-layout:fixed}',
-	'.qddns-rules-form.qddns-wide-form .cbi-section-table th,.qddns-rules-form.qddns-wide-form .cbi-section-table td{min-width:0;vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:break-word}',
+	'.qddns-rules-form.qddns-wide-form .cbi-section-table th,.qddns-rules-form.qddns-wide-form .cbi-section-table td{vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:break-word}',
 	'.qddns-rules-form.qddns-wide-form .cbi-section-table th{white-space:nowrap}',
 	'.qddns-rules-form.qddns-wide-form .cbi-section-table th:first-child,.qddns-rules-form.qddns-wide-form .cbi-section-table td:first-child{width:auto;white-space:normal;font-weight:600}',
 	'.qddns-rules-form.qddns-wide-form .cbi-section-table th:nth-child(2),.qddns-rules-form.qddns-wide-form .cbi-section-table td:nth-child(2){width:var(--qddns-rule-toggle-width);white-space:nowrap;text-align:center}',
 	'.qddns-rules-form.qddns-wide-form .cbi-section-table th:nth-child(3),.qddns-rules-form.qddns-wide-form .cbi-section-table td:nth-child(3){width:var(--qddns-rule-type-width);white-space:nowrap}',
-	'.qddns-rules-form.qddns-wide-form .cbi-section-table td:last-child{width:var(--qddns-rule-action-min);min-width:var(--qddns-rule-action-min);white-space:nowrap;text-align:right}',
+	'.qddns-rules-form.qddns-wide-form .cbi-section-table td:last-child{width:var(--qddns-rule-action-min);min-width:var(--qddns-rule-action-min);white-space:nowrap;text-align:left}',
 	'.qddns-rules-form.qddns-wide-form .cbi-section-table .cbi-button{margin:0 var(--qddns-space-1) var(--qddns-space-1) 0}',
 	'.qddns-rules-form.qddns-wide-form .cbi-section-table .cbi-input-text,.qddns-rules-form.qddns-wide-form .cbi-section-table .cbi-input-select{width:100%;min-width:0;max-width:100%}',
 	'.qddns-rules-form.qddns-wide-form .cbi-section-table input[type="checkbox"]{min-width:auto}',
@@ -71,17 +52,6 @@ const QDDNS_STYLE = [
 	'.qddns-rule-wizard-field .cbi-input-text,.qddns-rule-wizard-field .cbi-input-select{box-sizing:border-box;width:100%;min-width:0;max-width:100%}',
 	'.qddns-rule-wizard-source-panel{display:grid;justify-items:stretch;gap:var(--qddns-space-3);width:100%;min-width:0;text-align:left}',
 	'.qddns-rule-wizard-source-actions{align-items:center;justify-content:flex-start}',
-	'.qddns-rule-wizard-lease-results{display:grid;justify-items:stretch;gap:var(--qddns-space-2);width:100%;min-width:0;text-align:left}',
-	'.qddns-rule-wizard-lease-list{display:grid;justify-items:stretch;gap:var(--qddns-space-2);width:100%;min-width:0}',
-	'.qddns-rule-wizard-lease-card{appearance:none;box-sizing:border-box;display:grid;align-items:start;justify-items:stretch;justify-content:stretch;gap:var(--qddns-space-2);width:100%!important;min-width:0;margin:0;padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);color:inherit;font:inherit;line-height:1.35;text-align:left!important;text-transform:none;cursor:pointer}',
-	'.qddns-rule-wizard-lease-card:hover,.qddns-rule-wizard-lease-card:focus,.qddns-rule-wizard-lease-card.is-selected{border-color:currentColor;background:var(--qddns-surface-strong)}',
-	'.qddns-rule-wizard-lease-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:var(--qddns-space-2);width:100%;justify-self:stretch;min-width:0;text-align:left}',
-	'.qddns-rule-wizard-lease-title{justify-self:start;min-width:0;font-weight:600;text-align:left;overflow-wrap:anywhere}',
-	'.qddns-rule-wizard-lease-action{justify-self:end;max-width:100%;padding:0.1rem 0.4rem;border-radius:999px;background:var(--qddns-surface-strong);font-size:0.9em;line-height:1.35;opacity:0.85;text-align:center;white-space:nowrap}',
-	'.qddns-rule-wizard-lease-meta{display:grid;grid-template-columns:1fr;gap:var(--qddns-space-1);width:100%;justify-self:stretch;min-width:0;text-align:left}',
-	'.qddns-rule-wizard-lease-meta-item{display:grid;grid-template-columns:minmax(var(--qddns-rule-wizard-meta-label),max-content) minmax(0,1fr);gap:var(--qddns-space-1);width:100%;min-width:0;text-align:left;overflow-wrap:break-word;word-break:normal}',
-	'.qddns-rule-wizard-lease-meta-label{min-width:var(--qddns-rule-wizard-meta-label);opacity:0.72}',
-	'.qddns-rule-wizard-lease-meta-value{min-width:0;overflow-wrap:anywhere;word-break:normal;white-space:pre-wrap;text-align:left}',
 	'.qddns-rule-wizard-switch{display:flex;align-items:center;gap:var(--qddns-space-2);min-height:2.4rem}',
 	'.qddns-rule-wizard-summary{display:grid;gap:var(--qddns-space-2);padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface-strong)}',
 	'.qddns-rule-wizard-summary-row{display:grid;grid-template-columns:minmax(var(--qddns-rule-wizard-meta-label),max-content) minmax(0,1fr);gap:var(--qddns-space-2);min-width:0;text-align:left}',
@@ -298,10 +268,6 @@ return view.extend({
 		return true;
 	},
 
-	isProbeableSourceType: function(sourceType) {
-		return ['local_addr', 'interface', 'dhcpv6_duid', 'dhcpv6_mac'].indexOf(sourceType) > -1;
-	},
-
 	wizardSourceFamily: function(fields, sourceId) {
 		return String(fields.source?.getAttribute('data-probed-family') || this.sourceFamily(sourceId)).toLowerCase();
 	},
@@ -472,7 +438,7 @@ return view.extend({
 		const wizardDefaultFeedback = _('Choose the source IP first, then choose the DNS location.');
 		const feedback = E('div', { class: 'cbi-value-description qddns-rule-wizard-feedback' }, wizardDefaultFeedback);
 		const sourceLeaseButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' }, [_('Read current DUID')]);
-		const sourceLeaseResults = E('div', { class: 'qddns-rule-wizard-lease-results' });
+		const sourceLeaseResults = E('div', { class: 'qddns-lease-results' });
 		const saveSourceButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' }, [_('Probe source IP')]);
 		const saveButton = E('button', { type: 'button', class: 'btn cbi-button cbi-button-add' }, [_('Add DDNS rule')]);
 		const previousButton = E('button', { type: 'button', class: 'btn cbi-button' }, [_('Back')]);
@@ -568,6 +534,17 @@ return view.extend({
 			return fields.sourceMode.value || 'new';
 		}
 
+		function newSourceProbePrompt() {
+			return _('Probe source IP before continuing. The source will be saved with the rule.');
+		}
+
+		function sourceDetectedMessage(address) {
+			if (currentSourceMode() === 'saved')
+				return _('Source IP detected: %s. The saved source will be used for this rule.').format(address);
+
+			return _('Source IP detected: %s. The source will be saved with the rule.').format(address);
+		}
+
 		function isDhcpv6SourceType(sourceType) {
 			return sourceType === 'dhcpv6_duid' || sourceType === 'dhcpv6_mac';
 		}
@@ -581,6 +558,20 @@ return view.extend({
 			fields.source.setAttribute('data-wizard-source-label', label || '');
 			if (fields.source.value !== (sourceId || ''))
 				fields.source.value = sourceId || '';
+		}
+
+		function ensureSavedSourceSelected() {
+			if (viewRef.wizardValue(fields.source))
+				return;
+
+			for (let index = 0; index < fields.source.options.length; index++) {
+				const option = fields.source.options[index];
+
+				if (!option.disabled && String(option.value || '').trim()) {
+					fields.source.value = option.value;
+					return;
+				}
+			}
 		}
 
 		function resetSourceProbe(message, tone) {
@@ -605,7 +596,7 @@ return view.extend({
 			sourceCreate.family = '';
 			fields.source.setAttribute('data-source-create-dirty', '1');
 			setEffectiveSource('', viewRef.wizardValue(fields.sourceName) || _('Unnamed source'));
-			resetSourceProbe(message || _('Probe source IP before continuing. The source will be saved with the rule.'), 'warning');
+			resetSourceProbe(message || newSourceProbePrompt(), 'warning');
 		}
 
 		function resetLeaseResults() {
@@ -669,10 +660,10 @@ return view.extend({
 			viewRef.syncWizardRecordType(fields.recordType, sourceProbe.family);
 			if (sourceProbe.address) {
 				setWizardSourceIp(sourceProbe.address, 'neutral');
-				setWizardProbeFeedback(_('Source IP detected: %s. The source will be saved with the rule.').format(sourceProbe.address), 'ready');
+				setWizardProbeFeedback(sourceDetectedMessage(sourceProbe.address), 'ready');
 			} else {
 				setWizardSourceIp(_('N/A'), 'neutral');
-				setWizardProbeFeedback(_('Probe source IP before continuing. The source will be saved with the rule.'), 'warning');
+				setWizardProbeFeedback(newSourceProbePrompt(), 'warning');
 			}
 			if (stepIndex === 2)
 				updateWizardSummary();
@@ -694,6 +685,7 @@ return view.extend({
 			} else {
 				sourceCreate.version++;
 				fields.source.removeAttribute('data-source-create-dirty');
+				ensureSavedSourceSelected();
 				setEffectiveSource(viewRef.wizardValue(fields.source), viewRef.wizardSelectedText(fields.source, _('Unnamed source')));
 				updateWizardSourceProbe();
 			}
@@ -729,7 +721,7 @@ return view.extend({
 
 			if (!sourceId) {
 				setWizardSourceIp(_('N/A'), 'neutral');
-				setWizardProbeFeedback(currentSourceMode() === 'new' ? _('Probe source IP before continuing. The source will be saved with the rule.') : wizardDefaultFeedback, currentSourceMode() === 'new' ? 'warning' : 'idle');
+				setWizardProbeFeedback(currentSourceMode() === 'new' ? newSourceProbePrompt() : wizardDefaultFeedback, currentSourceMode() === 'new' ? 'warning' : 'idle');
 				updateButtons();
 				if (stepIndex === 2)
 					updateWizardSummary();
@@ -738,7 +730,7 @@ return view.extend({
 
 			const source = viewRef.findById(sources, sourceId);
 			viewRef.syncWizardRecordType(fields.recordType, source?.family);
-			if (!viewRef.isProbeableSourceType(source?.type)) {
+			if (!qddns.isProbeableSourceType(source?.type)) {
 				sourceProbe.family = viewRef.inferSourceFamily('', source?.family);
 				if (sourceProbe.family)
 					fields.source.setAttribute('data-probed-family', sourceProbe.family);
@@ -786,7 +778,7 @@ return view.extend({
 				fields.source.removeAttribute('data-source-create-dirty');
 				viewRef.syncWizardRecordType(fields.recordType, sourceProbe.family);
 				setWizardSourceIp(result.address, 'neutral');
-				setWizardProbeFeedback(_('Source IP detected: %s. The source will be saved with the rule.').format(result.address), 'ready');
+				setWizardProbeFeedback(sourceDetectedMessage(result.address), 'ready');
 				updateButtons();
 				if (stepIndex === 2)
 					updateWizardSummary();
@@ -808,13 +800,6 @@ return view.extend({
 				if (stepIndex === 2)
 					updateWizardSummary();
 			});
-		}
-
-		function renderLeaseMeta(label, value) {
-			return E('span', { class: 'qddns-rule-wizard-lease-meta-item' }, [
-				E('span', { class: 'qddns-rule-wizard-lease-meta-label' }, label + ': '),
-				E('span', { class: 'qddns-rule-wizard-lease-meta-value' }, value || '-')
-			]);
 		}
 
 		function interfaceValues(value) {
@@ -871,40 +856,24 @@ return view.extend({
 			const ipv4 = qddns.normalizeList(lease?.ipv4);
 			const isDuidSource = fields.sourceType.value === 'dhcpv6_duid';
 			const identityMeta = isDuidSource ? [
-				renderLeaseMeta(_('DUID'), lease?.duid || '-'),
-				renderLeaseMeta(_('IAID'), lease?.iaid || '-')
+				qddns.renderLeaseMeta(_('DUID'), lease?.duid || '-'),
+				qddns.renderLeaseMeta(_('IAID'), lease?.iaid || '-')
 			] : [
-				renderLeaseMeta(_('MAC'), lease?.mac || '-'),
-				renderLeaseMeta(_('LAN IP'), ipv4.length ? ipv4.join(', ') : '-')
+				qddns.renderLeaseMeta(_('MAC'), lease?.mac || '-'),
+				qddns.renderLeaseMeta(_('LAN IP'), ipv4.length ? ipv4.join(', ') : '-')
 			];
-			const card = E('button', {
-				type: 'button',
-				class: 'qddns-rule-wizard-lease-card',
-				'aria-pressed': 'false',
-				title: _('Fill from this lease')
-			}, [
-				E('span', { class: 'qddns-rule-wizard-lease-head' }, [
-					E('span', { class: 'qddns-rule-wizard-lease-title' }, lease?.hostname || _('Unnamed host')),
-					E('span', { class: 'qddns-rule-wizard-lease-action' }, _('Fill from this lease'))
+
+			return qddns.renderLeaseCard({
+				title: lease?.hostname || _('Unnamed host'),
+				actionLabel: _('Fill from this lease'),
+				meta: identityMeta.concat([
+					qddns.renderLeaseMeta(_('Prefix'), prefixes.length ? prefixes.join('\n') : '-'),
+					qddns.renderLeaseMeta(_('Host interface'), lease?.host_interface || '-')
 				]),
-				E('span', { class: 'qddns-rule-wizard-lease-meta' }, identityMeta.concat([
-					renderLeaseMeta(_('Prefix'), prefixes.length ? prefixes.join('\n') : '-'),
-					renderLeaseMeta(_('Host interface'), lease?.host_interface || '-')
-				]))
-			]);
-
-			card.addEventListener('click', function() {
-				const selected = card.parentNode?.querySelector('.qddns-rule-wizard-lease-card.is-selected');
-				if (selected) {
-					selected.classList.remove('is-selected');
-					selected.setAttribute('aria-pressed', 'false');
+				onSelect: function() {
+					fillWizardLease(lease, feedbackNode);
 				}
-				card.classList.add('is-selected');
-				card.setAttribute('aria-pressed', 'true');
-				fillWizardLease(lease, feedbackNode);
 			});
-
-			return card;
 		}
 
 		function renderLeaseResults(leases) {
@@ -921,11 +890,11 @@ return view.extend({
 			const feedbackNode = E('div', { class: 'cbi-value-description' }, list.length ? (isDuidSource ? _('Choose a current DUID to fill DUID, IAID, and hostname hint. Keep the WAN interface selected separately.') : _('Choose a current MAC to fill MAC, LAN IP identity, and hostname hint. Keep the WAN interface selected separately.')) : emptyMessage);
 
 			if (!list.length)
-				return E('div', { class: 'qddns-rule-wizard-lease-results' }, [feedbackNode]);
+				return E('div', { class: 'qddns-lease-results' }, [feedbackNode]);
 
-			return E('div', { class: 'qddns-rule-wizard-lease-results' }, [
+			return E('div', { class: 'qddns-lease-results' }, [
 				feedbackNode,
-				E('div', { class: 'qddns-rule-wizard-lease-list' }, list.map(function(lease) {
+				E('div', { class: 'qddns-lease-list' }, list.map(function(lease) {
 					return renderLeaseCard(lease, feedbackNode);
 				}))
 			]);
@@ -1136,7 +1105,7 @@ return view.extend({
 					setEffectiveSource(sectionId, sourceData.name || _('Unnamed source'));
 					viewRef.syncWizardRecordType(fields.recordType, sourceProbe.family);
 					setWizardSourceIp(result.address, 'neutral');
-					setWizardProbeFeedback(_('Source IP detected: %s. The source will be saved with the rule.').format(result.address), 'ready');
+					setWizardProbeFeedback(sourceDetectedMessage(result.address), 'ready');
 					updateButtons();
 					if (stepIndex === 2)
 						updateWizardSummary();
@@ -1314,12 +1283,12 @@ return view.extend({
 
 	showActionResult: function(title, rule, result) {
 		qddns.showInfoModal(title, [
-			E('div', { class: 'qddns-modal-meta' }, [
-				E('p', {}, '%s: %s'.format(_('Rule'), this.getRuleLabel(rule))),
-				E('p', {}, '%s: %s'.format(_('Status'), result.status || _('Unknown'))),
-				E('p', {}, '%s: %s'.format(_('Current IP'), result.current_ip || _('N/A'))),
-				E('p', {}, '%s: %s'.format(_('Remote IP'), result.remote_ip || _('N/A'))),
-				E('p', {}, '%s: %s'.format(_('Changed'), result.changed ? _('Yes') : _('No'))),
+				E('div', { class: 'qddns-modal-meta' }, [
+					E('p', {}, '%s: %s'.format(_('Rule'), this.getRuleLabel(rule))),
+					E('p', {}, '%s: %s'.format(_('Status'), qddns.statusLabel(result.status) || _('Unknown'))),
+					E('p', {}, '%s: %s'.format(_('Current IP'), result.current_ip || _('N/A'))),
+					E('p', {}, '%s: %s'.format(_('Remote IP'), result.remote_ip || _('N/A'))),
+					E('p', {}, '%s: %s'.format(_('Changed'), result.changed ? _('Yes') : _('No'))),
 				E('p', {}, '%s: %s'.format(_('Detail'), result.detail || _('N/A')))
 			])
 		]);
@@ -1333,6 +1302,7 @@ return view.extend({
 		], rules.map(L.bind(function(rule) {
 			const state = ruleStates[rule.id] || {};
 			const runtime = state.status || (rule.enabled ? _('Enabled') : _('Disabled'));
+			const runtimeTone = state.status || (rule.enabled ? 'enabled' : 'disabled');
 
 			return [
 				this.getRuleLabel(rule),
@@ -1340,7 +1310,7 @@ return view.extend({
 				'%s.%s'.format(rule.record_name || '-', rule.zone || '-'),
 				this.getSourceLabel(rule.source),
 				this.getProviderLabel(rule.provider),
-				qddns.renderStatusBadge(runtime, _('Unknown')),
+				qddns.renderStatusBadge(runtime, _('Unknown'), runtimeTone),
 				this.renderRuleActions(rule)
 			];
 		}, this)), _('No rules configured'));
@@ -1379,14 +1349,14 @@ return view.extend({
 				return qddns.getRuleStatus(rule.id);
 			}, function(result) {
 				qddns.showInfoModal(_('Rule Status'), [
-					E('h4', {}, ruleLabel),
-					E('div', { class: 'qddns-modal-meta' }, [
-						E('p', {}, '%s: %s'.format(_('Daemon'), result.running ? _('Running') : _('Stopped'))),
-						E('p', {}, '%s: %s'.format(_('Status'), result.status || _('Unknown'))),
-						E('p', {}, '%s: %s'.format(_('Current IP'), result.current_ip || _('N/A'))),
-						E('p', {}, '%s: %s'.format(_('Remote IP'), result.remote_ip || _('N/A'))),
-						E('p', {}, '%s: %s'.format(_('Last Result'), result.last_result || _('N/A'))),
-						E('p', {}, '%s: %s'.format(_('Last Error'), result.last_error || _('N/A'))),
+						E('h4', {}, ruleLabel),
+						E('div', { class: 'qddns-modal-meta' }, [
+							E('p', {}, '%s: %s'.format(_('Daemon'), result.running ? _('Running') : _('Stopped'))),
+							E('p', {}, '%s: %s'.format(_('Status'), qddns.statusLabel(result.status) || _('Unknown'))),
+							E('p', {}, '%s: %s'.format(_('Current IP'), result.current_ip || _('N/A'))),
+							E('p', {}, '%s: %s'.format(_('Remote IP'), result.remote_ip || _('N/A'))),
+							E('p', {}, '%s: %s'.format(_('Last Result'), qddns.resultLabel(result.last_result) || _('N/A'))),
+							E('p', {}, '%s: %s'.format(_('Last Error'), result.last_error || _('N/A'))),
 						E('p', {}, '%s: %s'.format(_('Last Check'), result.last_check ? qddns.formatEpoch(result.last_check) : _('N/A'))),
 						E('p', {}, '%s: %s'.format(_('Next Run'), result.next_run ? qddns.formatEpoch(result.next_run) : _('N/A')))
 					])

@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use qddns::config::{
     AddressFamily, Config, ProviderConfig, ProviderKind, RuleConfig, SourceConfig, SourceKind,
@@ -10,13 +10,32 @@ use qddns::runner::{run_rule, should_force_update, SourceAdapter};
 use qddns::source::SourceResolution;
 use qddns::state::{RuleResult, RuleState};
 
-struct StaticSource;
+struct StaticSource {
+    address: IpAddr,
+    family: &'static str,
+}
+
+impl StaticSource {
+    fn ipv4() -> Self {
+        Self {
+            address: IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)),
+            family: "ipv4",
+        }
+    }
+
+    fn ipv6() -> Self {
+        Self {
+            address: IpAddr::V6(Ipv6Addr::new(0x240e, 0x3b2, 0x4e8e, 0xcf30, 0, 0, 0, 1)),
+            family: "ipv6",
+        }
+    }
+}
 
 impl SourceAdapter for StaticSource {
     fn resolve(&self, _source: &SourceConfig) -> Result<SourceResolution> {
         Ok(SourceResolution {
-            address: IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)),
-            family: "ipv4".into(),
+            address: self.address,
+            family: self.family.into(),
             detail: "fixture".into(),
         })
     }
@@ -25,11 +44,13 @@ impl SourceAdapter for StaticSource {
 #[derive(Default)]
 struct MemoryProvider {
     remote: Option<String>,
+    fetches: std::sync::Mutex<usize>,
     updates: std::sync::Mutex<Vec<String>>,
 }
 
 impl ProviderAdapter for MemoryProvider {
     fn fetch_record(&self, _provider: &ProviderConfig, _rule: &RuleConfig) -> Result<RemoteRecord> {
+        *self.fetches.lock().unwrap() += 1;
         Ok(RemoteRecord {
             address: self.remote.clone(),
             record_id: Some("record-1".into()),
@@ -97,6 +118,26 @@ fn fixture_config() -> Config {
     }
 }
 
+fn auto_family_source_config() -> SourceConfig {
+    SourceConfig {
+        name: "auto".into(),
+        kind: SourceKind::Interface {
+            family: None,
+            interface: Some("wan".into()),
+        },
+    }
+}
+
+fn fixture_config_with_auto_source(record_type: &str) -> Config {
+    let mut config = fixture_config();
+    config
+        .sources
+        .insert("auto".into(), auto_family_source_config());
+    config.rules.get_mut("home").unwrap().source = "auto".into();
+    config.rules.get_mut("home").unwrap().record_type = record_type.into();
+    config
+}
+
 #[test]
 fn initial_run_skips_update_when_remote_matches() {
     let config = fixture_config();
@@ -105,8 +146,8 @@ fn initial_run_skips_update_when_remote_matches() {
         ..Default::default()
     };
 
-    let (report, state) =
-        run_rule(&config, "home", &StaticSource, &provider, None, 200).expect("run succeeds");
+    let (report, state) = run_rule(&config, "home", &StaticSource::ipv4(), &provider, None, 200)
+        .expect("run succeeds");
 
     assert!(!report.changed);
     assert_eq!(state.last_result, Some(RuleResult::Unchanged));
@@ -132,8 +173,15 @@ fn run_rule_skips_update_when_remote_matches_and_force_interval_not_reached() {
         retry_attempts: 0,
     };
 
-    let (report, state) = run_rule(&config, "home", &StaticSource, &provider, Some(&prior), 200)
-        .expect("run succeeds");
+    let (report, state) = run_rule(
+        &config,
+        "home",
+        &StaticSource::ipv4(),
+        &provider,
+        Some(&prior),
+        200,
+    )
+    .expect("run succeeds");
     assert_eq!(report.status, "success");
     assert!(!report.changed);
     assert_eq!(state.last_result, Some(RuleResult::Unchanged));
@@ -148,12 +196,46 @@ fn run_rule_updates_when_remote_differs() {
         ..Default::default()
     };
 
-    let (report, state) =
-        run_rule(&config, "home", &StaticSource, &provider, None, 400).expect("run succeeds");
+    let (report, state) = run_rule(&config, "home", &StaticSource::ipv4(), &provider, None, 400)
+        .expect("run succeeds");
     assert_eq!(report.status, "success");
     assert!(report.changed);
     assert_eq!(state.remote_ip.as_deref(), Some("1.2.3.4"));
     assert_eq!(provider.updates.lock().unwrap().as_slice(), ["1.2.3.4"]);
+}
+
+#[test]
+fn run_rule_rejects_resolved_ipv6_for_a_record_before_provider_calls() {
+    let config = fixture_config_with_auto_source("A");
+    let provider = MemoryProvider::default();
+
+    let err = run_rule(&config, "home", &StaticSource::ipv6(), &provider, None, 400)
+        .expect_err("A record must reject resolved IPv6 source IP");
+
+    assert!(
+        err.to_string()
+            .contains("cannot update A record with IPv6 source IP"),
+        "{err}"
+    );
+    assert_eq!(*provider.fetches.lock().unwrap(), 0);
+    assert!(provider.updates.lock().unwrap().is_empty());
+}
+
+#[test]
+fn run_rule_rejects_resolved_ipv4_for_aaaa_record_before_provider_calls() {
+    let config = fixture_config_with_auto_source("AAAA");
+    let provider = MemoryProvider::default();
+
+    let err = run_rule(&config, "home", &StaticSource::ipv4(), &provider, None, 400)
+        .expect_err("AAAA record must reject resolved IPv4 source IP");
+
+    assert!(
+        err.to_string()
+            .contains("cannot update AAAA record with IPv4 source IP"),
+        "{err}"
+    );
+    assert_eq!(*provider.fetches.lock().unwrap(), 0);
+    assert!(provider.updates.lock().unwrap().is_empty());
 }
 
 #[test]

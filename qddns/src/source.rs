@@ -995,7 +995,7 @@ mod tests {
 
     #[test]
     fn source_command_output_times_out_slow_commands() {
-        let mut command = Command::new("sh");
+        let mut command = Command::new("/bin/sh");
         command.args(["-c", "sleep 2"]);
 
         let err = command_output_with_timeout(

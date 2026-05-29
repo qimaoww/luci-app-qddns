@@ -371,6 +371,21 @@ pub fn runtime_rule_status_json(
     runtime: &RuntimeState,
     id: &str,
 ) -> Result<Value> {
+    let rule_config = config
+        .rules
+        .get(id)
+        .ok_or_else(|| Error::new(format!("missing rule '{id}'")))?;
+
+    if !rule_config.enabled {
+        let mut status =
+            rule_status_with_runtime_json(id, runtime.daemon_running, &default_rule_state());
+        if let Value::Object(fields) = &mut status {
+            fields.insert("enabled".into(), json!(false));
+            fields.insert("status".into(), json!("disabled"));
+        }
+        return Ok(status);
+    }
+
     let rule = runtime_rule_state(config, runtime, id)?;
     Ok(rule_status_with_runtime_json(
         id,
@@ -392,7 +407,7 @@ pub fn runtime_status_json(config: &Config, runtime: &RuntimeState) -> Value {
     let mut recent_items = runtime
         .rules
         .iter()
-        .filter(|(name, _)| config.rules.contains_key(*name))
+        .filter(|(name, _)| config.rules.get(*name).is_some_and(|rule| rule.enabled))
         .collect::<Vec<_>>();
     recent_items.sort_by(|(left_name, left_state), (right_name, right_state)| {
         match (rule_recent_time(left_state), rule_recent_time(right_state)) {
@@ -413,7 +428,7 @@ pub fn runtime_status_json(config: &Config, runtime: &RuntimeState) -> Value {
         runtime
             .rules
             .iter()
-            .filter(|(name, _)| config.rules.contains_key(*name))
+            .filter(|(name, _)| config.rules.get(*name).is_some_and(|rule| rule.enabled))
             .map(|(name, state)| (name.clone(), rule_state_json(state)))
             .collect::<Map<_, _>>(),
     );

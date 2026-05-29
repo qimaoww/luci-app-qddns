@@ -1,3 +1,5 @@
+use std::net::IpAddr;
+
 use crate::config::{AddressFamily, Config, ProviderConfig, RecordType, RuleConfig, SourceConfig};
 use crate::error::{Error, Result};
 use crate::provider::{ProviderAdapter, SyncOutcome};
@@ -31,6 +33,23 @@ pub fn validate_rule_family(rule: &RuleConfig, source: &SourceConfig) -> Result<
     }
 }
 
+pub fn validate_rule_resolved_address(
+    rule: &RuleConfig,
+    resolved: &SourceResolution,
+) -> Result<()> {
+    match (rule.record_type, resolved.address) {
+        (RecordType::A, IpAddr::V6(address)) => Err(Error::new(format!(
+            "rule '{}' cannot update A record with IPv6 source IP '{}'",
+            rule.name, address
+        ))),
+        (RecordType::Aaaa, IpAddr::V4(address)) => Err(Error::new(format!(
+            "rule '{}' cannot update AAAA record with IPv4 source IP '{}'",
+            rule.name, address
+        ))),
+        _ => Ok(()),
+    }
+}
+
 pub fn run_rule(
     config: &Config,
     rule_id: &str,
@@ -43,6 +62,7 @@ pub fn run_rule(
     validate_rule_family(rule, source)?;
 
     let resolved = source_adapter.resolve(source)?;
+    validate_rule_resolved_address(rule, &resolved)?;
     let current_ip = resolved.address.to_string();
     let remote = provider_adapter.fetch_record(provider, rule)?;
     let force = prior_state

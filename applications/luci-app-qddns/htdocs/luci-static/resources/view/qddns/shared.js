@@ -21,8 +21,8 @@ const QDDNS_COMMON_STYLE = [
 		'--qddns-space-3:0.75rem;',
 		'--qddns-space-4:1rem;',
 		'--qddns-space-5:1.5rem;',
-		'--qddns-radius-sm:0.5rem;',
-		'--qddns-radius-md:0.75rem;',
+		'--qddns-radius-sm:0.375rem;',
+		'--qddns-radius-md:0.5rem;',
 		'--qddns-border:rgba(127,127,127,0.24);',
 		'--qddns-surface:rgba(127,127,127,0.08);',
 		'--qddns-surface-strong:rgba(127,127,127,0.14);',
@@ -38,6 +38,7 @@ const QDDNS_COMMON_STYLE = [
 		'--qddns-form-table-min:72rem;',
 		'--qddns-cell-min:8rem;',
 		'--qddns-cell-wide:14rem;',
+		'--qddns-lease-meta-label:5.5rem;',
 	'}',
 	'.qddns-panel{margin-bottom:var(--qddns-space-4);padding:var(--qddns-space-4);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-md);background:var(--qddns-surface)}',
 	'.qddns-dashboard-note,.qddns-page-note{margin-bottom:var(--qddns-space-4)}',
@@ -64,11 +65,22 @@ const QDDNS_COMMON_STYLE = [
 	'.qddns-wide-form .cbi-section-table th,.qddns-wide-form .cbi-section-table td{min-width:var(--qddns-cell-min);vertical-align:top;white-space:normal;word-break:normal;overflow-wrap:break-word}',
 	'.qddns-wide-form .cbi-section-table th{white-space:nowrap}',
 	'.qddns-wide-form .cbi-section-table td:first-child,.qddns-wide-form .cbi-section-table td:last-child{white-space:nowrap}',
-	'.qddns-wide-form .cbi-section-table .cbi-input-text,.qddns-wide-form .cbi-section-table .cbi-input-password,.qddns-wide-form .cbi-section-table .cbi-input-select{min-width:var(--qddns-cell-min);max-width:var(--qddns-cell-wide)}',
-	'.qddns-wide-form .cbi-section-table input[type="checkbox"]{min-width:auto}',
-	'@media (max-width: 768px){',
-		':root{--qddns-table-min:48rem;--qddns-form-table-min:64rem}',
-		'.qddns-panel{padding:var(--qddns-space-3)}',
+		'.qddns-wide-form .cbi-section-table .cbi-input-text,.qddns-wide-form .cbi-section-table .cbi-input-password,.qddns-wide-form .cbi-section-table .cbi-input-select{min-width:var(--qddns-cell-min);max-width:var(--qddns-cell-wide)}',
+		'.qddns-wide-form .cbi-section-table input[type="checkbox"]{min-width:auto}',
+		'.qddns-lease-results{display:grid;justify-items:stretch;gap:var(--qddns-space-2);width:100%;max-width:100%;min-width:0;text-align:left}',
+		'.qddns-lease-list{display:grid;justify-items:stretch;gap:var(--qddns-space-2);width:100%;max-width:100%;min-width:0}',
+		'.qddns-lease-card{appearance:none;box-sizing:border-box;display:grid;align-items:start;justify-items:stretch;justify-content:stretch;gap:var(--qddns-space-2);width:100%!important;min-width:0;margin:0;padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);color:inherit;font:inherit;line-height:1.35;text-align:left!important;text-transform:none;cursor:pointer}',
+		'.qddns-lease-card:hover,.qddns-lease-card:focus,.qddns-lease-card.is-selected{border-color:currentColor;background:var(--qddns-surface-strong)}',
+		'.qddns-lease-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:var(--qddns-space-2);width:100%;justify-self:stretch;min-width:0;text-align:left}',
+		'.qddns-lease-title{justify-self:start;min-width:0;font-weight:600;text-align:left;overflow-wrap:anywhere}',
+		'.qddns-lease-action{justify-self:end;max-width:100%;padding:0.1rem 0.4rem;border-radius:999px;background:var(--qddns-surface-strong);font-size:0.9em;line-height:1.35;opacity:0.85;text-align:center;white-space:nowrap}',
+		'.qddns-lease-meta{display:grid;grid-template-columns:1fr;gap:var(--qddns-space-1);width:100%;justify-self:stretch;min-width:0;text-align:left}',
+		'.qddns-lease-meta-item{display:grid;grid-template-columns:minmax(var(--qddns-lease-meta-label),max-content) minmax(0,1fr);gap:var(--qddns-space-1);width:100%;justify-self:stretch;min-width:0;text-align:left;overflow-wrap:break-word;word-break:normal}',
+		'.qddns-lease-meta-label{min-width:var(--qddns-lease-meta-label);opacity:0.72}',
+		'.qddns-lease-meta-value{min-width:0;overflow-wrap:anywhere;word-break:normal;white-space:pre-wrap;text-align:left}',
+		'@media (max-width: 768px){',
+			':root{--qddns-table-min:48rem;--qddns-form-table-min:64rem}',
+			'.qddns-panel{padding:var(--qddns-space-3)}',
 	'}'
 ].join('');
 
@@ -90,6 +102,49 @@ function interfaceRank(name) {
 
 function isElement(node, tagName) {
 	return node && node.nodeType === 1 && node.tagName && node.tagName.toLowerCase() === tagName;
+}
+
+function statusLabel(status) {
+	const value = String(status || '').toLowerCase();
+
+	switch (value) {
+	case 'running':
+		return _('Running');
+	case 'stopped':
+		return _('Stopped');
+	case 'enabled':
+		return _('Enabled');
+	case 'disabled':
+		return _('Disabled');
+	case 'unknown':
+		return _('Unknown');
+	case 'ok':
+		return _('OK');
+	case 'success':
+		return _('Success');
+	case 'synced':
+		return _('Synced');
+	case 'updated':
+		return _('Updated');
+	case 'unchanged':
+		return _('Unchanged');
+	case 'error':
+		return _('Error');
+	case 'failed':
+		return _('Failed');
+	case 'invalid':
+		return _('Invalid');
+	case 'pending':
+		return _('Pending');
+	case 'testing':
+		return _('Testing');
+	case 'queued':
+		return _('Queued');
+	case 'warning':
+		return _('Warning');
+	default:
+		return status || '';
+	}
 }
 
 return baseclass.extend({
@@ -198,8 +253,55 @@ return baseclass.extend({
 	},
 
 	renderStatusBadge: function(status, fallback, toneStatus) {
-		const label = status || fallback || '-';
+		const label = statusLabel(status || fallback) || '-';
 		return this.renderBadge(label, this.statusTone(toneStatus || status || fallback));
+	},
+
+	statusLabel: statusLabel,
+
+	resultLabel: function(result) {
+		return result ? statusLabel(result) : '';
+	},
+
+	renderLeaseMeta: function(label, value) {
+		return E('span', { class: 'qddns-lease-meta-item' }, [
+			E('span', { class: 'qddns-lease-meta-label' }, label + ': '),
+			E('span', { class: 'qddns-lease-meta-value' }, value || '-')
+		]);
+	},
+
+	renderLeaseCard: function(options) {
+		options = options || {};
+
+		const card = E('button', {
+			type: 'button',
+			class: 'qddns-lease-card',
+			'aria-pressed': 'false',
+			title: options.actionLabel || _('Fill from this lease')
+		}, [
+			E('span', { class: 'qddns-lease-head' }, [
+				E('span', { class: 'qddns-lease-title' }, options.title || _('Unnamed host')),
+				E('span', { class: 'qddns-lease-action' }, options.actionLabel || _('Fill from this lease'))
+			]),
+			E('span', { class: 'qddns-lease-meta' }, normalizeList(options.meta))
+		]);
+
+		if (typeof options.onSelect == 'function') {
+			card.addEventListener('click', function() {
+				const selected = card.parentNode?.querySelector('.qddns-lease-card.is-selected');
+
+				if (selected) {
+					selected.classList.remove('is-selected');
+					selected.setAttribute('aria-pressed', 'false');
+				}
+
+				card.classList.add('is-selected');
+				card.setAttribute('aria-pressed', 'true');
+				options.onSelect(card);
+			});
+		}
+
+		return card;
 	},
 
 	extractResultMessage: function(result, fallback) {
@@ -211,6 +313,10 @@ return baseclass.extend({
 
 	isFailedResult: function(result) {
 		return !result || result.ok === false;
+	},
+
+	isProbeableSourceType: function(sourceType) {
+		return ['local_addr', 'interface', 'dhcpv6_duid', 'dhcpv6_mac'].indexOf(sourceType) > -1;
 	},
 
 	withBusyButton: function(button, handler) {

@@ -28,6 +28,9 @@ check_package_metadata() {
 	grep -nF 'PKG_VERSION:=0.2.0' "$ROOT_DIR/net/qddns/Makefile"
 	grep -nF '+ip-full' "$ROOT_DIR/net/qddns/Makefile"
 	grep -nF 'PKG_VERSION:=0.2.0' "$ROOT_DIR/applications/luci-app-qddns/Makefile"
+	grep -nF 'Build/Prepare/luci-app-qddns' "$ROOT_DIR/applications/luci-app-qddns/Makefile"
+	grep -nF 'chmod 0755' "$ROOT_DIR/applications/luci-app-qddns/Makefile"
+	grep -nF 'chmod 0644' "$ROOT_DIR/applications/luci-app-qddns/Makefile"
 	grep -nF 'dhcpv6_mac' "$ROOT_DIR/README.md"
 	grep -nF '对 IPv6 地址去重' "$ROOT_DIR/README.md"
 	grep -nF 'DHCPv6-PD 路由来源前缀' "$ROOT_DIR/README.md"
@@ -58,7 +61,7 @@ check_po_format() {
 }
 
 check_po_core_msgids() {
-	for msgid in 'Overview' 'Rules' 'Settings' 'Logs' 'Run once' 'Probe' 'Close' 'Runtime Summary' 'Source Probe' 'Version'; do
+	for msgid in 'Overview' 'Rules' 'Settings' 'Logs' 'Run once' 'Probe' 'Close' 'Runtime Summary' 'Source Probe' 'Version' 'Success' 'Updated' 'Unchanged' 'Error' 'Failed' 'Invalid' 'Pending' 'Testing' 'Queued' 'Warning' 'OK' 'Synced'; do
 		grep -nF "msgid \"$msgid\"" "$PO_FILE"
 	done
 }
@@ -92,6 +95,40 @@ required = {
         '主机接口',
     'WAN/upstream interface':
         'WAN/上游接口',
+    'Overview Console':
+        '概览控制台',
+    'Rule Console':
+        '规则控制台',
+    'Copy template values into a new provider without exposing credentials in the main table.':
+        '将模板值复制到新的提供商中，不在主表格暴露凭据。',
+    'Source IP detected: %s. The saved source will be used for this rule.':
+        '已探测到来源 IP：%s。将使用该已保存来源创建规则。',
+    'Start a short wizard that creates a complete rule with safe defaults. Use the advanced table below for later edits.':
+        '启动一个简短向导，用安全默认值创建完整规则。下方高级规则表格用于后续编辑。',
+    'Success':
+        '成功',
+    'Updated':
+        '已更新',
+    'Unchanged':
+        '未变化',
+    'Error':
+        '错误',
+    'Failed':
+        '失败',
+    'Invalid':
+        '无效',
+    'Pending':
+        '等待中',
+    'Testing':
+        '测试中',
+    'Queued':
+        '排队中',
+    'Warning':
+        '警告',
+    'OK':
+        '正常',
+    'Synced':
+        '已同步',
 }
 
 for msgid, expected in required.items():
@@ -142,9 +179,11 @@ check_no_internal_page_nav() {
 check_rules_table_compactness() {
 	grep -nF "E('div', { class: 'qddns-wide-form qddns-rules-form' }, [formEl])" "$VIEW_DIR/rules.js"
 	grep -nF "overflow-wrap:anywhere" "$VIEW_DIR/rules.js"
-	grep -nF ".qddns-rules-form.qddns-wide-form{width:100%;max-width:100%;overflow-x:visible}" "$VIEW_DIR/rules.js"
-	grep -nF ".qddns-rules-form.qddns-wide-form .cbi-map{width:100%;min-width:0}" "$VIEW_DIR/rules.js"
-	grep -nF ".qddns-rules-form.qddns-wide-form .cbi-section-table{width:100%;min-width:0;table-layout:fixed}" "$VIEW_DIR/rules.js"
+	grep -nF ".qddns-wide-form{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}" "$VIEW_DIR/shared.js"
+	grep -nF ".qddns-wide-form .cbi-section-table{min-width:var(--qddns-form-table-min);table-layout:auto}" "$VIEW_DIR/shared.js"
+	! grep -nF ".qddns-rules-form.qddns-wide-form{width:100%;max-width:100%;overflow-x:visible}" "$VIEW_DIR/rules.js"
+	! grep -nF ".qddns-rules-form.qddns-wide-form .cbi-map{width:100%;min-width:0}" "$VIEW_DIR/rules.js"
+	! grep -nF ".qddns-rules-form.qddns-wide-form .cbi-section-table{width:100%;min-width:0;table-layout:fixed}" "$VIEW_DIR/rules.js"
 	grep -nF -- "--qddns-rule-toggle-width:6.5rem" "$VIEW_DIR/rules.js"
 	grep -nF -- "--qddns-rule-type-width:8rem" "$VIEW_DIR/rules.js"
 	grep -nF -- "--qddns-rule-action-min:10rem" "$VIEW_DIR/rules.js"
@@ -176,6 +215,27 @@ check_rules_boundary() {
 	! grep -nE "form\.(NamedSection, 'main'|GridSection, 'source'|GridSection, 'provider')" "$VIEW_DIR/rules.js"
 }
 
+check_rules_status_badge_tones() {
+	grep -nF "const runtimeTone = state.status || (rule.enabled ? 'enabled' : 'disabled');" "$VIEW_DIR/rules.js"
+	grep -nF "qddns.renderStatusBadge(runtime, _('Unknown'), runtimeTone)" "$VIEW_DIR/rules.js"
+}
+
+check_status_display_labels() {
+	grep -nF "function statusLabel(status)" "$VIEW_DIR/shared.js"
+	grep -nF "const label = statusLabel(status || fallback) || '-';" "$VIEW_DIR/shared.js"
+	grep -nF "statusLabel: statusLabel" "$VIEW_DIR/shared.js"
+	grep -nF "resultLabel: function(result)" "$VIEW_DIR/shared.js"
+	grep -nF "qddns.resultLabel(item.last_result) || item.last_error || '-'" "$VIEW_DIR/overview.js"
+	grep -nF "qddns.statusLabel(result.status) || _('Unknown')" "$VIEW_DIR/rules.js"
+	grep -nF "qddns.resultLabel(result.last_result) || _('N/A')" "$VIEW_DIR/rules.js"
+	grep -nF "case 'success':" "$VIEW_DIR/shared.js"
+	grep -nF "return _('Success');" "$VIEW_DIR/shared.js"
+	grep -nF "case 'updated':" "$VIEW_DIR/shared.js"
+	grep -nF "return _('Updated');" "$VIEW_DIR/shared.js"
+	grep -nF "case 'unchanged':" "$VIEW_DIR/shared.js"
+	grep -nF "return _('Unchanged');" "$VIEW_DIR/shared.js"
+}
+
 check_rule_wizard() {
 	grep -nF "renderRuleWizard" "$VIEW_DIR/rules.js"
 	grep -nF "createRuleFromWizard" "$VIEW_DIR/rules.js"
@@ -200,6 +260,7 @@ check_rule_wizard() {
 	grep -nF "_('Probe source IP')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Probing source IP...')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Source IP detected: %s. The source will be saved with the rule.')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Source IP detected: %s. The saved source will be used for this rule.')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Unable to read source IP. Choose another source or fix the source configuration.')" "$VIEW_DIR/rules.js"
 	grep -nF "_('This source type cannot be previewed in LuCI. Confirm the record type manually; the backend will validate it when the rule runs.')" "$VIEW_DIR/rules.js"
 	grep -nF "renderWizardSourceIp" "$VIEW_DIR/rules.js"
@@ -278,7 +339,13 @@ if 'viewRef.syncWizardRecordType(fields.recordType, sourceProbe.family)' not in 
     raise SystemExit('rule wizard must sync record type from probed source IP family')
 if "setWizardProbeFeedback(_('Probing source IP...'), 'loading')" not in modal:
     raise SystemExit('rule wizard must put source IP probe loading into the guide feedback')
-if "setWizardProbeFeedback(_('Source IP detected: %s. The source will be saved with the rule.').format(result.address), 'ready')" not in modal:
+if "function sourceDetectedMessage(address)" not in modal:
+    raise SystemExit('rule wizard must centralize source IP detected guide feedback')
+if "function ensureSavedSourceSelected()" not in modal or "ensureSavedSourceSelected();" not in modal:
+    raise SystemExit('rule wizard must select and probe the first saved source when switching to saved source mode')
+if "The saved source will be used for this rule." not in modal:
+    raise SystemExit('rule wizard must not claim saved sources will be saved with the rule')
+if "setWizardProbeFeedback(sourceDetectedMessage(result.address), 'ready')" not in modal:
     raise SystemExit('rule wizard must put detected source IP into the guide feedback')
 if "setWizardProbeFeedback(message, 'error')" not in modal:
     raise SystemExit('rule wizard must put source IP probe failures into the guide feedback')
@@ -321,13 +388,18 @@ for css in [
     ".qddns-rule-wizard-field label{font-weight:600;line-height:1.35;text-align:left}",
     ".qddns-rule-wizard-source-panel{display:grid;justify-items:stretch;gap:var(--qddns-space-3);width:100%;min-width:0;text-align:left}",
     ".qddns-rule-wizard-source-actions{align-items:center;justify-content:flex-start}",
-    ".qddns-rule-wizard-lease-card{appearance:none;box-sizing:border-box;display:grid;align-items:start;justify-items:stretch;justify-content:stretch;gap:var(--qddns-space-2);width:100%!important;min-width:0;margin:0;padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);color:inherit;font:inherit;line-height:1.35;text-align:left!important;text-transform:none;cursor:pointer}",
     ".qddns-rule-wizard-source-status{display:grid;justify-items:start;gap:var(--qddns-space-1);box-sizing:border-box;width:100%;min-width:0;padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);text-align:left}",
     ".qddns-rule-wizard-footer-actions{width:100%;max-width:100%;justify-self:stretch;justify-content:flex-end}",
     ".qddns-rule-wizard-summary-row{display:grid;grid-template-columns:minmax(var(--qddns-rule-wizard-meta-label),max-content) minmax(0,1fr);gap:var(--qddns-space-2);min-width:0;text-align:left}",
 ]:
     if css not in rules:
         raise SystemExit(f'rule wizard layout must keep fields/cards aligned: missing {css}')
+if ".qddns-lease-card{appearance:none;box-sizing:border-box;display:grid;align-items:start;justify-items:stretch;justify-content:stretch;gap:var(--qddns-space-2);width:100%!important;min-width:0;margin:0;padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);color:inherit;font:inherit;line-height:1.35;text-align:left!important;text-transform:none;cursor:pointer}" not in shared:
+    raise SystemExit('shared lease card layout must keep fields/cards aligned')
+if "qddns.renderLeaseCard({" not in modal:
+    raise SystemExit('rule wizard must use the shared lease card renderer')
+if "qddns-rule-wizard-lease-card" in rules:
+    raise SystemExit('rule wizard must not keep a duplicate lease card class')
 if "ui.showModal(_('Guided DDNS rule setup'), [modal], 'qddns-rule-wizard-dialog')" not in modal:
     raise SystemExit('rule wizard modal title must use the qddns dialog class for left-aligned layout')
 if "E('div', { class: 'qddns-actions qddns-rule-wizard-footer-actions' }" not in modal:
@@ -492,6 +564,15 @@ check_settings_boundary() {
 	grep -nF "form.GridSection, 'provider'" "$VIEW_DIR/settings.js"
 	grep -nF 'qddns.probeSource' "$VIEW_DIR/settings.js"
 	! grep -nE 'qddns\.(runRule|testRule|getRuleStatus)|form.GridSection, .rule.' "$VIEW_DIR/settings.js"
+}
+
+check_settings_source_probe_previewability() {
+	grep -nF "isProbeableSourceType: function(sourceType)" "$VIEW_DIR/shared.js"
+	grep -nF "if (!qddns.isProbeableSourceType(src.type))" "$VIEW_DIR/settings.js"
+	grep -nF "qddns.renderBadge(_('Not previewable in LuCI'), 'warning')" "$VIEW_DIR/settings.js"
+	grep -nF "probeButton.disabled = true;" "$VIEW_DIR/settings.js"
+	grep -nF "probeButton.disabled = !qddns.isProbeableSourceType(this.getSourceType(sectionId, optionSet));" "$VIEW_DIR/settings.js"
+	! grep -nF "isProbeableSourceType: function(sourceType)" "$VIEW_DIR/rules.js" "$VIEW_DIR/settings.js"
 }
 
 check_name_visible_numeric_hidden_ui() {
@@ -659,11 +740,12 @@ check_dhcpv6_lease_fill_ui() {
 	grep -nF "widget.node.dispatchEvent(new CustomEvent('widget-change', { bubbles: true }))" "$VIEW_DIR/settings.js"
 	grep -nF "getDhcpv6OptionSet" "$VIEW_DIR/settings.js"
 	grep -nF "filterDhcpv6Choices" "$VIEW_DIR/settings.js"
-	grep -nF "qddns-dhcpv6-lease-card" "$VIEW_DIR/settings.js"
-	grep -nF "grid-template-columns:1fr" "$VIEW_DIR/settings.js"
-	grep -nF "overflow-wrap:anywhere;word-break:normal;white-space:pre-wrap;text-align:left" "$VIEW_DIR/settings.js"
-	grep -nF "justify-items:stretch" "$VIEW_DIR/settings.js"
-	grep -nF "width:100%;justify-self:stretch" "$VIEW_DIR/settings.js"
+	grep -nF "qddns.renderLeaseCard({" "$VIEW_DIR/settings.js"
+	grep -nF ".qddns-lease-card{appearance:none;box-sizing:border-box;display:grid;align-items:start;justify-items:stretch;justify-content:stretch;gap:var(--qddns-space-2);width:100%!important;min-width:0;margin:0;padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-surface);color:inherit;font:inherit;line-height:1.35;text-align:left!important;text-transform:none;cursor:pointer}" "$VIEW_DIR/shared.js"
+	grep -nF "grid-template-columns:1fr" "$VIEW_DIR/shared.js"
+	grep -nF "overflow-wrap:anywhere;word-break:normal;white-space:pre-wrap;text-align:left" "$VIEW_DIR/shared.js"
+	grep -nF "justify-items:stretch" "$VIEW_DIR/shared.js"
+	grep -nF "width:100%;justify-self:stretch" "$VIEW_DIR/shared.js"
 	! grep -nF -- "--qddns-dhcpv6-card-min" "$VIEW_DIR/settings.js"
 	! grep -nF -- "--qddns-dhcpv6-card-min:10rem;" "$VIEW_DIR/settings.js"
 	! grep -nF "grid-template-columns:repeat(auto-fit,minmax(var(--qddns-dhcpv6-card-min),1fr))" "$VIEW_DIR/settings.js"
@@ -923,11 +1005,12 @@ check_name_visible_numeric_hidden_po() {
 		'Probe source IP' \
 		'Probe source IP before continuing. The source will be saved with the rule.' \
 		'Create or choose a source before continuing.' \
-		'Source IP' \
-		'Probing source IP...' \
-		'Source IP detected: %s. The source will be saved with the rule.' \
-		'Unable to read source IP. Choose another source or fix the source configuration.' \
-		'Not previewable in LuCI' \
+			'Source IP' \
+			'Probing source IP...' \
+			'Source IP detected: %s. The source will be saved with the rule.' \
+			'Source IP detected: %s. The saved source will be used for this rule.' \
+			'Unable to read source IP. Choose another source or fix the source configuration.' \
+			'Not previewable in LuCI' \
 		'This source type cannot be previewed in LuCI. Confirm the record type manually; the backend will validate it when the rule runs.' \
 		'Loading...' \
 		'Source IP is still loading.' \
@@ -975,9 +1058,12 @@ check_name_visible_numeric_hidden_po() {
 		'Name shown in tables, probes, and rule selectors.' \
 		'Name shown in tables and rule selectors.' \
 		'Only rules are editable on this page. Providers and sources live on the settings page.' \
-		'Rule references use the latest saved providers and sources loaded with this page. Save and reload after adding referenced providers or sources on the settings page.'; do
-		grep -nF "msgid \"$msgid\"" "$PO_FILE"
-	done
+			'Rule references use the latest saved providers and sources loaded with this page. Save and reload after adding referenced providers or sources on the settings page.'; do
+			grep -nF "msgid \"$msgid\"" "$PO_FILE"
+		done
+		for msgid in 'OK' 'Success' 'Synced' 'Updated' 'Unchanged' 'Error' 'Failed' 'Invalid' 'Pending' 'Testing' 'Queued' 'Warning'; do
+			grep -nF "msgid \"$msgid\"" "$PO_FILE"
+		done
 	! grep -nF 'msgid "Command"' "$PO_FILE"
 	! grep -nF 'msgid "Shell command"' "$PO_FILE"
 	! grep -nE "can be edited later|renaming referenced sections|changing visible names|rule sections|source sections|provider sections|referenced sections|provider section|internal numeric|内部数字|可见名称稍后可以编辑|重命名被引用|section" "$PO_FILE"
@@ -997,6 +1083,14 @@ check_acl_no_direct_log_file() {
 
 check_theme_style() {
 	! grep -nE '#111|#666|#e9eef5|linear-gradient\(' "$VIEW_DIR/overview.js"
+}
+
+check_common_style_tokens() {
+	grep -nF "'--qddns-radius-md:0.5rem;'" "$VIEW_DIR/shared.js"
+	grep -nF "letter-spacing:0;opacity:0.72;text-transform:none" "$VIEW_DIR/overview.js"
+	! grep -nF "letter-spacing:0.04em" "$VIEW_DIR"/*.js
+	! grep -nF "'--qddns-radius-sm:0.5rem;'" "$VIEW_DIR"/*.js
+	! grep -nF "'--qddns-radius-md:0.75rem;'" "$VIEW_DIR"/*.js
 }
 
 SELFTEST_STATE_DIR=/tmp/qddns-selftest-state
@@ -1089,11 +1183,14 @@ run_step 'LuCI zh_Hans critical msgstr guard' check_po_critical_zh_msgstrs
 run_step 'LuCI view i18n hook guard' check_view_i18n_hooks
 run_step 'LuCI overview primary cards guard' check_overview_primary_cards
 run_step 'LuCI no duplicate internal page nav guard' check_no_internal_page_nav
-	run_step 'LuCI overview boundary guard' check_overview_boundary
-	run_step 'LuCI rules boundary guard' check_rules_boundary
-	run_step 'LuCI rule wizard guard' check_rule_wizard
-	run_step 'LuCI rules compact table guard' check_rules_table_compactness
+run_step 'LuCI overview boundary guard' check_overview_boundary
+run_step 'LuCI rules boundary guard' check_rules_boundary
+run_step 'LuCI rules status badge tone guard' check_rules_status_badge_tones
+run_step 'LuCI status display labels guard' check_status_display_labels
+run_step 'LuCI rule wizard guard' check_rule_wizard
+run_step 'LuCI rules compact table guard' check_rules_table_compactness
 run_step 'LuCI settings boundary guard' check_settings_boundary
+run_step 'LuCI settings source probe previewability guard' check_settings_source_probe_previewability
 run_step 'Source probe no luci-rpc recursion guard' check_source_probe_no_luci_rpc_recursion
 run_step 'LuCI name-visible numeric-hidden UI guard' check_name_visible_numeric_hidden_ui
 run_step 'LuCI DHCPv6 lease fill UI guard' check_dhcpv6_lease_fill_ui
@@ -1107,8 +1204,8 @@ run_step 'LuCI theme private dependency guard' check_theme_private_dependencies
 run_step 'ucode export guard' grep -n 'return { qddns: methods };' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 run_step 'ucode list_sources result guard' grep -n 'result: sources' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 run_step 'LuCI list_sources shared RPC guard' grep -nF "const callSources = rpc.declare({ object: 'qddns', method: 'list_sources', expect: { result: [] } });" "$VIEW_DIR/shared.js"
-	run_step 'LuCI list_sources shared normalize guard' grep -nF "const sourceList = Array.isArray(sources) ? sources : sources?.result;" "$VIEW_DIR/shared.js"
-	run_step 'LuCI list_sources array normalize guard' grep -nF "sources: normalizeList(sourceList)" "$VIEW_DIR/shared.js"
+run_step 'LuCI list_sources shared normalize guard' grep -nF "const sourceList = Array.isArray(sources) ? sources : sources?.result;" "$VIEW_DIR/shared.js"
+run_step 'LuCI list_sources array normalize guard' grep -nF "sources: normalizeList(sourceList)" "$VIEW_DIR/shared.js"
 run_step 'LuCI list_sources settings consumer guard' grep -nF "return qddns.normalizeCatalogState(data[0], data[1]);" "$VIEW_DIR/settings.js"
 run_step 'LuCI list_sources rules consumer guard' grep -nF "const catalog = qddns.normalizeCatalogState(data[0], data[1]);" "$VIEW_DIR/rules.js"
 run_step 'ucode secret guard' sh -c "! grep -nE 'api_token: section\.api_token|secret_id: section\.secret_id|secret_key: section\.secret_key|access_key_id: section\.access_key_id|access_key_secret: section\.access_key_secret|headers_json: section\.headers_json|body_template: section\.body_template' '$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc'"
@@ -1124,6 +1221,7 @@ run_step 'acl no direct log file guard' check_acl_no_direct_log_file
 run_step 'acl boundary script guard' python3 "$ROOT_DIR/tests/check_acl_boundaries.py"
 run_step 'rpcd redaction script guard' python3 "$ROOT_DIR/tests/check_rpcd_redaction.py"
 run_step 'theme style guard' check_theme_style
+run_step 'common style tokens guard' check_common_style_tokens
 run_step 'Selftest source-only draft probe' check_source_only_draft_probe
 run_step 'Selftest validate' cargo run --quiet --bin qddnsctl -- --config "$ROOT_DIR/tests/selftest.conf" validate
 run_step 'Selftest sources list' sh -c "cargo run --quiet --bin qddnsctl -- --config '$ROOT_DIR/tests/selftest.conf' sources list | grep -qx 'wan4	local_addr'"
