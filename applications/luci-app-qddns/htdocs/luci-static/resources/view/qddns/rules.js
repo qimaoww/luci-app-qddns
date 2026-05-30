@@ -1650,7 +1650,7 @@ return view.extend({
 		o = s.option(form.Value, 'name', _('Name'), _('Name shown in the rule table, console, and log selector.'));
 		o.placeholder = _('Unnamed rule');
 		o.modalonly = true;
-		o = s.option(form.Flag, 'enabled', _('Enabled'));
+		o = s.option(form.Flag, 'enabled', _('Enable'));
 		o.rmempty = false;
 		o.editable = true;
 		o = s.option(form.ListValue, 'record_type', _('Record type'));
