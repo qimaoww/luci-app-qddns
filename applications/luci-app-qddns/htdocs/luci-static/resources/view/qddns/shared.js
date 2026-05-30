@@ -45,12 +45,6 @@ const QDDNS_COMMON_STYLE = [
 	'.qddns-page-header{display:grid;gap:var(--qddns-space-3)}',
 	'.qddns-page-title{margin:0;font-size:1.35rem;font-weight:700;line-height:1.3}',
 	'.qddns-page-desc{margin:0;line-height:1.5;opacity:0.78}',
-	'.qddns-workflow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--qddns-space-2)}',
-	'.qddns-workflow-step{display:grid;align-content:start;gap:var(--qddns-space-1);padding:var(--qddns-space-2) var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:var(--qddns-neutral);color:inherit;line-height:1.4;text-decoration:none}',
-	'.qddns-workflow-step:hover,.qddns-workflow-step:focus{background:var(--qddns-surface-strong)}',
-	'.qddns-workflow-step.is-active{border-color:currentColor;background:var(--qddns-surface-strong)}',
-	'.qddns-workflow-step strong{font-weight:700}',
-	'.qddns-workflow-step small{font-weight:400;opacity:0.72}',
 	'.qddns-page-cta{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--qddns-space-3)}',
 	'.qddns-page-cta-text{display:grid;gap:var(--qddns-space-1);flex:1 1 22rem;min-width:16rem}',
 	'.qddns-page-cta-text h3{margin:0}',
@@ -95,7 +89,6 @@ const QDDNS_COMMON_STYLE = [
 		'@media (max-width: 768px){',
 			':root{--qddns-table-min:48rem;--qddns-form-table-min:64rem}',
 			'.qddns-panel{padding:var(--qddns-space-3)}',
-			'.qddns-workflow{grid-template-columns:1fr}',
 	'}'
 ].join('');
 
@@ -389,32 +382,12 @@ return baseclass.extend({
 
 		options = options || {};
 
-		const WORKFLOW = [
-			{ key: 'settings', label: _('1. Settings'), hint: _('Add providers and sources'), path: 'settings' },
-			{ key: 'rules', label: _('2. Rules'), hint: _('Create and run rules'), path: 'rules' },
-			{ key: 'overview', label: _('3. Monitor'), hint: _('Overview and logs'), path: 'overview' }
-		];
-		const base = L.url('admin/services/qddns');
-		const active = options.active;
-
 		const header = [
 			E('h2', { class: 'qddns-page-title' }, options.title || _('QDDNS'))
 		];
 
 		if (options.description)
 			header.push(E('p', { class: 'qddns-page-desc' }, options.description));
-
-		if (options.workflow !== false)
-			header.push(E('div', { class: 'qddns-workflow' }, WORKFLOW.map(function(step) {
-				const isActive = step.key === active || (active === 'logs' && step.key === 'overview');
-				return E('a', {
-					class: isActive ? 'qddns-workflow-step is-active' : 'qddns-workflow-step',
-					href: '%s/%s'.format(base, step.path)
-				}, [
-					E('strong', {}, step.label),
-					E('small', {}, step.hint)
-				]);
-			})));
 
 		return E('div', { class: 'cbi-section qddns-panel qddns-page-header' }, header);
 	},

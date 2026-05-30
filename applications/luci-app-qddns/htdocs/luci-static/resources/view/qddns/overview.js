@@ -86,7 +86,6 @@ return view.extend({
 
 	renderDashboardIntro: function() {
 		return qddns.renderPageHeader({
-			active: 'overview',
 			title: _('Overview'),
 			description: _('Runtime widgets refresh automatically. Use the dedicated rules, settings, and logs pages for actions, configuration, and diagnostics.')
 		});

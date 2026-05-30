@@ -856,24 +856,6 @@ msgstr "来源协议族未知"
 msgid "Activation"
 msgstr "启用状态"
 
-msgid "1. Settings"
-msgstr "1. 设置"
-
-msgid "Add providers and sources"
-msgstr "添加提供商与来源"
-
-msgid "2. Rules"
-msgstr "2. 规则"
-
-msgid "Create and run rules"
-msgstr "创建并运行规则"
-
-msgid "3. Monitor"
-msgstr "3. 监控"
-
-msgid "Overview and logs"
-msgstr "概览与日志"
-
 msgid "Start with the guided setup to create a complete rule, then run and monitor saved rules in the console. Use the advanced table for detailed edits."
 msgstr "先用引导添加创建完整规则，再在控制台运行并监控已保存规则。详细编辑请使用高级表格。"
 

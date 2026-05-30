@@ -142,7 +142,6 @@ return view.extend({
 
 		return E('div', { id: 'qddns-logs-page' }, [
 			qddns.renderPageHeader({
-				active: 'logs',
 				title: _('Logs'),
 				description: _('Review system logs or switch to a saved rule scope below. This page is read-only and does not expose rule execution or status actions.')
 			}),

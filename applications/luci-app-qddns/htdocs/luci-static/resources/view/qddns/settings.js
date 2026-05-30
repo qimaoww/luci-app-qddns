@@ -821,7 +821,6 @@ return view.extend({
 		return this.renderConfigForms(data).then(L.bind(function(formEl) {
 			return E('div', { class: 'qddns-settings-page' }, [
 				qddns.renderPageHeader({
-					active: 'settings',
 					title: _('Settings'),
 					description: _('Manage daemon defaults, source definitions, and provider credentials here. Use the source probe panel below to validate saved sources before using them on the rules page.')
 				}),

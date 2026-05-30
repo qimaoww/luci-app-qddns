@@ -1701,7 +1701,6 @@ return view.extend({
 		return this.renderRuleForm(this.pageData).then(L.bind(function(formEl) {
 			return E('div', { class: 'qddns-rules-page' }, [
 				qddns.renderPageHeader({
-					active: 'rules',
 					title: _('Rules'),
 					description: _('Start with the guided setup to create a complete rule, then run and monitor saved rules in the console. Use the advanced table for detailed edits.')
 				}),
