@@ -1,9 +1,12 @@
 pub mod cli;
 pub mod config;
 pub mod daemon;
+pub mod discover;
 pub mod error;
 pub mod http;
+pub mod leases;
 pub mod logstore;
+pub mod network;
 pub mod provider;
 pub mod runner;
 pub mod source;

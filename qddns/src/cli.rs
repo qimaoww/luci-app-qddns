@@ -20,6 +20,8 @@ pub enum Commands {
     Logs { scope: String },
     Sources(SourceCommands),
     Rules(RuleCommands),
+    Interfaces,
+    Leases { mode: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,6 +88,10 @@ impl Cli {
                 Some("discover") => Commands::Sources(SourceCommands::Discover),
                 _ => return Err(Error::new("unsupported sources subcommand")),
             },
+            "interfaces" => Commands::Interfaces,
+            "leases" => Commands::Leases {
+                mode: cleaned.get(1).cloned().unwrap_or_else(|| "duid".into()),
+            },
             "rules" => match cleaned.get(1).map(String::as_str) {
                 Some("list") => Commands::Rules(RuleCommands::List),
                 Some("run") => Commands::Rules(RuleCommands::Run {
@@ -145,6 +151,12 @@ pub fn run(cli: Cli) -> Result<()> {
         Commands::Logs { scope } => daemon::print_logs(&cli.config, &scope),
         Commands::Sources(SourceCommands::Probe { id }) => daemon::probe_source(&cli.config, &id),
         Commands::Sources(SourceCommands::Discover) => daemon::discover_slaac(&cli.config),
+        Commands::Interfaces => {
+            let interfaces = crate::network::list_interfaces();
+            println!("{}", json!({"ok": true, "interfaces": interfaces}));
+            Ok(())
+        }
+        Commands::Leases { mode } => daemon::list_leases_cmd(&cli.config, &mode),
         Commands::Rules(RuleCommands::List) => daemon::list_rules(&cli.config),
         Commands::Rules(RuleCommands::Run { id }) | Commands::Rules(RuleCommands::Test { id }) => {
             daemon::run_rule_once(&cli.config, &id)
