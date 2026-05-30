@@ -864,3 +864,9 @@ msgstr "请先在设置页添加提供商,然后再创建规则。"
 
 msgid "Tip: you can create a source inside the wizard, or manage saved sources in Settings."
 msgstr "提示：可在向导中创建来源，或在设置页管理已保存的来源。"
+
+msgid "Rules (enabled / total)"
+msgstr "规则（启用 / 总数）"
+
+msgid "IP"
+msgstr "IP"
