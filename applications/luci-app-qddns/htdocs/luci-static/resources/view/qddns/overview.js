@@ -37,11 +37,13 @@ return view.extend({
 	load: function() {
 		return Promise.all([
 			this.loadRuntimeState(),
-			L.resolveDefault(qddns.listRules(), { rules: [] })
+			L.resolveDefault(qddns.listRules(), { rules: [], providers: [] })
 		]).then(function(data) {
+			var rulesData = qddns.normalizeRulesData(data[1]);
 			return {
 				overview: data[0] || {},
-				rules: qddns.normalizeRulesData(data[1]).rules
+				rules: rulesData.rules,
+				providers: rulesData.providers
 			};
 		});
 	},
@@ -59,6 +61,24 @@ return view.extend({
 
 	ruleLabel: function(ruleId) {
 		return this.ruleLabels?.[ruleId] || _('Unnamed rule');
+	},
+
+	ruleProvider: function(ruleId) {
+		var rules = qddns.normalizeList(this.rulesData);
+		for (var i = 0; i < rules.length; i++) {
+			if (rules[i]?.id === ruleId)
+				return this.providerLabel(rules[i].provider);
+		}
+		return '-';
+	},
+
+	providerLabel: function(providerId) {
+		var providers = qddns.normalizeList(this.providersData);
+		for (var i = 0; i < providers.length; i++) {
+			if (providers[i]?.id === providerId)
+				return providers[i].name || _('Unnamed provider');
+		}
+		return _('Unnamed provider');
 	},
 
 	ensureDashboardStyle: function() {
@@ -134,10 +154,11 @@ return view.extend({
 		const results = overview.status?.recent_results || [];
 
 		return qddns.renderTableSection(_('Recent Results'), [
-			_('Rule'), _('Status'), _('IP'), _('Result'), _('Last Check')
+			_('Rule'), _('Provider'), _('Status'), _('IP'), _('Result'), _('Last Check')
 		], results.map(L.bind(function(item) {
 				return [
 					this.ruleLabel(item.id),
+					this.ruleProvider(item.id),
 					qddns.renderStatusBadge(item.status, _('Unknown')),
 					this.renderIpCell(item.current_ip, item.remote_ip),
 					qddns.resultLabel(item.last_result) || item.last_error || '-',
@@ -159,6 +180,8 @@ return view.extend({
 	render: function(data) {
 		this.runtimeData = data?.overview || {};
 		this.ruleLabels = this.buildRuleLabels(data?.rules);
+		this.rulesData = data?.rules || [];
+		this.providersData = data?.providers || [];
 		this.ensureDashboardStyle();
 
 		poll.add(L.bind(function() {
