@@ -1652,6 +1652,7 @@ return view.extend({
 		o.modalonly = true;
 		o = s.option(form.Flag, 'enabled', _('Enabled'));
 		o.rmempty = false;
+		o.editable = true;
 		o = s.option(form.ListValue, 'record_type', _('Record type'));
 		o.value('A');
 		o.value('AAAA');
