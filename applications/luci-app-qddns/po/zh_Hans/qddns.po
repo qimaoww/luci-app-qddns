@@ -870,3 +870,6 @@ msgstr "规则（启用 / 总数）"
 
 msgid "IP"
 msgstr "IP"
+
+msgid "Manage daemon defaults, source definitions, and provider credentials here."
+msgstr "在此管理守护进程默认值、来源定义和提供商凭据。"
