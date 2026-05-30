@@ -879,3 +879,6 @@ msgstr "LAN 接口"
 
 msgid "LAN-facing interface for IPv6 neighbor discovery. Used to refresh the neighbor table before reading MAC candidates."
 msgstr "面向 LAN 的接口，用于 IPv6 邻居发现。读取 MAC 候选前会刷新该接口的邻居表。"
+
+msgid "Quick Actions"
+msgstr "快捷操作"

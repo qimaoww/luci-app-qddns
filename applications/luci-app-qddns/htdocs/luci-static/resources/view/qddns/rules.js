@@ -1693,8 +1693,6 @@ return view.extend({
 			return qddns.statusLabel(runtime);
 		};
 
-		o = s.option(form.DummyValue, '_source_name', _('Source'));
-		o.modalonly = true;
 		o = s.option(form.Value, 'zone', _('Zone'));
 		o.placeholder = 'example.com';
 		o.modalonly = true;
