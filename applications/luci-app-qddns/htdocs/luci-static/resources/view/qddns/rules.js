@@ -24,6 +24,7 @@ const QDDNS_STYLE = [
 	'.qddns-rules-console-table .qddns-table th,.qddns-rules-console-table .qddns-table td{min-width:0;overflow-wrap:anywhere}',
 	'.qddns-rules-console-table .qddns-table th:first-child,.qddns-rules-console-table .qddns-table td:first-child{white-space:normal}',
 	'.qddns-rules-console-table .qddns-table th:last-child,.qddns-rules-console-table .qddns-table td:last-child{width:var(--qddns-rule-action-min);min-width:var(--qddns-rule-action-min)}',
+	'.qddns-rules-console-table .qddns-actions{flex-wrap:nowrap}',
 	'.qddns-rules-form.qddns-wide-form .cbi-section-table th,.qddns-rules-form.qddns-wide-form .cbi-section-table td{vertical-align:middle;white-space:normal;overflow-wrap:anywhere;word-break:break-word}',
 	'.qddns-rules-form.qddns-wide-form .cbi-section-table th{white-space:nowrap}',
 	'.qddns-rules-form.qddns-wide-form .cbi-section-table th:first-child,.qddns-rules-form.qddns-wide-form .cbi-section-table td:first-child{width:auto;white-space:normal;font-weight:600}',
@@ -1563,7 +1564,7 @@ return view.extend({
 		const ruleStates = this.getRuleStates();
 		const rules = qddns.sortNamedItems(data?.catalog?.rules?.rules || []);
 		const table = qddns.renderTable([
-			_('Rule'), _('Type'), _('Record'), _('Source'), _('Provider'), _('Runtime'), _('Actions')
+			_('Rule'), _('Runtime'), _('Actions')
 		], rules.map(L.bind(function(rule) {
 			const state = ruleStates[rule.id] || {};
 			const runtime = state.status || (rule.enabled ? _('Enabled') : _('Disabled'));
@@ -1571,10 +1572,6 @@ return view.extend({
 
 			return [
 				this.getRuleLabel(rule),
-				rule.record_type || '-',
-				'%s.%s'.format(rule.record_name || '-', rule.zone || '-'),
-				this.getSourceLabel(rule.source),
-				this.getProviderLabel(rule.provider),
 				qddns.renderStatusBadge(runtime, _('Unknown'), runtimeTone),
 				this.renderRuleActions(rule)
 			];
@@ -1584,7 +1581,6 @@ return view.extend({
 
 		return E('div', { id: 'qddns-rules-console', class: 'cbi-section qddns-panel' }, [
 			E('h3', {}, _('Rule Console')),
-			E('p', { class: 'cbi-section-descr' }, _('Run saved rules once here. Runtime status comes from the live overview state; provider and source references come from saved providers and sources, so save and reload after changing related settings.')),
 			table
 		]);
 	},
@@ -1636,11 +1632,12 @@ return view.extend({
 	renderRuleForm: function(data) {
 		const providers = qddns.sortNamedItems(data?.catalog?.rules?.providers || []);
 		const sources = qddns.sortNamedItems(data?.catalog?.sources || []);
-		const m = new form.Map('qddns', '', _('Only rules are editable on this page. Providers and sources live on the settings page.'));
+		const viewRef = this;
+		const m = new form.Map('qddns', '', '');
 		let s;
 		let o;
 
-		s = m.section(form.GridSection, 'rule', _('Rule List'), _('Rule references use the latest saved providers and sources loaded with this page. Save and reload after adding referenced providers or sources on the settings page.'));
+		s = m.section(form.GridSection, 'rule', _('Rule List'));
 		s.addremove = true;
 		s.anonymous = false;
 		this.useRuleEditorLabels(s);
@@ -1660,14 +1657,86 @@ return view.extend({
 		providers.forEach(function(provider) { o.value(provider.id, provider.name || _('Unnamed provider')); });
 		o.modalonly = true;
 		o = s.option(form.ListValue, 'source', _('Source'));
-		o.modalonly = true;
 		sources.forEach(function(source) { o.value(source.id, source.name || _('Unnamed source')); });
+		o.modalonly = true;
 		o.validate = L.bind(function(sectionId, value) {
 			return this.validateRecordTypeForSource(uci.get('qddns', sectionId, 'record_type'), value);
 		}, this);
+
+		o = s.option(form.DummyValue, '_provider_name', _('Provider'));
+		o.modalonly = false;
+		o.cfgvalue = function(sectionId) {
+			var pid = uci.get('qddns', sectionId, 'provider') || '';
+			for (var i = 0; i < providers.length; i++) {
+				if (providers[i].id === pid)
+					return providers[i].name || _('Unnamed provider');
+			}
+			return pid || '-';
+		};
+
+		o = s.option(form.DummyValue, '_runtime', _('Runtime'));
+		o.modalonly = false;
+		o.cfgvalue = function(sectionId) {
+			const ruleStates = viewRef.getRuleStates();
+			const state = ruleStates[sectionId] || {};
+			const enabled = uci.get('qddns', sectionId, 'enabled') === '1';
+			const runtime = state.status || (enabled ? 'enabled' : 'disabled');
+			return qddns.statusLabel(runtime);
+		};
+
+		o = s.option(form.DummyValue, '_source_name', _('Source'));
+		o.modalonly = true;
 		o = s.option(form.Value, 'zone', _('Zone'));
 		o.placeholder = 'example.com';
 		o.modalonly = true;
+
+		o = s.option(form.DummyValue, '_run_actions', _('Quick Actions'));
+		o.modalonly = true;
+		o.rawhtml = true;
+		o.cfgvalue = function(sectionId) {
+			var wrap = E('div', { class: 'qddns-actions' });
+			var runBtn = E('button', { type: 'button', class: 'btn cbi-button cbi-button-action' }, [_('Run once')]);
+			var statusBtn = E('button', { type: 'button', class: 'btn cbi-button' }, [_('Status')]);
+
+			runBtn.addEventListener('click', function() {
+				return qddns.handleMutationAction(runBtn, _('Run Rule'), function() {
+					return qddns.runRule(sectionId);
+				}, function(result) {
+					var ruleName = uci.get('qddns', sectionId, 'name') || _('Unnamed rule');
+					qddns.showInfoModal(_('Run Rule'), [
+						E('div', { class: 'qddns-modal-meta' }, [
+							E('p', {}, '%s: %s'.format(_('Rule'), ruleName)),
+							E('p', {}, '%s: %s'.format(_('Status'), qddns.statusLabel(result.status) || _('Unknown'))),
+							E('p', {}, '%s: %s'.format(_('Current IP'), result.current_ip || _('N/A'))),
+							E('p', {}, '%s: %s'.format(_('Changed'), result.changed ? _('Yes') : _('No')))
+						])
+					]);
+				}, _('Unable to run the selected rule.'), function() {
+					return viewRef.refreshRuntime();
+				});
+			});
+
+			statusBtn.addEventListener('click', function() {
+				return qddns.handleReadAction(statusBtn, _('Rule Status'), function() {
+					return qddns.getRuleStatus(sectionId);
+				}, function(result) {
+					var ruleName = uci.get('qddns', sectionId, 'name') || _('Unnamed rule');
+					qddns.showInfoModal(_('Rule Status'), [
+						E('h4', {}, ruleName),
+						E('div', { class: 'qddns-modal-meta' }, [
+							E('p', {}, '%s: %s'.format(_('Status'), qddns.statusLabel(result.status) || _('Unknown'))),
+							E('p', {}, '%s: %s'.format(_('Current IP'), result.current_ip || _('N/A'))),
+							E('p', {}, '%s: %s'.format(_('Remote IP'), result.remote_ip || _('N/A'))),
+							E('p', {}, '%s: %s'.format(_('Last Check'), result.last_check ? qddns.formatEpoch(result.last_check) : _('N/A')))
+						])
+					]);
+				}, _('Unable to load rule status.'));
+			});
+
+			wrap.appendChild(runBtn);
+			wrap.appendChild(statusBtn);
+			return wrap;
+		};
 		o = s.option(form.Value, 'record_name', _('Record name'));
 		o.placeholder = 'home';
 		o.modalonly = true;
@@ -1703,8 +1772,7 @@ return view.extend({
 					description: _('Start with the guided setup to create a complete rule, then run and monitor saved rules in the console. Use the advanced table for detailed edits.')
 				}),
 				this.renderRuleWizard(this.pageData),
-				this.renderRulesConsole(this.pageData),
-				E('div', { class: 'qddns-wide-form qddns-rules-form' }, [formEl])
+				E('div', { class: 'cbi-section qddns-panel' }, [formEl])
 			]);
 		}, this));
 	}
