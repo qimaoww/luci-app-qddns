@@ -873,3 +873,9 @@ msgstr "IP"
 
 msgid "Manage daemon defaults, source definitions, and provider credentials here."
 msgstr "在此管理守护进程默认值、来源定义和提供商凭据。"
+
+msgid "LAN interface"
+msgstr "LAN 接口"
+
+msgid "LAN-facing interface for IPv6 neighbor discovery. Used to refresh the neighbor table before reading MAC candidates."
+msgstr "面向 LAN 的接口，用于 IPv6 邻居发现。读取 MAC 候选前会刷新该接口的邻居表。"

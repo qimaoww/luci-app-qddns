@@ -198,6 +198,7 @@ fn resolve_dhcpv6_mac(
     let wan_source_prefixes = interfaces_wan_source_ipv6_prefixes(source, &ifaces)?;
 
     collect_ndp_ipv6_candidates(&normalized_mac, &mut matches);
+    collect_eui64_candidates(&normalized_mac, &wan_source_prefixes, &mut matches);
 
     if matches.is_empty() {
         if let Some(err) = lease_error {
@@ -319,6 +320,60 @@ fn collect_ndp_ipv6_candidates_from_output(
 
         push_public_ipv6(address, matches);
     }
+}
+
+/// Compute EUI-64 SLAAC addresses from WAN/PD prefixes and a normalized MAC,
+/// adding any that are not already in `matches`.
+fn collect_eui64_candidates(
+    normalized_mac: &str,
+    prefixes: &[Ipv6Prefix],
+    matches: &mut Vec<IpAddr>,
+) {
+    let Some(iid) = mac_to_eui64_interface_id(normalized_mac) else {
+        return;
+    };
+    for prefix in prefixes {
+        if prefix.prefix_len > 64 {
+            continue;
+        }
+        let segments = prefix.address.segments();
+        let addr = Ipv6Addr::new(
+            segments[0],
+            segments[1],
+            segments[2],
+            segments[3],
+            iid[0],
+            iid[1],
+            iid[2],
+            iid[3],
+        );
+        let ip = IpAddr::V6(addr);
+        if is_public_ipv6(&addr) && !matches.contains(&ip) {
+            matches.push(ip);
+        }
+    }
+}
+
+/// Convert a normalized MAC (lowercase colon-separated, 17 chars) to EUI-64
+/// interface identifier (4 u16 segments). Returns None if MAC format is invalid.
+fn mac_to_eui64_interface_id(normalized_mac: &str) -> Option<[u16; 4]> {
+    let bytes: Vec<u8> = normalized_mac
+        .split(':')
+        .filter_map(|hex| u8::from_str_radix(hex, 16).ok())
+        .collect();
+    if bytes.len() != 6 {
+        return None;
+    }
+    // Flip the 7th bit (universal/local) of the first byte
+    let b0 = bytes[0] ^ 0x02;
+    // Insert ff:fe in the middle
+    let eui64: [u8; 8] = [b0, bytes[1], bytes[2], 0xff, 0xfe, bytes[3], bytes[4], bytes[5]];
+    Some([
+        u16::from_be_bytes([eui64[0], eui64[1]]),
+        u16::from_be_bytes([eui64[2], eui64[3]]),
+        u16::from_be_bytes([eui64[4], eui64[5]]),
+        u16::from_be_bytes([eui64[6], eui64[7]]),
+    ])
 }
 
 fn push_public_ipv6(raw: &str, matches: &mut Vec<IpAddr>) {

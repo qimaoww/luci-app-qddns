@@ -686,6 +686,11 @@ return view.extend({
 		o = s.option(form.ListValue, 'log_level', _('Log level'));
 		['error', 'warn', 'info', 'debug', 'trace'].forEach(function(level) { o.value(level); });
 
+		o = s.option(widgets.DeviceSelect, 'lan_interface', _('LAN interface'), _('LAN-facing interface for IPv6 neighbor discovery. Used to refresh the neighbor table before reading MAC candidates.'));
+		o.multiple = false;
+		o.noaliases = true;
+		o.nocreate = true;
+
 		s = m.section(form.GridSection, 'source', _('Source Library'), _('Saved sources are available for source probe below and become selectable on the rules page after saving and reloading. Names stay editable.'));
 		s.addremove = true;
 		s.anonymous = false;

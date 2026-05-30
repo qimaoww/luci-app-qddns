@@ -444,7 +444,18 @@ function add_dhcpv6_lease_entry(entries, fields, prefixes) {
 		push_unique(entry.prefixes, prefix);
 }
 
+function refresh_ndp_for_interface(lan_iface) {
+	if (!lan_iface)
+		return;
+
+	popen(`ping6 -c 1 -W 1 -I ${lan_iface} ff02::1 >/dev/null 2>&1`, 'r')?.close();
+}
+
 function add_ndp_entries(entries) {
+	let lan_iface = uci.get('qddns', 'main', 'lan_interface') || '';
+	if (lan_iface)
+		refresh_ndp_for_interface(lan_iface);
+
 	let p = popen(`${ip_cmd} -6 neigh show 2>/dev/null`, 'r');
 	if (!p)
 		return;
