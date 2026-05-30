@@ -314,10 +314,6 @@ return view.extend({
 		return String(fields.source?.getAttribute('data-wizard-source-label') || this.wizardSelectedText(fields.source, _('Unnamed source'))).trim();
 	},
 
-	wizardRuleName: function(recordName, zone, recordType) {
-		return '%s.%s %s'.format(recordName, zone, recordType);
-	},
-
 	setWizardStep: function(modal, stepIndex) {
 		const panels = modal.querySelectorAll('[data-wizard-panel]');
 		const steps = modal.querySelectorAll('[data-wizard-step]');
@@ -440,8 +436,8 @@ return view.extend({
 			}
 		}
 
-		if (stepIndex === 1 && (!this.wizardValue(fields.provider) || !this.wizardValue(fields.zone) || !this.wizardValue(fields.recordName))) {
-			this.setWizardFeedback(feedback, _('Provider, zone, and record name are required.'));
+		if (stepIndex === 1 && (!this.wizardValue(fields.provider) || !this.wizardValue(fields.zone))) {
+			this.setWizardFeedback(feedback, _('Provider and domain are required.'));
 			return false;
 		}
 
@@ -487,13 +483,15 @@ return view.extend({
 		const provider = this.wizardValue(fields.provider);
 		const draftSource = sourceDraft?.id && sourceDraft?.data ? sourceDraft : null;
 		let source = this.wizardSourceId(fields) || draftSource?.id || '';
-		const zone = this.wizardValue(fields.zone);
-		const recordName = this.wizardValue(fields.recordName);
+		const domain = this.wizardValue(fields.zone);
+		const dot = domain.indexOf('.');
+		const zone = dot > 0 ? domain.substring(dot + 1) : '';
+		const recordName = dot > 0 ? domain.substring(0, dot) : domain;
 		const recordType = this.wizardValue(fields.recordType) || 'A';
-		const ruleName = this.wizardRuleName(recordName, zone, recordType);
+		const ruleName = '%s %s'.format(domain, recordType);
 
-		if (!provider || !source || !zone || !recordName) {
-			feedback.textContent = _('Provider, source, zone, and record name are required.');
+		if (!provider || !source || !domain) {
+			feedback.textContent = _('Provider, source, and domain are required.');
 			feedback.classList.add('alert-message', 'warning');
 			return Promise.resolve();
 		}
@@ -580,8 +578,7 @@ return view.extend({
 			]),
 			provider: this.renderWizardSelect(providers, _('No providers available'), _('Unnamed provider')),
 			source: this.renderWizardSelect(sources, _('No sources available'), _('Unnamed source')),
-			zone: E('input', { type: 'text', class: 'cbi-input-text', placeholder: 'example.com' }),
-			recordName: E('input', { type: 'text', class: 'cbi-input-text', placeholder: 'home' }),
+			zone: E('input', { type: 'text', class: 'cbi-input-text', placeholder: 'home.example.com' }),
 			enabled: E('input', { type: 'checkbox', checked: 'checked' })
 		};
 		const sourceIpStatus = E('span', { class: 'qddns-rule-wizard-source-ip', 'data-source-ip-status': 'wizard' }, [_('Loading...')]);
@@ -725,8 +722,7 @@ return view.extend({
 					]),
 					E('div', { class: 'qddns-rule-wizard-grid' }, [
 						this.renderWizardField(_('Provider'), fields.provider),
-						this.renderWizardField(_('Zone'), fields.zone),
-						this.renderWizardField(_('Record name'), fields.recordName)
+						this.renderWizardField(_('Domain'), fields.zone)
 					])
 				])
 			]),
@@ -973,7 +969,7 @@ return view.extend({
 			const family = sourceProbe.family || viewRef.wizardSourceFamily(fields, effectiveSourceId());
 			const recordFamily = family === 'ipv6' ? _('IPv6 source') : family === 'ipv4' ? _('IPv4 source') : _('source family unknown');
 			const rows = [
-				renderSummaryRow(_('Record'), '%s.%s (%s, %s)'.format(viewRef.wizardValue(fields.recordName) || '-', viewRef.wizardValue(fields.zone) || '-', recordType, recordFamily)),
+				renderSummaryRow(_('Record'), '%s (%s, %s)'.format(viewRef.wizardValue(fields.zone) || '-', recordType, recordFamily)),
 				renderSummaryRow(_('Source'), viewRef.wizardSourceLabel(fields)),
 				renderSummaryRow(_('Source IP'), sourceProbe.address || sourceIpStatus.textContent || _('N/A')),
 				renderSummaryRow(_('Provider'), viewRef.wizardSelectedText(fields.provider, _('Unnamed provider')))
@@ -1693,9 +1689,27 @@ return view.extend({
 			return qddns.statusLabel(runtime);
 		};
 
-		o = s.option(form.Value, 'zone', _('Zone'));
-		o.placeholder = 'example.com';
+		o = s.option(form.Value, '_domain', _('Domain'));
+		o.placeholder = 'home.example.com';
 		o.modalonly = true;
+		o.cfgvalue = function(sectionId) {
+			var zone = uci.get('qddns', sectionId, 'zone') || '';
+			var record = uci.get('qddns', sectionId, 'record_name') || '';
+			if (record && zone)
+				return record + '.' + zone;
+			return zone || record || '';
+		};
+		o.write = function(sectionId, value) {
+			var domain = String(value || '').trim();
+			var dot = domain.indexOf('.');
+			if (dot > 0) {
+				uci.set('qddns', sectionId, 'record_name', domain.substring(0, dot));
+				uci.set('qddns', sectionId, 'zone', domain.substring(dot + 1));
+			} else {
+				uci.set('qddns', sectionId, 'record_name', domain);
+				uci.set('qddns', sectionId, 'zone', '');
+			}
+		};
 
 		o = s.option(form.DummyValue, '_run_actions', _('Quick Actions'));
 		o.modalonly = true;
@@ -1744,9 +1758,6 @@ return view.extend({
 			wrap.appendChild(statusBtn);
 			return wrap;
 		};
-		o = s.option(form.Value, 'record_name', _('Record name'));
-		o.placeholder = 'home';
-		o.modalonly = true;
 		o = s.option(form.Value, 'ttl', _('TTL'));
 		o.datatype = 'uinteger';
 		o.modalonly = true;
