@@ -502,6 +502,7 @@ function probe_slaac_addresses(entries, lan_iface) {
 	if (!length(prefixes))
 		return;
 
+	let targets = [];
 	for (let mac in entries) {
 		let entry = entries[mac];
 		let suffix = mac_to_eui64_suffix(mac);
@@ -510,7 +511,45 @@ function probe_slaac_addresses(entries, lan_iface) {
 
 		for (let prefix in prefixes) {
 			let addr = prefix + ':' + suffix;
-			push_unique(entry.prefixes, `${addr}/128`);
+			let already = false;
+			for (let i = 0; i < length(entry.prefixes); i++) {
+				if (index(entry.prefixes[i], addr) == 0) {
+					already = true;
+					break;
+				}
+			}
+			if (!already)
+				push(targets, { mac: mac, addr: addr });
+		}
+	}
+
+	if (!length(targets))
+		return;
+
+	let cmds = [];
+	for (let t in targets)
+		push(cmds, `ping6 -c 1 -W 1 -I ${lan_iface} ${t.addr} >/dev/null 2>&1 && echo ${t.addr}`);
+
+	let script = join(' & ', cmds) + '; wait';
+	let p = popen(`sh -c '${script}' 2>/dev/null`, 'r');
+	if (!p)
+		return;
+
+	let output = p.read('all') || '';
+	p.close();
+
+	let reachable = {};
+	for (let line in split(output, '\n')) {
+		line = trim(line || '');
+		if (line)
+			reachable[line] = true;
+	}
+
+	for (let t in targets) {
+		if (reachable[t.addr]) {
+			let entry = entries[t.mac];
+			if (entry)
+				push_unique(entry.prefixes, `${t.addr}/128`);
 		}
 	}
 }
