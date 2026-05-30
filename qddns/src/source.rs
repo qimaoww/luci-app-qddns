@@ -864,7 +864,7 @@ fn parse_address_output(output: &str, detail: &str) -> Result<SourceResolution> 
 
 fn find_ip_in_text(text: &str) -> Option<&str> {
     for token in
-        text.split(|c: char| c.is_whitespace() || [',', ';', '[', ']', '(', ')'].contains(&c))
+        text.split(|c: char| c.is_whitespace() || [',', ';', '[', ']', '(', ')', '\u{FF1A}'].contains(&c))
     {
         if token.parse::<IpAddr>().is_ok() {
             return Some(token);

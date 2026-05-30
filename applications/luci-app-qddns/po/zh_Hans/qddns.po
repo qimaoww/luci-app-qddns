@@ -894,3 +894,12 @@ msgstr "提供商、来源和域名不能为空。"
 
 msgid "Enable"
 msgstr "启用"
+
+msgid "Query a public service to detect the external IP address."
+msgstr "通过公网服务探测外部 IP 地址。"
+
+msgid "Select a public IP detection service."
+msgstr "选择公网 IP 探测服务。"
+
+msgid "Probe URL is required."
+msgstr "探测 URL 不能为空。"
