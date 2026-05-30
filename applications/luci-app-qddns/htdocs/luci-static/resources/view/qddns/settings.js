@@ -730,6 +730,7 @@ return view.extend({
 		o = s.option(form.Value, 'address', _('Address')); o.modalonly = true; o.depends('type', 'local_addr'); this.sourceDhcpv6Options.address = o; this.guardSourceOptionWrite(o, 'address');
 		o = s.option(form.DummyValue, '_source_ip', _('Source IP'));
 		o.rawhtml = true;
+		o.modalonly = true;
 		o.cfgvalue = function(sectionId) {
 			if (arguments.length > 1)
 				return null;
@@ -756,6 +757,7 @@ return view.extend({
 		o = s.option(widgets.DeviceSelect, 'interface', _('WAN/upstream interface'), _('For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s); DHCPv6-PD route source prefixes from those interfaces validate LAN host IPv6 addresses.'));
 		this.sourceDhcpv6Options.interface = o;
 		o.multiple = true;
+		o.modalonly = true;
 		o.cfgvalue = function(sectionId, value) {
 			const stored = arguments.length > 1 ? value : (this.data?.[sectionId] || uci.get('qddns', sectionId, 'interface'));
 			const normalized = viewRef.interfaceValues(stored);
@@ -804,8 +806,8 @@ return view.extend({
 		o = s.option(form.Value, 'secret_key', _('Secret Key')); o.password = true; o.modalonly = true; o.depends('type', 'dnspod');
 		o = s.option(form.Value, 'access_key_id', _('Access Key ID')); o.modalonly = true; o.depends('type', 'aliyun');
 		o = s.option(form.Value, 'access_key_secret', _('Access Key Secret')); o.password = true; o.modalonly = true; o.depends('type', 'aliyun');
-		o = s.option(form.Value, 'url', _('Custom URL')); o.depends('type', 'custom_http');
-		o = s.option(form.Value, 'method', _('HTTP method')); o.placeholder = 'POST'; o.depends('type', 'custom_http');
+		o = s.option(form.Value, 'url', _('Custom URL')); o.modalonly = true; o.depends('type', 'custom_http');
+		o = s.option(form.Value, 'method', _('HTTP method')); o.placeholder = 'POST'; o.modalonly = true; o.depends('type', 'custom_http');
 		o = s.option(form.Value, 'headers_json', _('Headers JSON')); o.modalonly = true; o.depends('type', 'custom_http');
 		o = s.option(form.Value, 'body_template', _('Body template')); o.modalonly = true; o.depends('type', 'custom_http');
 		o = s.option(form.Value, 'lookup_url', _('Lookup URL')); o.modalonly = true; o.depends('type', 'custom_http');
