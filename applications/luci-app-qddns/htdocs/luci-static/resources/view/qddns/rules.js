@@ -1492,9 +1492,7 @@ return view.extend({
 			button.disabled = true;
 			button.title = _('Add a provider in Settings before creating a rule.');
 			text.push(E('p', { class: 'cbi-section-descr alert-message warning' }, [
-				_('No providers saved yet. '),
-				E('a', { href: settingsUrl }, _('Add a provider in Settings')),
-				_(' before creating a rule.')
+				E('a', { href: settingsUrl }, _('Add a provider in Settings before creating a rule.'))
 			]));
 		} else if (!sources.length) {
 			text.push(E('p', { class: 'cbi-section-descr' }, _('Tip: you can create a source inside the wizard, or manage saved sources in Settings.')));
@@ -1638,7 +1636,7 @@ return view.extend({
 	renderRuleForm: function(data) {
 		const providers = qddns.sortNamedItems(data?.catalog?.rules?.providers || []);
 		const sources = qddns.sortNamedItems(data?.catalog?.sources || []);
-		const m = new form.Map('qddns', null, _('Only rules are editable on this page. Providers and sources live on the settings page.'));
+		const m = new form.Map('qddns', '', _('Only rules are editable on this page. Providers and sources live on the settings page.'));
 		let s;
 		let o;
 

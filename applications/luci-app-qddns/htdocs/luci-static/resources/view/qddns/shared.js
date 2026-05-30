@@ -41,12 +41,11 @@ const QDDNS_COMMON_STYLE = [
 		'--qddns-lease-meta-label:5.5rem;',
 	'}',
 	'.qddns-panel{margin-bottom:var(--qddns-space-4);padding:var(--qddns-space-4);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-md);background:var(--qddns-surface)}',
-	'.qddns-dashboard-note,.qddns-page-note{margin-bottom:var(--qddns-space-4)}',
 	'.qddns-page-header{display:grid;gap:var(--qddns-space-3)}',
 	'.qddns-page-title{margin:0;font-size:1.35rem;font-weight:700;line-height:1.3}',
 	'.qddns-page-desc{margin:0;line-height:1.5;opacity:0.78}',
 	'.qddns-page-cta{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--qddns-space-3)}',
-	'.qddns-page-cta-text{display:grid;gap:var(--qddns-space-1);flex:1 1 22rem;min-width:16rem}',
+	'.qddns-page-cta-text{display:grid;gap:var(--qddns-space-1);flex:1 1 22rem;min-width:min(100%,16rem)}',
 	'.qddns-page-cta-text h3{margin:0}',
 	'.qddns-page-cta-text p{margin:0}',
 	'.qddns-wide-form .cbi-map>h2:empty{display:none}',
@@ -377,6 +376,7 @@ return baseclass.extend({
 		}, this));
 	},
 
+	// options: { title: string, description?: string }
 	renderPageHeader: function(options) {
 		this.ensureCommonStyle();
 

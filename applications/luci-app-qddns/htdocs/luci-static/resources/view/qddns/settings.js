@@ -663,7 +663,7 @@ return view.extend({
 		this.ensureSettingsStyle();
 
 		const viewRef = this;
-		const m = new form.Map('qddns', null, null);
+		const m = new form.Map('qddns', '', '');
 		let s;
 		let o;
 

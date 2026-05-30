@@ -859,17 +859,8 @@ msgstr "启用状态"
 msgid "Start with the guided setup to create a complete rule, then run and monitor saved rules in the console. Use the advanced table for detailed edits."
 msgstr "先用引导添加创建完整规则，再在控制台运行并监控已保存规则。详细编辑请使用高级表格。"
 
-msgid "No providers saved yet. "
-msgstr "尚未保存提供商。"
-
-msgid "Add a provider in Settings"
-msgstr "请先在设置页添加提供商"
-
-msgid " before creating a rule."
-msgstr "，然后再创建规则。"
+msgid "Add a provider in Settings before creating a rule."
+msgstr "请先在设置页添加提供商,然后再创建规则。"
 
 msgid "Tip: you can create a source inside the wizard, or manage saved sources in Settings."
 msgstr "提示：可在向导中创建来源，或在设置页管理已保存的来源。"
-
-msgid "Add a provider in Settings before creating a rule."
-msgstr "请先在设置页添加提供商,然后再创建规则。"
