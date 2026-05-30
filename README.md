@@ -6,9 +6,22 @@
 
 ### 安装
 
+在 ImmortalWrt/OpenWrt 源码树中添加 feed 并编译：
+
 ```sh
-# 从本地编译产物安装（路由器上执行）
-apk add --allow-untrusted qddns-*.apk luci-app-qddns-*.apk luci-i18n-qddns-zh-cn-*.apk
+# 在 feeds.conf 中添加 qddns feed
+echo "src-git qddns https://github.com/qimaoww/luci-app-qddns.git" >> feeds.conf
+
+# 更新并安装
+./scripts/feeds update qddns
+./scripts/feeds install -a -p qddns
+
+# 在 menuconfig 中选中 Network -> qddns 和 LuCI -> Applications -> luci-app-qddns
+make menuconfig
+
+# 编译
+make package/qddns/compile
+make package/luci-app-qddns/compile
 ```
 
 ### 最小配置
