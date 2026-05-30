@@ -131,4 +131,4 @@ python3 tests/check_rpcd_redaction.py
 
 ## 许可证
 
-[GPL-2.0-only](./LICENSES/)
+[GPL-2.0-only](./LICENSE)
