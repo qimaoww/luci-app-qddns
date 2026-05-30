@@ -502,44 +502,15 @@ function probe_slaac_addresses(entries, lan_iface) {
 	if (!length(prefixes))
 		return;
 
-	let probed = 0;
-	let max_probes = 16;
-
 	for (let mac in entries) {
-		if (probed >= max_probes)
-			break;
-
 		let entry = entries[mac];
 		let suffix = mac_to_eui64_suffix(mac);
 		if (!suffix)
 			continue;
 
 		for (let prefix in prefixes) {
-			if (probed >= max_probes)
-				break;
-
 			let addr = prefix + ':' + suffix;
-
-			let already = false;
-			for (let i = 0; i < length(entry.prefixes); i++) {
-				if (index(entry.prefixes[i], addr) == 0) {
-					already = true;
-					break;
-				}
-			}
-			if (already)
-				continue;
-
-			let p = popen(`ping6 -c 1 -W 1 -I ${lan_iface} ${addr} >/dev/null 2>&1; echo $?`, 'r');
-			if (!p)
-				continue;
-
-			let result = trim(p.read('all') || '');
-			p.close();
-			probed++;
-
-			if (result == '0')
-				push_unique(entry.prefixes, `${addr}/128`);
+			push_unique(entry.prefixes, `${addr}/128`);
 		}
 	}
 }
