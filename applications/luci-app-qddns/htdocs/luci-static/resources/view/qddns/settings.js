@@ -822,10 +822,10 @@ return view.extend({
 			return E('div', { class: 'qddns-settings-page' }, [
 				qddns.renderPageHeader({
 					title: _('Settings'),
-					description: _('Manage daemon defaults, source definitions, and provider credentials here. Use the source probe panel below to validate saved sources before using them on the rules page.')
+					description: _('Manage daemon defaults, source definitions, and provider credentials here.')
 				}),
+				formEl,
 				this.renderProviderTemplatePanel(),
-				E('div', { class: 'qddns-wide-form' }, [formEl]),
 				this.renderSourceProbePanel(data.sources)
 			]);
 		}, this));
