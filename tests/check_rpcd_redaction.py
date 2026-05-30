@@ -40,9 +40,8 @@ if "is_valid_id" not in TEXT or "is_probe_allowed_source_type" not in TEXT:
 if (
     "source_type == 'command'" in TEXT
     or "source_type == 'script'" in TEXT
-    or "source_type == 'public_probe'" in TEXT
 ):
-    fail("rpcd probe allowlist must not include command/script/public_probe")
+    fail("rpcd probe allowlist must not include command/script")
 
 for command in re.findall(r"exec_json\(`([^`]+)`\)", TEXT):
     if "shell_quote" in command or "${" in command and not any(

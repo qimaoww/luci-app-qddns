@@ -44,7 +44,8 @@ function is_probe_allowed_source_type(source_type) {
 	return source_type == 'local_addr' ||
 		source_type == 'interface' ||
 		source_type == 'dhcpv6_duid' ||
-		source_type == 'dhcpv6_mac';
+		source_type == 'dhcpv6_mac' ||
+		source_type == 'public_probe';
 }
 
 function has_rule(rule_id) {
@@ -180,10 +181,22 @@ function draft_lease_file(value) {
 	return value == dhcpv6_lease_file ? value : null;
 }
 
+function draft_probe_url(value) {
+	value = trim(`${value || ''}`);
+	if (!value)
+		return '';
+
+	if (match(value, /^https?:\/\//) == null)
+		return null;
+
+	return value;
+}
+
 function draft_source_config(req) {
 	let source_type = req.args.type || '';
 	let source_name = req.args.name || 'Wizard source';
 	let lease_file = draft_lease_file(req.args.lease_file);
+	let probe_url = draft_probe_url(req.args.probe_url);
 	let lines = [
 		`\nconfig source '${draft_probe_source_id}'\n`
 	];
@@ -191,6 +204,8 @@ function draft_source_config(req) {
 	if (!is_probe_allowed_source_type(source_type))
 		return null;
 	if (lease_file == null)
+		return null;
+	if (probe_url == null)
 		return null;
 
 	for (let value in [
@@ -204,7 +219,8 @@ function draft_source_config(req) {
 		req.args.mac,
 		lease_file,
 		req.args.hostname_hint,
-		req.args.prefix_filter
+		req.args.prefix_filter,
+		probe_url
 	]) {
 		if (value && uci_quote(value) == null)
 			return null;
@@ -221,6 +237,7 @@ function draft_source_config(req) {
 	push(lines, draft_source_option('lease_file', lease_file));
 	push(lines, draft_source_option('hostname_hint', req.args.hostname_hint));
 	push(lines, draft_source_option('prefix_filter', req.args.prefix_filter));
+	push(lines, draft_source_option('probe_url', probe_url));
 
 	let config = '';
 	for (let line in lines)
@@ -485,7 +502,8 @@ const methods = {
 			mac: 'mac',
 			lease_file: 'lease_file',
 			hostname_hint: 'hostname_hint',
-			prefix_filter: 'prefix_filter'
+			prefix_filter: 'prefix_filter',
+			probe_url: 'probe_url'
 		},
 		call: function(req) {
 			let source_config = draft_source_config(req);

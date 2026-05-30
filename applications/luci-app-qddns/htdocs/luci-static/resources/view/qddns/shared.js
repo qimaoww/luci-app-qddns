@@ -9,7 +9,7 @@ const callSources = rpc.declare({ object: 'qddns', method: 'list_sources', expec
 const callInterfaces = rpc.declare({ object: 'qddns', method: 'list_interfaces', expect: {} });
 const callDhcpv6Leases = rpc.declare({ object: 'qddns', method: 'list_dhcpv6_leases', params: ['mode'], expect: {} });
 const callProbeSource = rpc.declare({ object: 'qddns', method: 'probe_source', params: ['id'], expect: {} });
-const callProbeSourceDraft = rpc.declare({ object: 'qddns', method: 'probe_source_draft', params: ['name', 'type', 'family', 'address', 'interface', 'duid', 'iaid', 'mac', 'lease_file', 'hostname_hint', 'prefix_filter'], expect: {} });
+const callProbeSourceDraft = rpc.declare({ object: 'qddns', method: 'probe_source_draft', params: ['name', 'type', 'family', 'address', 'interface', 'duid', 'iaid', 'mac', 'lease_file', 'hostname_hint', 'prefix_filter', 'probe_url'], expect: {} });
 const callRunRule = rpc.declare({ object: 'qddns', method: 'run_rule', params: ['id'], expect: {} });
 const callGetLogs = rpc.declare({ object: 'qddns', method: 'get_logs', params: ['scope'], expect: {} });
 const callGetRuleStatus = rpc.declare({ object: 'qddns', method: 'get_rule_status', params: ['id'], expect: {} });
@@ -162,7 +162,8 @@ return baseclass.extend({
 			source.mac || '',
 			source.leaseFile || source.lease_file || '',
 			source.hostnameHint || source.hostname_hint || '',
-			source.prefixFilter || source.prefix_filter || ''
+			source.prefixFilter || source.prefix_filter || '',
+			source.probeUrl || source.probe_url || ''
 		);
 	},
 	runRule: callRunRule,
@@ -305,7 +306,7 @@ return baseclass.extend({
 	},
 
 	isProbeableSourceType: function(sourceType) {
-		return ['local_addr', 'interface', 'dhcpv6_duid', 'dhcpv6_mac'].indexOf(sourceType) > -1;
+		return ['local_addr', 'interface', 'dhcpv6_duid', 'dhcpv6_mac', 'public_probe'].indexOf(sourceType) > -1;
 	},
 
 	withBusyButton: function(button, handler) {

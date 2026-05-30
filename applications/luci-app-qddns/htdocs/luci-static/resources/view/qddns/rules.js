@@ -454,12 +454,13 @@ return view.extend({
 			mac: sourceData.mac,
 			lease_file: sourceData.leaseFile,
 			hostname_hint: sourceData.hostnameHint,
-			prefix_filter: sourceData.prefixFilter
+			prefix_filter: sourceData.prefixFilter,
+			probe_url: sourceData.probeUrl
 		})[option] || '';
 	},
 
 	stageWizardSource: function(sectionId, sourceData) {
-		const sourceOptions = ['family', 'address', 'interface', 'duid', 'iaid', 'mac', 'lease_file', 'hostname_hint', 'prefix_filter'];
+		const sourceOptions = ['family', 'address', 'interface', 'duid', 'iaid', 'mac', 'lease_file', 'hostname_hint', 'prefix_filter', 'probe_url'];
 		const exists = (uci.sections('qddns') || []).some(function(section) {
 			return section['.name'] === sectionId;
 		});
@@ -554,6 +555,7 @@ return view.extend({
 			sourceName: E('input', { type: 'text', class: 'cbi-input-text', placeholder: _('Source name') }),
 			sourceType: E('select', { class: 'cbi-input-select' }, [
 				E('option', { value: 'interface' }, [_('Interface')]),
+				E('option', { value: 'public_probe' }, [_('Public probe')]),
 				E('option', { value: 'dhcpv6_duid' }, [_('DHCPv6 DUID')]),
 				E('option', { value: 'dhcpv6_mac' }, [_('MAC')]),
 				E('option', { value: 'local_addr' }, [_('Local address')])
@@ -564,6 +566,14 @@ return view.extend({
 				E('option', { value: 'ipv6' }, [_('IPv6')])
 			]),
 			sourceAddress: E('input', { type: 'text', class: 'cbi-input-text', placeholder: '198.51.100.10 / 2001:db8::10' }),
+			sourceProbeUrl: E('select', { class: 'cbi-input-select' }, [
+				E('option', { value: 'https://ddns.oray.com/checkip' }, ['ddns.oray.com/checkip']),
+				E('option', { value: 'http://myip.ipip.net' }, ['myip.ipip.net']),
+				E('option', { value: 'http://members.3322.org/dyndns/getip' }, ['members.3322.org/dyndns/getip']),
+				E('option', { value: 'http://ip.3322.net' }, ['ip.3322.net']),
+				E('option', { value: 'http://whatismyip.akamai.com' }, ['whatismyip.akamai.com']),
+				E('option', { value: 'http://ifconfig.me/ip' }, ['ifconfig.me/ip'])
+			]),
 			sourceInterface: this.renderWizardInterfaceSelect(data?.catalog, true),
 			sourceInterfaceSingle: this.renderWizardInterfaceSelect(data?.catalog, false),
 			sourceDuid: E('input', { type: 'text', class: 'cbi-input-text' }),
@@ -616,6 +626,7 @@ return view.extend({
 		]);
 		const sourceFamilyField = this.renderWizardField(_('Family'), fields.sourceFamily);
 		const sourceAddressField = this.renderWizardField(_('Address'), fields.sourceAddress);
+		const sourceProbeUrlField = this.renderWizardField(_('Probe URL'), fields.sourceProbeUrl, _('Select a public IP detection service.'));
 		const sourceTypeHint = E('div', { class: 'cbi-value-description' });
 		const sourceTypeField = E('div', { class: 'qddns-rule-wizard-field' }, [
 			E('label', {}, _('Source type')),
@@ -685,7 +696,8 @@ return view.extend({
 					this.renderWizardField(_('Source name'), fields.sourceName),
 					sourceTypeField,
 					sourceFamilyField,
-					sourceAddressField
+					sourceAddressField,
+					sourceProbeUrlField
 				])
 			]),
 			sourcePrefixGroup,
@@ -846,6 +858,11 @@ return view.extend({
 				return;
 			}
 
+			if (fields.sourceType.value === 'public_probe') {
+				sourceTypeHint.textContent = _('Query a public service to detect the external IP address.');
+				return;
+			}
+
 			sourcePrefixTitle.textContent = _('WAN prefix source');
 			sourcePrefixDescription.textContent = _('Choose the WAN/upstream interface that owns the delegated IPv6 prefix. Do not select LAN here.');
 			if (fields.sourceType.value === 'dhcpv6_duid')
@@ -868,9 +885,11 @@ return view.extend({
 			const isDuidSource = sourceType === 'dhcpv6_duid';
 			const isMacSource = sourceType === 'dhcpv6_mac';
 			const isDhcpv6Source = isDuidSource || isMacSource;
+			const isPublicProbe = sourceType === 'public_probe';
 
 			sourceFamilyField.style.display = isDhcpv6Source ? 'none' : '';
 			sourceAddressField.style.display = sourceType === 'local_addr' ? '' : 'none';
+			sourceProbeUrlField.style.display = isPublicProbe ? '' : 'none';
 			sourceInterfaceField.style.display = sourceType === 'interface' || isDhcpv6Source ? '' : 'none';
 			fields.sourceInterfaceSingle.style.display = sourceType === 'interface' ? '' : 'none';
 			fields.sourceInterface.style.display = isDhcpv6Source ? '' : 'none';
@@ -1229,12 +1248,16 @@ return view.extend({
 				mac: '',
 				leaseFile: '',
 				hostnameHint: '',
-				prefixFilter: ''
+				prefixFilter: '',
+				probeUrl: ''
 			};
 
 			if (sourceType === 'local_addr') {
 				sourceData.family = viewRef.wizardValue(fields.sourceFamily);
 				sourceData.address = viewRef.wizardValue(fields.sourceAddress);
+			} else if (sourceType === 'public_probe') {
+				sourceData.family = viewRef.wizardValue(fields.sourceFamily);
+				sourceData.probeUrl = viewRef.wizardValue(fields.sourceProbeUrl);
 			} else if (sourceType === 'interface') {
 				sourceData.family = viewRef.wizardValue(fields.sourceFamily);
 				sourceData.interfaceName = viewRef.wizardValue(fields.sourceInterfaceSingle);
@@ -1265,6 +1288,8 @@ return view.extend({
 
 			if (!sourceData.name)
 				return _('Source name is required.');
+			if (sourceType === 'public_probe' && !sourceData.probeUrl)
+				return _('Probe URL is required.');
 			if (sourceType === 'local_addr' && !sourceData.address)
 				return _('Address is required.');
 			if ((sourceType === 'interface' || isDhcpv6Source) && !sourceData.interfaceName)
@@ -1426,6 +1451,7 @@ return view.extend({
 			fields.sourceName,
 			fields.sourceFamily,
 			fields.sourceAddress,
+			fields.sourceProbeUrl,
 			fields.sourceInterface,
 			fields.sourceInterfaceSingle,
 			fields.sourceDuid,

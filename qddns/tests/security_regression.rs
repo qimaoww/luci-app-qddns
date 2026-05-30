@@ -172,7 +172,7 @@ fn public_probe_rejects_file_scheme_and_does_not_read_local_file() {
 }
 
 #[test]
-fn rpcd_probe_rejects_script_and_public_probe() {
+fn rpcd_probe_rejects_script() {
     let pwned = Path::new("/tmp/qddns-rpc-pwned");
     let _ = std::fs::remove_file(pwned);
 
@@ -208,11 +208,6 @@ config source 'scripted'
     option type 'script'
     option family 'ipv4'
     option script '{}'
-
-config source 'probe'
-    option type 'public_probe'
-    option family 'ipv4'
-    option probe_url 'http://127.0.0.1/probe'
 "#,
             state_dir.display(),
             log_dir.display(),
@@ -220,15 +215,13 @@ config source 'probe'
         ),
     );
 
-    for source in ["scripted", "probe"] {
-        let err = qddns::daemon::probe_source(config_path.to_str().unwrap(), source)
-            .expect_err("rpcd source probe must reject dangerous source types");
-        assert!(
-            err.to_string()
-                .contains("probe not allowed for source type"),
-            "unexpected error for {source}: {err}"
-        );
-    }
+    let err = qddns::daemon::probe_source(config_path.to_str().unwrap(), "scripted")
+        .expect_err("rpcd source probe must reject script source type");
+    assert!(
+        err.to_string()
+            .contains("probe not allowed for source type"),
+        "unexpected error: {err}"
+    );
 
     assert!(!pwned.exists(), "rpcd probe executed dangerous source");
 }

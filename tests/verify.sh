@@ -1372,7 +1372,7 @@ run_step 'ucode secret guard' sh -c "! grep -nE 'api_token: section\.api_token|s
 run_step 'ucode fixed config bridge guard' grep -n "return exec_json_with_config('/etc/config/qddns', command);" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 run_step 'ucode no shell quote guard' sh -c "! grep -n 'function shell_quote' '$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc'"
 run_step 'ucode probe type guard' grep -n 'is_probe_allowed_source_type' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-run_step 'ucode probe command/script/public probe deny guard' sh -c "! grep -nE \"source_type == 'command'|source_type == 'script'|source_type == 'public_probe'\" '$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc'"
+run_step 'ucode probe command/script deny guard' sh -c "! grep -nE \"source_type == 'command'|source_type == 'script'\" '$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc'"
 run_step 'ucode log bridge guard' grep -n 'exec_json(`logs' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 run_step 'ucode no log path read guard' sh -c "! grep -nE 'log_dir|readlink\(|mkdir\(' '$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc'"
 run_step 'acl mktemp exec guard' grep -n '"/bin/mktemp": \[ "exec" \]' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/acl.d/luci-app-qddns.json"

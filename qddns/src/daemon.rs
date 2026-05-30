@@ -110,10 +110,7 @@ pub fn probe_source(config_path: &str, source_id: &str) -> Result<()> {
         .sources
         .get(source_id)
         .ok_or_else(|| Error::new(format!("missing source '{source_id}'")))?;
-    if matches!(
-        &source.kind,
-        SourceKind::Script { .. } | SourceKind::PublicProbe { .. }
-    ) {
+    if matches!(&source.kind, SourceKind::Script { .. }) {
         return Err(Error::new(format!(
             "probe not allowed for source type '{}'",
             source.source_type()
