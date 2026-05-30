@@ -11,7 +11,7 @@ const QDDNS_STYLE = [
 	'.qddns-card{padding:var(--qddns-space-4);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-md);background:var(--qddns-surface);display:flex;flex-direction:column;gap:var(--qddns-space-2);min-height:6rem;justify-content:center}',
 	'.qddns-card-label{font-size:0.75rem;opacity:0.72}',
 	'.qddns-card-value{font-size:1.5rem;font-weight:600;line-height:1.3;word-break:break-word}',
-	'.qddns-ip-synced{display:inline-flex;align-items:center;gap:var(--qddns-space-2)}',
+	'.qddns-ip-synced{display:inline-flex;align-items:center;gap:var(--qddns-space-2);white-space:nowrap}',
 	'.qddns-ip-synced .qddns-badge{font-size:0.7rem;padding:0 var(--qddns-space-2)}',
 	'.qddns-ip-diff{display:grid;gap:0.15rem}',
 	'.qddns-ip-diff-old{opacity:0.6;font-size:0.85em;text-decoration:line-through}',
