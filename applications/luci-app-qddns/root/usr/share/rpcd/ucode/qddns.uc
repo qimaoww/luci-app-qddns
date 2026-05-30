@@ -444,120 +444,38 @@ function add_dhcpv6_lease_entry(entries, fields, prefixes) {
 		push_unique(entry.prefixes, prefix);
 }
 
-function refresh_ndp_for_interface(lan_iface) {
-	if (!lan_iface)
-		return;
-
-	popen(`ping6 -c 1 -W 1 -I ${lan_iface} ff02::1 >/dev/null 2>&1`, 'r')?.close();
-}
-
-function mac_to_eui64_suffix(mac) {
-	if (!mac)
-		return null;
-
-	let parts = split(mac, ':');
-	if (length(parts) != 6)
-		return null;
-
-	let b0 = hex(parts[0]) ^ 0x02;
-	return sprintf('%02x%s:%sff:fe%s:%s%s',
-		b0, parts[1], parts[2], parts[3], parts[4], parts[5]);
-}
-
-function get_lan_prefixes(lan_iface) {
-	if (!lan_iface)
-		return [];
-
-	let p = popen(`${ip_cmd} -6 route show dev ${lan_iface} proto static 2>/dev/null`, 'r');
-	if (!p)
-		return [];
-
-	let output = p.read('all') || '';
-	p.close();
-
-	let prefixes = [];
-	for (let line in split(output, '\n')) {
-		line = trim(line || '');
-		if (!line)
-			continue;
-
-		let parts = split(line, /\s+/);
-		let prefix = parts[0] || '';
-		if (!match(prefix, /^[23][0-9a-f]+:.*\/64$/))
-			continue;
-
-		let network = split(prefix, '/')[0] || '';
-		if (network && is_public_ipv6(network))
-			push_unique(prefixes, replace(network, /::?$/, ''));
-	}
-
-	return prefixes;
-}
-
-function probe_slaac_addresses(entries, lan_iface) {
-	if (!lan_iface)
-		return;
-
-	let prefixes = get_lan_prefixes(lan_iface);
-	if (!length(prefixes))
-		return;
-
-	let targets = [];
-	for (let mac in entries) {
-		let entry = entries[mac];
-		let suffix = mac_to_eui64_suffix(mac);
-		if (!suffix)
-			continue;
-
-		for (let prefix in prefixes) {
-			let addr = prefix + ':' + suffix;
-			let already = false;
-			for (let i = 0; i < length(entry.prefixes); i++) {
-				if (index(entry.prefixes[i], addr) == 0) {
-					already = true;
-					break;
-				}
-			}
-			if (!already)
-				push(targets, { mac: mac, addr: addr });
-		}
-	}
-
-	if (!length(targets))
-		return;
-
-	let cmds = [];
-	for (let t in targets)
-		push(cmds, `ping6 -c 1 -W 1 -I ${lan_iface} ${t.addr} >/dev/null 2>&1 && echo ${t.addr}`);
-
-	let script = join(' & ', cmds) + '; wait';
-	let p = popen(`sh -c '${script}' 2>/dev/null`, 'r');
+function discover_slaac_addresses(entries) {
+	let p = popen(`${qddns_ctl} sources discover 2>/dev/null`, 'r');
 	if (!p)
 		return;
 
 	let output = p.read('all') || '';
 	p.close();
 
-	let reachable = {};
-	for (let line in split(output, '\n')) {
-		line = trim(line || '');
-		if (line)
-			reachable[line] = true;
-	}
+	let data = null;
+	try { data = json(output); } catch (err) { return; }
+	if (!data || !data.ok || type(data.addresses) != 'array')
+		return;
 
-	for (let t in targets) {
-		if (reachable[t.addr]) {
-			let entry = entries[t.mac];
-			if (entry)
-				push_unique(entry.prefixes, `${t.addr}/128`);
-		}
+	let addresses = data.addresses;
+	for (let i = 0; i < length(addresses); i++) {
+		let mac = addresses[i].mac;
+		let addr = addresses[i].address;
+		if (!mac || !addr)
+			continue;
+
+		let host = entries[mac];
+		if (!host)
+			continue;
+
+		push_unique(host.prefixes, `${addr}/128`);
 	}
 }
 
 function add_ndp_entries(entries) {
 	let lan_iface = uci.get('qddns', 'main', 'lan_interface') || '';
 	if (lan_iface)
-		refresh_ndp_for_interface(lan_iface);
+		popen(`ping6 -c 1 -W 1 -I ${lan_iface} ff02::1 >/dev/null 2>&1`, 'r')?.close();
 
 	let p = popen(`${ip_cmd} -6 neigh show 2>/dev/null`, 'r');
 	if (!p)
@@ -696,7 +614,7 @@ function list_dhcpv6_leases(mode) {
 
 	add_dhcpv4_lease_entries(entries);
 	add_ndp_entries(entries);
-	probe_slaac_addresses(entries, uci.get('qddns', 'main', 'lan_interface') || '');
+	discover_slaac_addresses(entries);
 	add_ipv4_neighbor_entries(entries);
 
 	let leases = [];

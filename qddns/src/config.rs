@@ -23,6 +23,7 @@ pub struct MainConfig {
     pub poll_interval: u64,
     pub timeout: u64,
     pub log_level: String,
+    pub lan_interface: Option<String>,
 }
 
 impl Default for MainConfig {
@@ -35,6 +36,7 @@ impl Default for MainConfig {
             poll_interval: 60,
             timeout: 15,
             log_level: "info".into(),
+            lan_interface: None,
         }
     }
 }
@@ -483,6 +485,7 @@ impl Config {
                         )?,
                         log_level: get_string(&section.options, "log_level")
                             .unwrap_or_else(|| config.main.log_level.clone()),
+                        lan_interface: get_string(&section.options, "lan_interface"),
                     };
                 }
                 "source" => {

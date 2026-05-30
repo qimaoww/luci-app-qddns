@@ -431,3 +431,124 @@ fn set_dir_mode(path: &str, mode: u32) -> Result<()> {
 fn set_dir_mode(_path: &str, _mode: u32) -> Result<()> {
     Ok(())
 }
+
+pub fn discover_slaac(config_path: &str) -> Result<()> {
+    use std::process::Command;
+    use std::thread;
+
+    let config = Config::load_from_path(Path::new(config_path))?;
+    let lan_iface = config.main.lan_interface.clone().unwrap_or_default();
+
+    if lan_iface.is_empty() {
+        println!("{}", json!({"ok": true, "addresses": []}));
+        return Ok(());
+    }
+
+    // Get /64 prefixes on the LAN interface from routing table
+    let route_output = Command::new("ip")
+        .args(["-6", "route", "show", "dev", &lan_iface, "proto", "static"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .unwrap_or_default();
+
+    let prefixes: Vec<String> = route_output
+        .lines()
+        .filter_map(|line| {
+            let prefix = line.split_whitespace().next()?;
+            if prefix.ends_with("/64") && (prefix.starts_with('2') || prefix.starts_with('3')) {
+                Some(prefix.trim_end_matches("/64").trim_end_matches("::").trim_end_matches(':').to_string())
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    if prefixes.is_empty() {
+        println!("{}", json!({"ok": true, "addresses": []}));
+        return Ok(());
+    }
+
+    // Get known MACs from IPv6 neighbor table
+    let neigh_output = Command::new("ip")
+        .args(["-6", "neigh", "show", "dev", &lan_iface])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .unwrap_or_default();
+
+    let mut macs: Vec<String> = Vec::new();
+    for line in neigh_output.lines() {
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        if let Some(pos) = fields.iter().position(|&f| f == "lladdr") {
+            if let Some(mac) = fields.get(pos + 1) {
+                let normalized = mac.to_lowercase();
+                if !macs.contains(&normalized) {
+                    macs.push(normalized);
+                }
+            }
+        }
+    }
+
+    // Generate EUI-64 SLAAC addresses and ping in parallel
+    let mut targets: Vec<(String, String)> = Vec::new(); // (mac, addr)
+    for mac in &macs {
+        if let Some(suffix) = mac_to_eui64(mac) {
+            for prefix in &prefixes {
+                let addr = format!("{}:{}", prefix, suffix);
+                targets.push((mac.clone(), addr));
+            }
+        }
+    }
+
+    // Parallel ping
+    let lan = lan_iface.clone();
+    let handles: Vec<_> = targets
+        .iter()
+        .map(|(mac, addr)| {
+            let addr = addr.clone();
+            let mac = mac.clone();
+            let iface = lan.clone();
+            thread::spawn(move || {
+                let status = Command::new("ping6")
+                    .args(["-c", "1", "-W", "1", "-I", &iface, &addr])
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .status();
+                let reachable = status.map(|s| s.success()).unwrap_or(false);
+                (mac, addr, reachable)
+            })
+        })
+        .collect();
+
+    let mut results: Vec<serde_json::Value> = Vec::new();
+    for handle in handles {
+        if let Ok((mac, addr, reachable)) = handle.join() {
+            if reachable {
+                results.push(json!({"mac": mac, "address": addr}));
+            }
+        }
+    }
+
+    println!("{}", json!({"ok": true, "addresses": results}));
+    Ok(())
+}
+
+fn mac_to_eui64(mac: &str) -> Option<String> {
+    let parts: Vec<&str> = mac.split(':').collect();
+    if parts.len() != 6 {
+        return None;
+    }
+    let bytes: Vec<u8> = parts
+        .iter()
+        .filter_map(|p| u8::from_str_radix(p, 16).ok())
+        .collect();
+    if bytes.len() != 6 {
+        return None;
+    }
+    let b0 = bytes[0] ^ 0x02;
+    // Format without leading zeros to match kernel neighbor table output
+    let w1 = ((b0 as u16) << 8) | (bytes[1] as u16);
+    let w2 = ((bytes[2] as u16) << 8) | 0xff;
+    let w3 = (0xfe << 8) | (bytes[3] as u16);
+    let w4 = ((bytes[4] as u16) << 8) | (bytes[5] as u16);
+    Some(format!("{:x}:{:x}:{:x}:{:x}", w1, w2, w3, w4))
+}

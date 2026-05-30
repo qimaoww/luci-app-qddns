@@ -26,6 +26,7 @@ pub enum Commands {
 pub enum SourceCommands {
     List,
     Probe { id: String },
+    Discover,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,6 +83,7 @@ impl Cli {
                         .cloned()
                         .ok_or_else(|| Error::new("missing source id"))?,
                 }),
+                Some("discover") => Commands::Sources(SourceCommands::Discover),
                 _ => return Err(Error::new("unsupported sources subcommand")),
             },
             "rules" => match cleaned.get(1).map(String::as_str) {
@@ -142,6 +144,7 @@ pub fn run(cli: Cli) -> Result<()> {
         Commands::Sources(SourceCommands::List) => daemon::list_sources(&cli.config),
         Commands::Logs { scope } => daemon::print_logs(&cli.config, &scope),
         Commands::Sources(SourceCommands::Probe { id }) => daemon::probe_source(&cli.config, &id),
+        Commands::Sources(SourceCommands::Discover) => daemon::discover_slaac(&cli.config),
         Commands::Rules(RuleCommands::List) => daemon::list_rules(&cli.config),
         Commands::Rules(RuleCommands::Run { id }) | Commands::Rules(RuleCommands::Test { id }) => {
             daemon::run_rule_once(&cli.config, &id)
