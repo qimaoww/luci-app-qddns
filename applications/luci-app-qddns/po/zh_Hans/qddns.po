@@ -796,6 +796,18 @@ msgstr "仅当此接口是该来源的 WAN/上游接口时才选择。"
 msgid "Choose the WAN/upstream interface whose current address should be published."
 msgstr "选择要发布当前地址的 WAN/上游接口。"
 
+msgid "Publish the current address from a WAN/upstream interface."
+msgstr "发布 WAN/上游接口上的当前地址。"
+
+msgid "Find a LAN host by DHCPv6 DUID/IAID, then validate its IPv6 against selected WAN/PD prefixes."
+msgstr "通过 DHCPv6 DUID/IAID 查找局域网主机，再用所选 WAN/PD 前缀校验它的 IPv6。"
+
+msgid "Find a LAN host by MAC, then validate its IPv6 against selected WAN/PD prefixes."
+msgstr "通过 MAC 查找局域网主机，再用所选 WAN/PD 前缀校验它的 IPv6。"
+
+msgid "Use an address you type manually."
+msgstr "使用手动填写的地址。"
+
 msgid "LAN host identity"
 msgstr "局域网主机身份"
 
@@ -843,3 +855,39 @@ msgstr "来源协议族未知"
 
 msgid "Activation"
 msgstr "启用状态"
+
+msgid "1. Settings"
+msgstr "1. 设置"
+
+msgid "Add providers and sources"
+msgstr "添加提供商与来源"
+
+msgid "2. Rules"
+msgstr "2. 规则"
+
+msgid "Create and run rules"
+msgstr "创建并运行规则"
+
+msgid "3. Monitor"
+msgstr "3. 监控"
+
+msgid "Overview and logs"
+msgstr "概览与日志"
+
+msgid "Start with the guided setup to create a complete rule, then run and monitor saved rules in the console. Use the advanced table for detailed edits."
+msgstr "先用引导添加创建完整规则，再在控制台运行并监控已保存规则。详细编辑请使用高级表格。"
+
+msgid "No providers saved yet. "
+msgstr "尚未保存提供商。"
+
+msgid "Add a provider in Settings"
+msgstr "请先在设置页添加提供商"
+
+msgid " before creating a rule."
+msgstr "，然后再创建规则。"
+
+msgid "Tip: you can create a source inside the wizard, or manage saved sources in Settings."
+msgstr "提示：可在向导中创建来源，或在设置页管理已保存的来源。"
+
+msgid "Add a provider in Settings before creating a rule."
+msgstr "请先在设置页添加提供商,然后再创建规则。"

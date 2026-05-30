@@ -141,10 +141,11 @@ return view.extend({
 		const currentLabel = currentChoice ? currentChoice.label : _('System Logs');
 
 		return E('div', { id: 'qddns-logs-page' }, [
-			E('div', { class: 'cbi-section qddns-panel qddns-dashboard-note' }, [
-				E('h3', {}, _('Logs')),
-				E('p', { class: 'cbi-section-descr' }, _('Review system logs or switch to a saved rule scope below. This page is read-only and does not expose rule execution or status actions.'))
-			]),
+			qddns.renderPageHeader({
+				active: 'logs',
+				title: _('Logs'),
+				description: _('Review system logs or switch to a saved rule scope below. This page is read-only and does not expose rule execution or status actions.')
+			}),
 			E('div', { class: 'cbi-section qddns-panel' }, [
 				E('h3', {}, _('Log Scope')),
 				E('p', { class: 'cbi-section-descr' }, '%s: %s'.format(_('Current selection'), currentLabel)),

@@ -33,9 +33,6 @@ const QDDNS_STYLE = [
 	'.qddns-rules-form.qddns-wide-form .cbi-section-table .cbi-button{margin:0 var(--qddns-space-1) var(--qddns-space-1) 0}',
 	'.qddns-rules-form.qddns-wide-form .cbi-section-table .cbi-input-text,.qddns-rules-form.qddns-wide-form .cbi-section-table .cbi-input-select{width:100%;min-width:0;max-width:100%}',
 	'.qddns-rules-form.qddns-wide-form .cbi-section-table input[type="checkbox"]{min-width:auto}',
-	'.qddns-rule-wizard-entry{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:var(--qddns-space-3)}',
-	'.qddns-rule-wizard-entry-text{display:grid;flex:1 1 22rem;gap:var(--qddns-space-1);min-width:16rem;max-width:42rem}',
-	'.qddns-rule-wizard-entry-text h3,.qddns-rule-wizard-entry-text p{margin:0}',
 	'.qddns-rule-wizard-primary{font-size:1rem;font-weight:700;padding:var(--qddns-space-3) var(--qddns-space-4)}',
 	'.modal.qddns-rule-wizard-dialog{align-items:stretch;width:var(--qddns-rule-wizard-width);max-width:94vw;max-height:calc(100vh - var(--qddns-space-4));overflow:auto}',
 	'.modal.qddns-rule-wizard-dialog>h4{box-sizing:border-box;width:100%;margin:0 0 var(--qddns-space-3);padding:0;text-align:left;font-size:1.2rem;font-weight:700;line-height:1.3!important}',
@@ -48,6 +45,8 @@ const QDDNS_STYLE = [
 	'.qddns-rule-wizard-panel{display:grid;justify-items:stretch;gap:var(--qddns-space-3);width:100%;max-width:100%;min-width:0;justify-self:stretch;text-align:left}',
 	'.qddns-rule-wizard-panel h4{justify-self:start;margin:0;padding:0;text-align:left;font-size:1.05rem;font-weight:700;line-height:1.35!important}',
 	'.qddns-rule-wizard-lead{margin:0;max-width:52rem;color:inherit;opacity:0.82;text-align:left}',
+	'.qddns-rule-wizard-path-bar{display:grid;align-items:end;grid-template-columns:minmax(0,1fr) minmax(14rem,18rem);gap:var(--qddns-space-3);width:100%;min-width:0;text-align:left}',
+	'.qddns-rule-wizard-path-copy{display:grid;gap:var(--qddns-space-1);min-width:0;text-align:left}',
 	'.qddns-rule-wizard-section{display:grid;gap:var(--qddns-space-3);box-sizing:border-box;width:100%;min-width:0;padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:rgba(127,127,127,0.045);text-align:left}',
 	'.qddns-rule-wizard-section-head{display:grid;grid-template-columns:1fr;align-items:start;gap:var(--qddns-space-1);min-width:0;text-align:left}',
 	'.qddns-rule-wizard-section-title{font-weight:700;line-height:1.35;text-align:left}',
@@ -85,6 +84,7 @@ const QDDNS_STYLE = [
 	'@media (max-width: 768px){',
 		':root{--qddns-rule-console-min:40rem;--qddns-rule-action-min:8.5rem}',
 		'.qddns-rule-wizard-grid-narrow{max-width:100%}',
+		'.qddns-rule-wizard-path-bar{grid-template-columns:1fr}',
 		'.qddns-rule-wizard-steps{grid-template-columns:1fr}',
 		'.qddns-rule-wizard-detection-grid{grid-template-columns:1fr}',
 		'.qddns-rule-wizard-probe-action-field{justify-content:flex-start}',
@@ -597,14 +597,12 @@ return view.extend({
 		let stepIndex = 0;
 		fields.source.value = '';
 
-		const sourceModeGroup = E('div', { class: 'qddns-rule-wizard-section' }, [
-			E('div', { class: 'qddns-rule-wizard-section-head' }, [
+		const sourceModeGroup = E('div', { class: 'qddns-rule-wizard-path-bar' }, [
+			E('div', { class: 'qddns-rule-wizard-path-copy' }, [
 				E('span', { class: 'qddns-rule-wizard-section-title' }, _('Source path')),
 				E('span', { class: 'qddns-rule-wizard-section-desc' }, _('Choose whether to create a source now or use one already saved.'))
 			]),
-			E('div', { class: 'qddns-rule-wizard-grid qddns-rule-wizard-grid-narrow' }, [
-				this.renderWizardField(_('Mode'), fields.sourceMode)
-			])
+			this.renderWizardField(_('Mode'), fields.sourceMode)
 		]);
 		const savedSourcePanel = E('div', { class: 'qddns-rule-wizard-source-panel', 'data-source-panel': 'saved' }, [
 			E('div', { class: 'qddns-rule-wizard-section' }, [
@@ -619,6 +617,12 @@ return view.extend({
 		]);
 		const sourceFamilyField = this.renderWizardField(_('Family'), fields.sourceFamily);
 		const sourceAddressField = this.renderWizardField(_('Address'), fields.sourceAddress);
+		const sourceTypeHint = E('div', { class: 'cbi-value-description' });
+		const sourceTypeField = E('div', { class: 'qddns-rule-wizard-field' }, [
+			E('label', {}, _('Source type')),
+			fields.sourceType,
+			sourceTypeHint
+		]);
 		const sourceInterfaceField = this.renderWizardField(_('WAN/upstream interface'), fields.sourceInterface, _('Select WAN/upstream interface(s). Verify the real upstream path before probing.'));
 		const sourceDuidField = this.renderWizardField(_('DUID'), fields.sourceDuid);
 		const sourceIaidField = this.renderWizardField(_('IAID'), fields.sourceIaid);
@@ -675,7 +679,7 @@ return view.extend({
 				]),
 				E('div', { class: 'qddns-rule-wizard-grid' }, [
 					this.renderWizardField(_('Source name'), fields.sourceName),
-					this.renderWizardField(_('Source type'), fields.sourceType),
+					sourceTypeField,
 					sourceFamilyField,
 					sourceAddressField
 				])
@@ -835,11 +839,18 @@ return view.extend({
 			if (fields.sourceType.value === 'interface') {
 				sourcePrefixTitle.textContent = _('WAN/upstream interface');
 				sourcePrefixDescription.textContent = _('Choose the WAN/upstream interface whose current address should be published.');
+				sourceTypeHint.textContent = _('Publish the current address from a WAN/upstream interface.');
 				return;
 			}
 
 			sourcePrefixTitle.textContent = _('WAN prefix source');
 			sourcePrefixDescription.textContent = _('Choose the WAN/upstream interface that owns the delegated IPv6 prefix. Do not select LAN here.');
+			if (fields.sourceType.value === 'dhcpv6_duid')
+				sourceTypeHint.textContent = _('Find a LAN host by DHCPv6 DUID/IAID, then validate its IPv6 against selected WAN/PD prefixes.');
+			else if (fields.sourceType.value === 'dhcpv6_mac')
+				sourceTypeHint.textContent = _('Find a LAN host by MAC, then validate its IPv6 against selected WAN/PD prefixes.');
+			else
+				sourceTypeHint.textContent = _('Use an address you type manually.');
 		}
 
 		function syncNewSourceRecordType() {
@@ -1463,18 +1474,35 @@ return view.extend({
 	},
 
 	renderRuleWizard: function(data) {
+		const providers = qddns.normalizeList(data?.catalog?.rules?.providers);
+		const sources = qddns.normalizeList(data?.catalog?.sources);
+		const settingsUrl = '%s/settings'.format(L.url('admin/services/qddns'));
 		const button = E('button', { type: 'button', class: 'btn cbi-button cbi-button-add qddns-rule-wizard-primary' }, [_('Start guided setup')]);
 
 		button.addEventListener('click', L.bind(function() {
 			this.showRuleWizardModal(data, button);
 		}, this));
 
+		const text = [
+			E('h3', {}, _('Guided DDNS rule setup')),
+			E('p', { class: 'cbi-section-descr' }, _('Start a short wizard that creates a complete rule with safe defaults. Use the advanced table below for later edits.'))
+		];
+
+		if (!providers.length) {
+			button.disabled = true;
+			button.title = _('Add a provider in Settings before creating a rule.');
+			text.push(E('p', { class: 'cbi-section-descr alert-message warning' }, [
+				_('No providers saved yet. '),
+				E('a', { href: settingsUrl }, _('Add a provider in Settings')),
+				_(' before creating a rule.')
+			]));
+		} else if (!sources.length) {
+			text.push(E('p', { class: 'cbi-section-descr' }, _('Tip: you can create a source inside the wizard, or manage saved sources in Settings.')));
+		}
+
 		return E('div', { id: 'qddns-rule-wizard', class: 'cbi-section qddns-panel' }, [
-			E('div', { class: 'qddns-rule-wizard-entry' }, [
-				E('div', { class: 'qddns-rule-wizard-entry-text' }, [
-					E('h3', {}, _('Guided DDNS rule setup')),
-					E('p', { class: 'cbi-section-descr' }, _('Start a short wizard that creates a complete rule with safe defaults. Use the advanced table below for later edits.'))
-				]),
+			E('div', { class: 'qddns-page-cta' }, [
+				E('div', { class: 'qddns-page-cta-text' }, text),
 				button
 			]),
 		]);
@@ -1610,7 +1638,7 @@ return view.extend({
 	renderRuleForm: function(data) {
 		const providers = qddns.sortNamedItems(data?.catalog?.rules?.providers || []);
 		const sources = qddns.sortNamedItems(data?.catalog?.sources || []);
-		const m = new form.Map('qddns', _('QDDNS'), _('Only rules are editable on this page. Providers and sources live on the settings page.'));
+		const m = new form.Map('qddns', null, _('Only rules are editable on this page. Providers and sources live on the settings page.'));
 		let s;
 		let o;
 
@@ -1672,8 +1700,13 @@ return view.extend({
 
 		return this.renderRuleForm(this.pageData).then(L.bind(function(formEl) {
 			return E('div', { class: 'qddns-rules-page' }, [
-				this.renderRulesConsole(this.pageData),
+				qddns.renderPageHeader({
+					active: 'rules',
+					title: _('Rules'),
+					description: _('Start with the guided setup to create a complete rule, then run and monitor saved rules in the console. Use the advanced table for detailed edits.')
+				}),
 				this.renderRuleWizard(this.pageData),
+				this.renderRulesConsole(this.pageData),
 				E('div', { class: 'qddns-wide-form qddns-rules-form' }, [formEl])
 			]);
 		}, this));

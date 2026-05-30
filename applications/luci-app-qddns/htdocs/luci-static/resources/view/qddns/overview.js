@@ -85,10 +85,11 @@ return view.extend({
 	},
 
 	renderDashboardIntro: function() {
-		return E('div', { class: 'cbi-section qddns-panel qddns-dashboard-note' }, [
-			E('h3', {}, _('Overview Console')),
-			E('p', { class: 'cbi-section-descr' }, _('Runtime widgets refresh automatically. Use the dedicated rules, settings, and logs pages for actions, configuration, and diagnostics.'))
-		]);
+		return qddns.renderPageHeader({
+			active: 'overview',
+			title: _('Overview'),
+			description: _('Runtime widgets refresh automatically. Use the dedicated rules, settings, and logs pages for actions, configuration, and diagnostics.')
+		});
 	},
 
 	renderOverviewCards: function(overview) {

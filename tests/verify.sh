@@ -119,6 +119,14 @@ required = {
         '来源路径',
     'Choose whether to create a source now or use one already saved.':
         '选择现在创建来源，或使用已保存来源。',
+    'Publish the current address from a WAN/upstream interface.':
+        '发布 WAN/上游接口上的当前地址。',
+    'Find a LAN host by DHCPv6 DUID/IAID, then validate its IPv6 against selected WAN/PD prefixes.':
+        '通过 DHCPv6 DUID/IAID 查找局域网主机，再用所选 WAN/PD 前缀校验它的 IPv6。',
+    'Find a LAN host by MAC, then validate its IPv6 against selected WAN/PD prefixes.':
+        '通过 MAC 查找局域网主机，再用所选 WAN/PD 前缀校验它的 IPv6。',
+    'Use an address you type manually.':
+        '使用手动填写的地址。',
     'Save and apply':
         '保存并应用',
     'Saving and applying rule...':
@@ -437,7 +445,17 @@ if "recommended WAN" in rules or "verify upstream" in rules or "data-qddns-wan-i
 if "_('Select this interface only when it is the WAN/upstream interface for this source.')" not in rules:
     raise SystemExit('rule wizard interface options must tell the user to verify the real upstream interface')
 if "_('Source path')" not in modal or "_('Choose whether to create a source now or use one already saved.')" not in modal:
-    raise SystemExit('rule wizard must present source mode as an aligned source path section')
+    raise SystemExit('rule wizard must present source mode as an aligned source path control')
+if "class: 'qddns-rule-wizard-path-bar'" not in modal or "class: 'qddns-rule-wizard-path-copy'" not in modal:
+    raise SystemExit('rule wizard source path control must be compact and aligned with the first step')
+for required_type_hint in [
+    "sourceTypeHint.textContent = _('Publish the current address from a WAN/upstream interface.');",
+    "sourceTypeHint.textContent = _('Find a LAN host by DHCPv6 DUID/IAID, then validate its IPv6 against selected WAN/PD prefixes.');",
+    "sourceTypeHint.textContent = _('Find a LAN host by MAC, then validate its IPv6 against selected WAN/PD prefixes.');",
+    "sourceTypeHint.textContent = _('Use an address you type manually.');",
+]:
+    if required_type_hint not in modal:
+        raise SystemExit('rule wizard source type must explain the selected source path before probing')
 if "control?.classList?.contains('cbi-dropdown')" not in rules or "input[type=\"hidden\"]" not in rules or "selectedOptions" not in rules:
     raise SystemExit('rule wizard value helper must read LuCI dropdown and native select values')
 if "cbi-dropdown-change" not in modal:
@@ -473,6 +491,8 @@ for css in [
     ".qddns-rule-wizard-panel{display:grid;justify-items:stretch;gap:var(--qddns-space-3);width:100%;max-width:100%;min-width:0;justify-self:stretch;text-align:left}",
     ".qddns-rule-wizard-panel h4{justify-self:start;margin:0;padding:0;text-align:left;font-size:1.05rem;font-weight:700;line-height:1.35!important}",
     ".qddns-rule-wizard-lead{margin:0;max-width:52rem;color:inherit;opacity:0.82;text-align:left}",
+    ".qddns-rule-wizard-path-bar{display:grid;align-items:end;grid-template-columns:minmax(0,1fr) minmax(14rem,18rem);gap:var(--qddns-space-3);width:100%;min-width:0;text-align:left}",
+    ".qddns-rule-wizard-path-copy{display:grid;gap:var(--qddns-space-1);min-width:0;text-align:left}",
     ".qddns-rule-wizard-section{display:grid;gap:var(--qddns-space-3);box-sizing:border-box;width:100%;min-width:0;padding:var(--qddns-space-3);border:1px solid var(--qddns-border);border-radius:var(--qddns-radius-sm);background:rgba(127,127,127,0.045);text-align:left}",
     ".qddns-rule-wizard-section-head{display:grid;grid-template-columns:1fr;align-items:start;gap:var(--qddns-space-1);min-width:0;text-align:left}",
     ".qddns-rule-wizard-section-title{font-weight:700;line-height:1.35;text-align:left}",
@@ -1182,6 +1202,10 @@ check_name_visible_numeric_hidden_po() {
 				'For DHCPv6 DUID/MAC sources, choose WAN/upstream interface(s); DHCPv6-PD route source prefixes from those interfaces validate LAN host IPv6 addresses.' \
 				'Source path' \
 				'Choose whether to create a source now or use one already saved.' \
+				'Publish the current address from a WAN/upstream interface.' \
+				'Find a LAN host by DHCPv6 DUID/IAID, then validate its IPv6 against selected WAN/PD prefixes.' \
+				'Find a LAN host by MAC, then validate its IPv6 against selected WAN/PD prefixes.' \
+				'Use an address you type manually.' \
 				'Source IP check' \
 				'Probe the source before continuing. A/AAAA is locked to the detected IP family.' \
 				'IPv4 source' \

@@ -663,7 +663,7 @@ return view.extend({
 		this.ensureSettingsStyle();
 
 		const viewRef = this;
-		const m = new form.Map('qddns', _('QDDNS'), _('Configure daemon defaults, source definitions, and provider credentials here. Save and reload after adding providers or sources so dependent rules can pick up the latest choices.'));
+		const m = new form.Map('qddns', null, null);
 		let s;
 		let o;
 
@@ -820,10 +820,11 @@ return view.extend({
 	render: function(data) {
 		return this.renderConfigForms(data).then(L.bind(function(formEl) {
 			return E('div', { class: 'qddns-settings-page' }, [
-				E('div', { class: 'cbi-section qddns-panel qddns-dashboard-note' }, [
-					E('h3', {}, _('Settings')),
-					E('p', { class: 'cbi-section-descr' }, _('Manage daemon defaults, source definitions, and provider credentials here. Use the source probe panel below to validate saved sources before using them on the rules page.'))
-				]),
+				qddns.renderPageHeader({
+					active: 'settings',
+					title: _('Settings'),
+					description: _('Manage daemon defaults, source definitions, and provider credentials here. Use the source probe panel below to validate saved sources before using them on the rules page.')
+				}),
 				this.renderProviderTemplatePanel(),
 				E('div', { class: 'qddns-wide-form' }, [formEl]),
 				this.renderSourceProbePanel(data.sources)
