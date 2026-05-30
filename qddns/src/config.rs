@@ -656,6 +656,7 @@ const MAIN_OPTIONS: &[&str] = &[
     "poll_interval",
     "timeout",
     "log_level",
+    "lan_interface",
 ];
 const SOURCE_OPTIONS: &[&str] = &[
     "name",

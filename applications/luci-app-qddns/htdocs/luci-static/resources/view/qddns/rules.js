@@ -214,7 +214,7 @@ return view.extend({
 		return select;
 	},
 
-	renderWizardInterfaceSelect: function(catalog) {
+	renderWizardInterfaceSelect: function(catalog, multiple) {
 		const choices = {};
 		const order = [];
 
@@ -257,7 +257,7 @@ return view.extend({
 
 		const dropdown = new ui.Dropdown([], choices, {
 			sort: order,
-			multiple: true,
+			multiple: multiple !== false,
 			optional: true,
 			select_placeholder: E('em', _('unspecified')),
 			display_items: 3,
@@ -566,7 +566,8 @@ return view.extend({
 				E('option', { value: 'ipv6' }, [_('IPv6')])
 			]),
 			sourceAddress: E('input', { type: 'text', class: 'cbi-input-text', placeholder: '198.51.100.10 / 2001:db8::10' }),
-			sourceInterface: this.renderWizardInterfaceSelect(data?.catalog),
+			sourceInterface: this.renderWizardInterfaceSelect(data?.catalog, true),
+			sourceInterfaceSingle: this.renderWizardInterfaceSelect(data?.catalog, false),
 			sourceDuid: E('input', { type: 'text', class: 'cbi-input-text' }),
 			sourceIaid: E('input', { type: 'text', class: 'cbi-input-text' }),
 			sourceMac: E('input', { type: 'text', class: 'cbi-input-text', placeholder: 'aa:bb:cc:dd:ee:ff' }),
@@ -624,7 +625,12 @@ return view.extend({
 			fields.sourceType,
 			sourceTypeHint
 		]);
-		const sourceInterfaceField = this.renderWizardField(_('WAN/upstream interface'), fields.sourceInterface, _('Select WAN/upstream interface(s). Verify the real upstream path before probing.'));
+		const sourceInterfaceField = E('div', { class: 'qddns-rule-wizard-field' }, [
+			E('label', {}, _('WAN/upstream interface')),
+			fields.sourceInterfaceSingle,
+			fields.sourceInterface,
+			E('div', { class: 'cbi-value-description' }, _('Select WAN/upstream interface(s). Verify the real upstream path before probing.'))
+		]);
 		const sourceDuidField = this.renderWizardField(_('DUID'), fields.sourceDuid);
 		const sourceIaidField = this.renderWizardField(_('IAID'), fields.sourceIaid);
 		const sourceMacField = this.renderWizardField(_('MAC'), fields.sourceMac);
@@ -870,6 +876,8 @@ return view.extend({
 			sourceFamilyField.style.display = isDhcpv6Source ? 'none' : '';
 			sourceAddressField.style.display = sourceType === 'local_addr' ? '' : 'none';
 			sourceInterfaceField.style.display = sourceType === 'interface' || isDhcpv6Source ? '' : 'none';
+			fields.sourceInterfaceSingle.style.display = sourceType === 'interface' ? '' : 'none';
+			fields.sourceInterface.style.display = isDhcpv6Source ? '' : 'none';
 			sourcePrefixGroup.style.display = sourceType === 'interface' || isDhcpv6Source ? '' : 'none';
 			sourceIdentityGroup.style.display = isDhcpv6Source ? '' : 'none';
 			sourceDuidField.style.display = isDuidSource ? '' : 'none';
@@ -1233,7 +1241,7 @@ return view.extend({
 				sourceData.address = viewRef.wizardValue(fields.sourceAddress);
 			} else if (sourceType === 'interface') {
 				sourceData.family = viewRef.wizardValue(fields.sourceFamily);
-				sourceData.interfaceName = viewRef.wizardValue(fields.sourceInterface);
+				sourceData.interfaceName = viewRef.wizardValue(fields.sourceInterfaceSingle);
 			} else if (sourceType === 'dhcpv6_duid') {
 				sourceData.family = 'ipv6';
 				sourceData.interfaceName = viewRef.wizardValue(fields.sourceInterface);
@@ -1423,6 +1431,7 @@ return view.extend({
 			fields.sourceFamily,
 			fields.sourceAddress,
 			fields.sourceInterface,
+			fields.sourceInterfaceSingle,
 			fields.sourceDuid,
 			fields.sourceIaid,
 			fields.sourceMac,

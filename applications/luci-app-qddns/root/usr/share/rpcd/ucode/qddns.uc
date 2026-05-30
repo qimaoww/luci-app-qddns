@@ -451,6 +451,99 @@ function refresh_ndp_for_interface(lan_iface) {
 	popen(`ping6 -c 1 -W 1 -I ${lan_iface} ff02::1 >/dev/null 2>&1`, 'r')?.close();
 }
 
+function mac_to_eui64_suffix(mac) {
+	if (!mac)
+		return null;
+
+	let parts = split(mac, ':');
+	if (length(parts) != 6)
+		return null;
+
+	let b0 = hex(parts[0]) ^ 0x02;
+	return sprintf('%02x%s:%sff:fe%s:%s%s',
+		b0, parts[1], parts[2], parts[3], parts[4], parts[5]);
+}
+
+function get_lan_prefixes(lan_iface) {
+	if (!lan_iface)
+		return [];
+
+	let p = popen(`${ip_cmd} -6 route show dev ${lan_iface} proto static 2>/dev/null`, 'r');
+	if (!p)
+		return [];
+
+	let output = p.read('all') || '';
+	p.close();
+
+	let prefixes = [];
+	for (let line in split(output, '\n')) {
+		line = trim(line || '');
+		if (!line)
+			continue;
+
+		let parts = split(line, /\s+/);
+		let prefix = parts[0] || '';
+		if (!match(prefix, /^[23][0-9a-f]+:.*\/64$/))
+			continue;
+
+		let network = split(prefix, '/')[0] || '';
+		if (network && is_public_ipv6(network))
+			push_unique(prefixes, replace(network, /::?$/, ''));
+	}
+
+	return prefixes;
+}
+
+function probe_slaac_addresses(entries, lan_iface) {
+	if (!lan_iface)
+		return;
+
+	let prefixes = get_lan_prefixes(lan_iface);
+	if (!length(prefixes))
+		return;
+
+	let probed = 0;
+	let max_probes = 16;
+
+	for (let mac in entries) {
+		if (probed >= max_probes)
+			break;
+
+		let entry = entries[mac];
+		let suffix = mac_to_eui64_suffix(mac);
+		if (!suffix)
+			continue;
+
+		for (let prefix in prefixes) {
+			if (probed >= max_probes)
+				break;
+
+			let addr = prefix + ':' + suffix;
+
+			let already = false;
+			for (let i = 0; i < length(entry.prefixes); i++) {
+				if (index(entry.prefixes[i], addr) == 0) {
+					already = true;
+					break;
+				}
+			}
+			if (already)
+				continue;
+
+			let p = popen(`ping6 -c 1 -W 1 -I ${lan_iface} ${addr} >/dev/null 2>&1; echo $?`, 'r');
+			if (!p)
+				continue;
+
+			let result = trim(p.read('all') || '');
+			p.close();
+			probed++;
+
+			if (result == '0')
+				push_unique(entry.prefixes, `${addr}/128`);
+		}
+	}
+}
+
 function add_ndp_entries(entries) {
 	let lan_iface = uci.get('qddns', 'main', 'lan_interface') || '';
 	if (lan_iface)
@@ -593,6 +686,7 @@ function list_dhcpv6_leases(mode) {
 
 	add_dhcpv4_lease_entries(entries);
 	add_ndp_entries(entries);
+	probe_slaac_addresses(entries, uci.get('qddns', 'main', 'lan_interface') || '');
 	add_ipv4_neighbor_entries(entries);
 
 	let leases = [];
