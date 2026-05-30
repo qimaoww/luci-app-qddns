@@ -1,15 +1,28 @@
 # qddns
 
-`qddns` 是一个面向 OpenWrt/ImmortalWrt 的 DDNS 平台，由 Rust 后端和 LuCI 控制面板组成。
+`qddns` 是一个面向 OpenWrt/ImmortalWrt 的 DDNS（Dynamic DNS）平台，由 Rust 后端和 LuCI 控制面板组成。
+
+## 快速开始
+
+### 安装
+
+```sh
+# 从本地编译产物安装（路由器上执行）
+apk add --allow-untrusted qddns-*.apk luci-app-qddns-*.apk luci-i18n-qddns-zh-cn-*.apk
+```
+
+### 最小配置
+
+1. 在 LuCI 的 **服务 → QDDNS → 设置** 页添加一个提供商（如 Cloudflare）并填入凭据
+2. 添加一个来源（如 WAN 接口）
+3. 切换到 **规则** 页，点击「开始引导添加」创建第一条规则
+4. 规则创建后守护进程会自动按间隔轮询更新
 
 ## 目录结构
 
-- `qddns/`
-  Rust 库，以及 `qddnsctl`、`qddnsd`
-- `net/qddns/`
-  后端守护进程、命令行工具、启动脚本和默认 UCI 配置的 OpenWrt 软件包
-- `applications/luci-app-qddns/`
-  LuCI 页面、菜单入口、ACL 和 rpcd ucode 桥接
+- `qddns/` — Rust 库，以及 `qddnsctl`、`qddnsd`
+- `net/qddns/` — 后端守护进程、命令行工具、启动脚本和默认 UCI（Unified Configuration Interface）配置的 OpenWrt 软件包
+- `applications/luci-app-qddns/` — LuCI 页面、菜单入口、ACL 和 rpcd ucode 桥接
 
 ## 当前功能
 
@@ -42,11 +55,29 @@
 
 ## 局域网 IPv6 来源
 
-`dhcpv6_duid` 保留严格的 DHCPv6 租约查找路径：先在 `/tmp/odhcpd.leases` 中匹配 DUID 和 IAID，再只接受匹配已配置 WAN/上游接口 DHCPv6-PD 路由来源前缀的公网 IPv6 候选地址。
+### dhcpv6_duid
 
-`dhcpv6_mac` 是独立的基于 MAC 的来源类型。它会规范化 MAC 地址，从 `/tmp/odhcpd.leases` 和 IPv6 邻居表收集候选地址，并在选择前对 IPv6 地址去重。只有位于 `2000::/3`、且匹配已配置 WAN/上游接口 DHCPv6-PD 路由来源前缀的公网 IPv6 会被接受；链路本地地址、ULA 和文档前缀都会被忽略。如果同一主机存在多个匹配的公网 IPv6，QDDNS 会确定性地选择第一个匹配候选；只有在 WAN/PD 来源前缀匹配之后还需要进一步收窄时，才设置 `prefix_filter`，例如 `240e:` 或 `2409:`。`prefix_filter` 不能替代 `interface`。
+严格的 DHCPv6 租约查找路径：
 
-LuCI 的 MAC 选择器会显示 MAC、主机名、LAN IPv4/私有 IPv4 提示、主机接口和公网 IPv6 前缀。LAN IPv4 和主机接口只用于帮助识别主机，不影响 DDNS IPv6 的有效性；来源配置里的 `interface` 字段仍然表示用于前缀校验的 WAN/上游接口。MAC 选择不会显示、请求或返回 DUID/IAID 字段。选择器直接读取 `/tmp/dhcp.leases`、`/tmp/odhcpd.leases` 以及 IPv4/IPv6 邻居表，不会在 rpcd 内部调用 `luci-rpc`。
+1. 在 `/tmp/odhcpd.leases` 中匹配 DUID 和 IAID
+2. 只接受匹配已配置 WAN/上游接口 DHCPv6-PD 路由来源前缀的公网 IPv6 候选地址
+
+### dhcpv6_mac
+
+独立的基于 MAC 的来源类型：
+
+- **地址收集：** 规范化 MAC 地址，从 `/tmp/odhcpd.leases` 和 IPv6 邻居表收集候选，选择前去重
+- **过滤规则：** 只接受位于 `2000::/3`、且匹配已配置 WAN/上游接口 DHCPv6-PD 路由来源前缀的公网 IPv6；链路本地、ULA 和文档前缀会被忽略
+- **多地址选择：** 同一主机存在多个匹配的公网 IPv6 时，确定性地选择第一个匹配候选
+- **前缀收窄：** `prefix_filter`（如 `240e:` 或 `2409:`）仅在 WAN/PD 来源前缀匹配之后进一步收窄，不能替代 `interface`
+
+### LuCI MAC 选择器
+
+- 显示 MAC、主机名、LAN IPv4 提示、主机接口和公网 IPv6 前缀
+- LAN IPv4 和主机接口只用于帮助识别主机，不影响 DDNS IPv6 的有效性
+- 来源配置里的 `interface` 字段仍然表示用于前缀校验的 WAN/上游接口
+- 不会显示、请求或返回 DUID/IAID 字段
+- 直接读取 `/tmp/dhcp.leases`、`/tmp/odhcpd.leases` 以及 IPv4/IPv6 邻居表，不在 rpcd 内部调用 `luci-rpc`
 
 ## 运行依赖
 
@@ -61,26 +92,43 @@ LuCI 的 MAC 选择器会显示 MAC、主机名、LAN IPv4/私有 IPv4 提示、
 
 后端有意使用小型阻塞依赖，而不是引入大型异步技术栈：
 
-- `serde` 和 `serde_json` 用于运行态、服务商和 CLI 的 JSON 契约
-- `ureq` 结合 rustls TLS 支持，用于阻塞式 HTTP/HTTPS
-- `hmac`、`sha1`、`sha2`、`hex` 和 `base64` 用于服务商签名
-- `percent-encoding` 用于构造规范化查询参数
-- `time` 用于格式化 UTC 时间戳
+- `serde` 和 `serde_json` — 运行态、服务商和 CLI 的 JSON 契约
+- `ureq` 结合 rustls TLS 支持 — 阻塞式 HTTP/HTTPS
+- `hmac`、`sha1`、`sha2`、`hex` 和 `base64` — 服务商签名
+- `percent-encoding` — 构造规范化查询参数
+- `time` — 格式化 UTC 时间戳
 
 OpenWrt 软件包不需要外部 HTTP 客户端、OpenSSL 命令行工具或 coreutils 日期工具作为运行时依赖。
 
 ## 配置兼容性说明
 
-配置解析是严格模式。未知选项、非法布尔值/数字、不支持的 URL scheme、缺失的服务商凭据都会导致校验失败，并返回带字段路径的错误，例如 `provider.cf.api_token: missing`。
+配置解析是严格模式：
 
-生产环境的 `custom_http` 服务商 URL 和 `public_probe` 来源 URL 必须使用 `http://` 或 `https://`；`file://` 会被拒绝。旧版 `command` 来源类型不再接受，LuCI/rpcd 来源探测仅限本地地址、接口、DHCPv6 DUID 和 MAC 来源。
+- 未知选项、非法布尔值/数字、不支持的 URL scheme、缺失的服务商凭据都会导致校验失败
+- 返回带字段路径的错误，例如 `provider.cf.api_token: missing`
+- `custom_http` 服务商 URL 和 `public_probe` 来源 URL 必须使用 `http://` 或 `https://`；`file://` 会被拒绝
+- 旧版 `command` 来源类型不再接受
+- LuCI/rpcd 来源探测仅限本地地址、接口、DHCPv6 DUID 和 MAC 来源
 
 ## 验证
 
 ```sh
+# Rust 单元测试
 cd qddns && CARGO_TARGET_DIR=/tmp/qddns-cargo-target cargo test -p qddns -- --nocapture
+
+# 集成验证脚本（包含 PO 翻译、JS 断言、Rust 测试）
 cd .. && bash tests/verify.sh
+
+# JS 语法检查
 for f in applications/luci-app-qddns/htdocs/luci-static/resources/view/qddns/*.js; do node --check "$f"; done
+
+# ACL 边界检查
 python3 tests/check_acl_boundaries.py
+
+# rpcd 脱敏检查
 python3 tests/check_rpcd_redaction.py
 ```
+
+## 许可证
+
+[GPL-2.0-only](./LICENSES/)
