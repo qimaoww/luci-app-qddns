@@ -1655,6 +1655,7 @@ return view.extend({
 		o = s.option(form.ListValue, 'record_type', _('Record type'));
 		o.value('A');
 		o.value('AAAA');
+		o.modalonly = true;
 		o.validate = L.bind(function(sectionId, value) {
 			return this.validateRecordTypeForSource(value, uci.get('qddns', sectionId, 'source'));
 		}, this);
