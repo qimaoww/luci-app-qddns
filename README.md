@@ -1,5 +1,7 @@
 # qddns
 
+> 本仓库所有代码及文档（包括本 README）均由 AI 生成。
+> 
 `qddns` 是一个面向 OpenWrt/ImmortalWrt 的 DDNS（Dynamic DNS）平台，由 Rust 后端和 LuCI 控制面板组成。
 
 ## 快速开始
