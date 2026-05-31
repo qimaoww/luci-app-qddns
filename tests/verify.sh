@@ -263,6 +263,7 @@ check_status_display_labels() {
 	grep -nF "const label = statusLabel(status || fallback) || '-';" "$VIEW_DIR/shared.js"
 	grep -nF "statusLabel: statusLabel" "$VIEW_DIR/shared.js"
 	grep -nF "resultLabel: function(result)" "$VIEW_DIR/shared.js"
+	grep -nF "if (String(item?.last_result || '').toLowerCase() === 'error' && item?.last_error)" "$VIEW_DIR/overview.js"
 	grep -nF "qddns.resultLabel(item.last_result) || item.last_error || '-'" "$VIEW_DIR/overview.js"
 	grep -nF "qddns.statusLabel(result.status) || _('Unknown')" "$VIEW_DIR/rules.js"
 	grep -nF "qddns.resultLabel(result.last_result) || _('N/A')" "$VIEW_DIR/rules.js"

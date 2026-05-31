@@ -198,7 +198,12 @@ fn resolve_dhcpv6_mac(
     let wan_source_prefixes = interfaces_wan_source_ipv6_prefixes(source, &ifaces)?;
 
     collect_ndp_ipv6_candidates(&normalized_mac, &mut matches);
-    collect_eui64_candidates(&normalized_mac, &wan_source_prefixes, &mut matches);
+    collect_eui64_candidates(
+        &normalized_mac,
+        &wan_source_prefixes,
+        prefix_filter,
+        &mut matches,
+    );
 
     if matches.is_empty() {
         if let Some(err) = lease_error {
@@ -327,16 +332,23 @@ fn collect_ndp_ipv6_candidates_from_output(
 fn collect_eui64_candidates(
     normalized_mac: &str,
     prefixes: &[Ipv6Prefix],
+    prefix_filter: Option<&str>,
     matches: &mut Vec<IpAddr>,
 ) {
     let Some(iid) = mac_to_eui64_interface_id(normalized_mac) else {
         return;
     };
+    let narrowed_prefix = prefix_filter
+        .filter(|value| !value.trim().is_empty())
+        .and_then(|value| parse_prefix_filter(value).ok());
     for prefix in prefixes {
         if prefix.prefix_len > 64 {
             continue;
         }
-        let segments = prefix.address.segments();
+        let base = narrowed_prefix
+            .filter(|narrow| narrow.prefix_len <= 64 && prefix.contains(&narrow.address))
+            .unwrap_or(*prefix);
+        let segments = base.address.segments();
         let addr = Ipv6Addr::new(
             segments[0],
             segments[1],
@@ -357,9 +369,13 @@ fn collect_eui64_candidates(
 /// Convert a normalized MAC (lowercase colon-separated, 17 chars) to EUI-64
 /// interface identifier (4 u16 segments). Returns None if MAC format is invalid.
 fn mac_to_eui64_interface_id(normalized_mac: &str) -> Option<[u16; 4]> {
-    let bytes: Vec<u8> = normalized_mac
-        .split(':')
-        .filter_map(|hex| u8::from_str_radix(hex, 16).ok())
+    let hex = normalized_mac.replace([':', '-'], "");
+    if hex.len() != 12 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return None;
+    }
+    let bytes: Vec<u8> = (0..12)
+        .step_by(2)
+        .filter_map(|idx| u8::from_str_radix(&hex[idx..idx + 2], 16).ok())
         .collect();
     if bytes.len() != 6 {
         return None;
@@ -1026,6 +1042,37 @@ mod tests {
         assert_eq!(
             selected,
             "240e:3b2:4e8a:70a0::30".parse::<IpAddr>().unwrap()
+        );
+    }
+
+    #[test]
+    fn eui64_candidate_uses_prefix_filter_subprefix_inside_wan_pd() {
+        let prefixes = parse_interface_route_source_ipv6_prefixes(
+            "default from 240e:3b2:4e8a:7000::/60 dev pppoe-wan proto static metric 512 pref medium\n",
+            "pppoe-wan",
+        );
+        let mut matches = Vec::new();
+
+        collect_eui64_candidates(
+            "1c860b2431c6",
+            &prefixes,
+            Some("240e:3b2:4e8a:7001::/64"),
+            &mut matches,
+        );
+
+        let selected = select_lease_address(
+            &matches,
+            &prefixes,
+            Some("240e:3b2:4e8a:7001::/64"),
+            "MAC",
+        )
+        .expect("prefix_filter subprefix must be usable with EUI-64 fallback");
+
+        assert_eq!(
+            selected,
+            "240e:3b2:4e8a:7001:1e86:bff:fe24:31c6"
+                .parse::<IpAddr>()
+                .unwrap()
         );
     }
 
