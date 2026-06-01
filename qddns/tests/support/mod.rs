@@ -165,8 +165,10 @@ fn handle_connection(
         if line.is_empty() {
             break;
         }
-        if let Some(value) = line.strip_prefix("Content-Length:") {
-            content_length = value.trim().parse().unwrap_or(0);
+        if let Some((name, value)) = line.split_once(':') {
+            if name.eq_ignore_ascii_case("Content-Length") {
+                content_length = value.trim().parse().unwrap_or(0);
+            }
         }
     }
 

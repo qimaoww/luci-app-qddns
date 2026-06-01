@@ -45,7 +45,7 @@ if (
 
 for command in re.findall(r"exec_json\(`([^`]+)`\)", TEXT):
     if "shell_quote" in command or "${" in command and not any(
-        command.startswith(prefix) for prefix in ["sources probe ", "rules run ", "rules test ", "rules status ", "logs "]
+        command.startswith(prefix) for prefix in ["sources probe ", "rules probe-source ", "rules run ", "rules test ", "rules status ", "leases ", "logs "]
     ):
         fail(f"unexpected dynamic exec_json command: {command}")
 

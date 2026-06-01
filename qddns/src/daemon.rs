@@ -12,7 +12,7 @@ use crate::http::HttpClient;
 use crate::logstore::{append_log, ensure_valid_log_scope, read_logs, LogEntry};
 use crate::provider::{ProviderAdapter, RemoteRecord, ShellProviderAdapter, SyncOutcome};
 use crate::runner::{run_rule, SourceAdapter};
-use crate::source::{resolve_source_with_http, SourceResolution};
+use crate::source::{resolve_source_with_http, resolve_source_with_rule_and_http, SourceResolution};
 use crate::state::{
     prune_runtime_rules, runtime_rule_state, RuleResult, RuleState, RuleStatus, RuntimeState,
     StateStore,
@@ -122,6 +122,40 @@ pub fn probe_source(config_path: &str, source_id: &str) -> Result<()> {
         "{}",
         json!({
             "ok": true,
+            "source": source.name,
+            "family": resolved.family,
+            "address": resolved.address.to_string(),
+            "detail": resolved.detail,
+        })
+    );
+    Ok(())
+}
+
+pub fn probe_rule_source(config_path: &str, rule_id: &str) -> Result<()> {
+    let config = Config::load_from_path(Path::new(config_path))?;
+    let rule = config
+        .rules
+        .get(rule_id)
+        .ok_or_else(|| Error::new(format!("missing rule '{rule_id}'")))?;
+    let source = config.sources.get(&rule.source).ok_or_else(|| {
+        Error::new(format!(
+            "rule '{}' references missing source '{}'",
+            rule.name, rule.source
+        ))
+    })?;
+    if matches!(&source.kind, SourceKind::Script { .. }) {
+        return Err(Error::new(format!(
+            "probe not allowed for source type '{}'",
+            source.source_type()
+        )));
+    }
+    let http = HttpClient::from_timeout_secs(config.main.timeout);
+    let resolved = resolve_source_with_rule_and_http(source, Some(rule), &http)?;
+    println!(
+        "{}",
+        json!({
+            "ok": true,
+            "rule": rule.name,
             "source": source.name,
             "family": resolved.family,
             "address": resolved.address.to_string(),
@@ -336,8 +370,12 @@ impl DefaultSourceAdapter {
 }
 
 impl SourceAdapter for DefaultSourceAdapter {
-    fn resolve(&self, source: &crate::config::SourceConfig) -> Result<SourceResolution> {
-        resolve_source_with_http(source, &self.http)
+    fn resolve(
+        &self,
+        source: &crate::config::SourceConfig,
+        rule: Option<&RuleConfig>,
+    ) -> Result<SourceResolution> {
+        resolve_source_with_rule_and_http(source, rule, &self.http)
     }
 }
 

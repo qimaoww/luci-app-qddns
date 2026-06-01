@@ -101,6 +101,43 @@ config source 'probe'
 }
 
 #[test]
+fn rule_accepts_optional_probe_interface_and_validates_name() {
+    let config_text = r#"
+config qddns 'main'
+
+config source 'probe'
+    option type 'public_probe'
+    option family 'ipv4'
+    option probe_url 'http://127.0.0.1/probe'
+
+config provider 'cf'
+    option type 'cloudflare'
+    option api_token 'token'
+
+config rule 'home'
+    option provider 'cf'
+    option source 'probe'
+    option record_type 'A'
+    option zone 'example.com'
+    option record_name 'home'
+    option probe_interface 'wan2'
+"#;
+    let config = Config::parse_uci(config_text).expect("probe_interface should parse");
+    assert_eq!(
+        config.rules["home"].probe_interface.as_deref(),
+        Some("wan2")
+    );
+
+    let invalid = config_text.replace("wan2", "wan2;reboot");
+    let config = Config::parse_uci(&invalid).expect("invalid probe_interface should parse");
+    let err = config.validate().expect_err("invalid interface name must fail");
+    assert!(
+        err.to_string().contains("rule.home.probe_interface"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
 fn luci_schema_matches_typed_config() {
     let root = repo_root();
     let settings =

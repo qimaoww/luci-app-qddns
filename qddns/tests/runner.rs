@@ -15,6 +15,11 @@ struct StaticSource {
     family: &'static str,
 }
 
+struct TrackingSource {
+    last_probe_interface: std::sync::Mutex<Option<Option<String>>>,
+    resolution: SourceResolution,
+}
+
 impl StaticSource {
     fn ipv4() -> Self {
         Self {
@@ -32,12 +37,32 @@ impl StaticSource {
 }
 
 impl SourceAdapter for StaticSource {
-    fn resolve(&self, _source: &SourceConfig) -> Result<SourceResolution> {
+    fn resolve(
+        &self,
+        _source: &SourceConfig,
+        _rule: Option<&RuleConfig>,
+    ) -> Result<SourceResolution> {
         Ok(SourceResolution {
             address: self.address,
             family: self.family.into(),
             detail: "fixture".into(),
         })
+    }
+}
+
+struct RecordedRuleSource {
+    inner: TrackingSource,
+}
+
+impl SourceAdapter for RecordedRuleSource {
+    fn resolve(
+        &self,
+        _source: &SourceConfig,
+        rule: Option<&RuleConfig>,
+    ) -> Result<SourceResolution> {
+        *self.inner.last_probe_interface.lock().unwrap() =
+            Some(rule.and_then(|rule| rule.probe_interface.clone()));
+        Ok(self.inner.resolution.clone())
     }
 }
 
@@ -104,6 +129,7 @@ fn fixture_config() -> Config {
                 enabled: true,
                 provider: "cf".into(),
                 source: "wan4".into(),
+                probe_interface: None,
                 record_type: "A".into(),
                 zone: "example.com".into(),
                 record_name: "home".into(),
@@ -136,6 +162,34 @@ fn fixture_config_with_auto_source(record_type: &str) -> Config {
     config.rules.get_mut("home").unwrap().source = "auto".into();
     config.rules.get_mut("home").unwrap().record_type = record_type.into();
     config
+}
+
+#[test]
+fn run_rule_passes_rule_context_to_source_resolution() {
+    let mut config = fixture_config();
+    config.rules.get_mut("home").unwrap().probe_interface = Some("wan2".into());
+
+    let provider = MemoryProvider {
+        remote: Some("1.2.3.4".into()),
+        ..Default::default()
+    };
+    let source = RecordedRuleSource {
+        inner: TrackingSource {
+            last_probe_interface: std::sync::Mutex::new(None),
+            resolution: SourceResolution {
+                address: IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)),
+                family: "ipv4".into(),
+                detail: "fixture".into(),
+            },
+        },
+    };
+
+    let _ = run_rule(&config, "home", &source, &provider, None, 200).expect("run succeeds");
+
+    assert_eq!(
+        *source.inner.last_probe_interface.lock().unwrap(),
+        Some(Some("wan2".into()))
+    );
 }
 
 #[test]

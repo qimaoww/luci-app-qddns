@@ -14,7 +14,8 @@ fn security_test_helpers_smoke() {
             let body = ureq::get(&server.url("/probe"))
                 .call()
                 .expect("mock response")
-                .into_string()
+                .body_mut()
+                .read_to_string()
                 .expect("response body");
             assert_eq!(body, "ok");
 

@@ -7,7 +7,7 @@ use std::process::{Command, Output, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::config::{AddressFamily, SourceConfig, SourceKind};
+use crate::config::{AddressFamily, RuleConfig, SourceConfig, SourceKind};
 use crate::error::{Error, Result};
 use crate::http::{HttpClient, HttpRequest, RetryPolicy};
 
@@ -43,11 +43,19 @@ pub fn resolve_source_with_http(
     source: &SourceConfig,
     http: &HttpClient,
 ) -> Result<SourceResolution> {
+    resolve_source_with_rule_and_http(source, None, http)
+}
+
+pub fn resolve_source_with_rule_and_http(
+    source: &SourceConfig,
+    rule: Option<&RuleConfig>,
+    http: &HttpClient,
+) -> Result<SourceResolution> {
     match &source.kind {
         SourceKind::LocalAddr { address, .. } => resolve_local_addr(source, address.as_deref()),
         SourceKind::Script { script, .. } => resolve_script(source, script.as_deref()),
         SourceKind::PublicProbe { probe_url, .. } => {
-            resolve_public_probe(source, probe_url.as_deref(), http)
+            resolve_public_probe(source, probe_url.as_deref(), rule, http)
         }
         SourceKind::Interface { family, interface } => {
             resolve_interface(source, *family, interface.as_deref())
@@ -721,19 +729,21 @@ fn resolve_script(source: &SourceConfig, script: Option<&str>) -> Result<SourceR
 fn resolve_public_probe(
     source: &SourceConfig,
     probe_url: Option<&str>,
+    rule: Option<&RuleConfig>,
     http: &HttpClient,
 ) -> Result<SourceResolution> {
     let probe_url = probe_url
         .ok_or_else(|| Error::new(format!("source '{}' missing probe_url", source.name)))?;
 
     let body = if probe_url.starts_with("http://") || probe_url.starts_with("https://") {
-        http.execute(
+        http.execute_with_interface(
             &HttpRequest {
                 method: "GET".into(),
                 url: probe_url.into(),
                 headers: BTreeMap::new(),
                 body: String::new(),
             },
+            rule_probe_interface(rule),
             RetryPolicy::none(),
         )?
         .body
@@ -751,6 +761,14 @@ fn resolve_public_probe(
         ))
     })?;
     parse_address_output(candidate, "public probe")
+}
+
+fn rule_probe_interface(rule: Option<&RuleConfig>) -> Option<&str> {
+    let rule = rule?;
+    rule.probe_interface
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
 }
 
 fn resolve_interface(
@@ -892,6 +910,14 @@ fn find_ip_in_text(text: &str) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_TEMP_ID: AtomicU64 = AtomicU64::new(0);
+
+    fn temp_path(name: &str) -> std::path::PathBuf {
+        let id = NEXT_TEMP_ID.fetch_add(1, Ordering::Relaxed);
+        std::env::temp_dir().join(format!("qddns-source-test-{name}-{}-{id}", std::process::id()))
+    }
 
     #[test]
     fn wan_source_prefix_accepts_matching_public_ipv6() {
@@ -1157,8 +1183,7 @@ mod tests {
 
     #[test]
     fn dhcpv6_lease_reader_accepts_regular_files() {
-        let path =
-            std::env::temp_dir().join(format!("qddns-source-test-lease-{}", std::process::id()));
+        let path = temp_path("lease");
         fs::write(&path, "# lease\n").unwrap();
 
         let content = read_dhcpv6_lease_file(path.to_str().unwrap())
@@ -1171,14 +1196,8 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn dhcpv6_lease_reader_accepts_regular_file_symlinks() {
-        let lease_path = std::env::temp_dir().join(format!(
-            "qddns-source-test-lease-real-{}",
-            std::process::id()
-        ));
-        let link_path = std::env::temp_dir().join(format!(
-            "qddns-source-test-lease-real-link-{}",
-            std::process::id()
-        ));
+        let lease_path = temp_path("lease-real");
+        let link_path = temp_path("lease-real-link");
         let _ = fs::remove_file(&lease_path);
         let _ = fs::remove_file(&link_path);
         fs::write(&lease_path, "# lease\n").unwrap();
@@ -1195,10 +1214,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn dhcpv6_lease_reader_rejects_pseudo_file_symlinks() {
-        let path = std::env::temp_dir().join(format!(
-            "qddns-source-test-lease-link-{}",
-            std::process::id()
-        ));
+        let path = temp_path("lease-link");
         let _ = fs::remove_file(&path);
         std::os::unix::fs::symlink("/proc/kmsg", &path).unwrap();
 
@@ -1214,8 +1230,7 @@ mod tests {
 
     #[test]
     fn dhcpv6_lease_reader_rejects_non_regular_paths() {
-        let path =
-            std::env::temp_dir().join(format!("qddns-source-test-dir-{}", std::process::id()));
+        let path = temp_path("dir");
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).unwrap();
 
@@ -1231,8 +1246,7 @@ mod tests {
 
     #[test]
     fn dhcpv6_lease_reader_rejects_oversized_files() {
-        let path =
-            std::env::temp_dir().join(format!("qddns-source-test-lease-{}", std::process::id()));
+        let path = temp_path("lease");
         fs::write(&path, "x".repeat((DHCPV6_LEASE_MAX_BYTES + 1) as usize)).unwrap();
 
         let err = read_dhcpv6_lease_file(path.to_str().unwrap())

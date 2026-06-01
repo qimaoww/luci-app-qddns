@@ -36,6 +36,7 @@ pub enum RuleCommands {
     List,
     Run { id: String },
     Test { id: String },
+    ProbeSource { id: String },
     Status { id: String },
 }
 
@@ -106,6 +107,12 @@ impl Cli {
                         .cloned()
                         .ok_or_else(|| Error::new("missing rule id"))?,
                 }),
+                Some("probe-source") => Commands::Rules(RuleCommands::ProbeSource {
+                    id: cleaned
+                        .get(2)
+                        .cloned()
+                        .ok_or_else(|| Error::new("missing rule id"))?,
+                }),
                 Some("status") => Commands::Rules(RuleCommands::Status {
                     id: cleaned
                         .get(2)
@@ -160,6 +167,9 @@ pub fn run(cli: Cli) -> Result<()> {
         Commands::Rules(RuleCommands::List) => daemon::list_rules(&cli.config),
         Commands::Rules(RuleCommands::Run { id }) | Commands::Rules(RuleCommands::Test { id }) => {
             daemon::run_rule_once(&cli.config, &id)
+        }
+        Commands::Rules(RuleCommands::ProbeSource { id }) => {
+            daemon::probe_rule_source(&cli.config, &id)
         }
         Commands::Rules(RuleCommands::Status { id }) => {
             let config = Config::load_from_path(Path::new(&cli.config))?;

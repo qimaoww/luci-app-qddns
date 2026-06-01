@@ -7,7 +7,7 @@ use crate::source::SourceResolution;
 use crate::state::{RuleResult, RuleState, RuleStatus};
 
 pub trait SourceAdapter: Send + Sync {
-    fn resolve(&self, source: &SourceConfig) -> Result<SourceResolution>;
+    fn resolve(&self, source: &SourceConfig, rule: Option<&RuleConfig>) -> Result<SourceResolution>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,7 +61,7 @@ pub fn run_rule(
     let (rule, source, provider) = get_provider_and_source(config, rule_id)?;
     validate_rule_family(rule, source)?;
 
-    let resolved = source_adapter.resolve(source)?;
+    let resolved = source_adapter.resolve(source, Some(rule))?;
     validate_rule_resolved_address(rule, &resolved)?;
     let current_ip = resolved.address.to_string();
     let remote = provider_adapter.fetch_record(provider, rule)?;

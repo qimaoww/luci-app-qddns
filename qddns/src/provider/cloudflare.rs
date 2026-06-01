@@ -181,6 +181,7 @@ mod tests {
             enabled: true,
             provider: "cf".into(),
             source: "wan4".into(),
+            probe_interface: None,
             record_type: "A".into(),
             zone: "example.com".into(),
             record_name: "home".into(),

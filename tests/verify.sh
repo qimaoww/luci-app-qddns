@@ -32,10 +32,10 @@ check_package_metadata() {
 	grep -nF 'chmod 0755' "$ROOT_DIR/applications/luci-app-qddns/Makefile"
 	grep -nF 'chmod 0644' "$ROOT_DIR/applications/luci-app-qddns/Makefile"
 	grep -nF 'dhcpv6_mac' "$ROOT_DIR/README.md"
-	grep -nF '对 IPv6 地址去重' "$ROOT_DIR/README.md"
+	grep -nF '选择前去重' "$ROOT_DIR/README.md"
 	grep -nF 'DHCPv6-PD 路由来源前缀' "$ROOT_DIR/README.md"
 	grep -nF '确定性地选择第一个匹配候选' "$ROOT_DIR/README.md"
-	grep -nF 'WAN/PD 来源前缀匹配之后还需要进一步收窄' "$ROOT_DIR/README.md"
+	grep -nF 'WAN/PD 来源前缀匹配之后进一步收窄' "$ROOT_DIR/README.md"
 	grep -nF 'LAN IPv4' "$ROOT_DIR/README.md"
 	grep -nF 'IPv4/IPv6 邻居表' "$ROOT_DIR/README.md"
 	grep -nF '不会显示、请求或返回 DUID/IAID' "$ROOT_DIR/README.md"
@@ -177,8 +177,8 @@ PYEOF
 }
 
 check_view_i18n_hooks() {
-	grep -nF "_('Overview Console')" "$VIEW_DIR/overview.js"
-	grep -nF "_('Runtime Summary')" "$VIEW_DIR/overview.js"
+	grep -nF "_('Overview')" "$VIEW_DIR/overview.js"
+	grep -nF "_('Rules (enabled / total)')" "$VIEW_DIR/overview.js"
 	grep -nF "_('Version')" "$VIEW_DIR/overview.js"
 	grep -nF "_('Rule Console')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Run once')" "$VIEW_DIR/rules.js"
@@ -199,9 +199,9 @@ check_overview_primary_cards() {
 	! grep -nF 'msgid "Recent Activity"' "$PO_FILE"
 	! grep -nF 'msgid "Last Refresh"' "$PO_FILE"
 	! grep -nF 'msgid "No activity yet"' "$PO_FILE"
-	grep -nF ".qddns-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--qddns-space-3)}" "$VIEW_DIR/overview.js"
+	grep -nF ".qddns-cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:var(--qddns-space-3)}" "$VIEW_DIR/overview.js"
+	grep -nF ".qddns-cards{grid-template-columns:repeat(3,minmax(0,1fr))}" "$VIEW_DIR/overview.js"
 	grep -nF ".qddns-cards{grid-template-columns:repeat(2,minmax(0,1fr))}" "$VIEW_DIR/overview.js"
-	grep -nF ".qddns-cards{grid-template-columns:1fr}" "$VIEW_DIR/overview.js"
 }
 
 check_no_internal_page_nav() {
@@ -231,7 +231,7 @@ check_rules_table_compactness() {
 import os
 from pathlib import Path
 rules = Path(os.environ['VIEW_DIR'], 'rules.js').read_text().splitlines()
-fields = ['provider', 'source', 'zone', 'record_name', 'ttl', 'proxied', 'check_interval', 'force_interval', 'retry_backoff']
+fields = ['provider', 'source', 'probe_interface', '_domain', 'ttl', 'proxied', 'check_interval', 'force_interval', 'retry_backoff']
 for field in fields:
     matches = [i for i, line in enumerate(rules) if "s.option(" in line and f"'{field}'" in line]
     if len(matches) != 1:
@@ -239,6 +239,14 @@ for field in fields:
     window = rules[matches[0]:matches[0] + 5]
     if not any('o.modalonly = true;' in line for line in window):
         raise SystemExit(f'{field} must be modal-only so the rules main table stays readable')
+rules_text = '\n'.join(rules)
+source_start = rules_text.index("o = s.option(form.ListValue, 'source', _('Source'))")
+probe_start = rules_text.index("o = s.option(widgets.DeviceSelect, 'probe_interface'", source_start)
+source_block = rules_text[source_start:probe_start]
+if 'const sourceWrite = o.write;' not in source_block or 'if (!viewRef.isPublicProbeSource(value))' not in source_block:
+    raise SystemExit('advanced rule source changes must clear stale rule-level probe_interface when source is no longer public_probe')
+if "uci.unset('qddns', sectionId, 'probe_interface');" not in source_block:
+    raise SystemExit('advanced rule source changes must unset stale probe_interface instead of leaving hidden rule state behind')
 PYEOF
 }
 
@@ -289,7 +297,6 @@ check_rule_wizard() {
 	grep -nF "_('3. Create')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Review and create')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Rule name is generated automatically from the record.')" "$VIEW_DIR/rules.js"
-	grep -nF "wizardRuleName" "$VIEW_DIR/rules.js"
 	grep -nF "_('Next')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Back')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Create or choose an IP source and probe it, then choose the DNS location.')" "$VIEW_DIR/rules.js"
@@ -300,6 +307,10 @@ check_rule_wizard() {
 	grep -nF "_('Probing source IP...')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Source IP detected: %s. Record type was set to %s. The source will be saved with the rule.')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Source IP detected: %s. Record type was set to %s. The saved source will be used for this rule.')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Public probe outbound interface')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Optional for public probe rules. Choose the WAN/upstream interface used for public IP detection; empty uses the system default route.')" "$VIEW_DIR/rules.js"
+	grep -nF "_('System default route')" "$VIEW_DIR/rules.js"
+	grep -nF "_('Probe source IP before continuing. The public probe interface changed.')" "$VIEW_DIR/rules.js"
 	grep -nF "_('Unable to read source IP. Choose another source or fix the source configuration.')" "$VIEW_DIR/rules.js"
 	grep -nF "_('This source type cannot be previewed in LuCI. Confirm the record type manually; the backend will validate it when the rule runs.')" "$VIEW_DIR/rules.js"
 	grep -nF "renderWizardSourceIp" "$VIEW_DIR/rules.js"
@@ -315,6 +326,7 @@ check_rule_wizard() {
 	grep -nF "sourceProbe.loading" "$VIEW_DIR/rules.js"
 	grep -nF "qddns.listDhcpv6Leases(mode)" "$VIEW_DIR/rules.js"
 	grep -nF "qddns.probeSourceDraft(sourceData)" "$VIEW_DIR/rules.js"
+	grep -nF "qddns.probeSourceForRuleDraft" "$VIEW_DIR/rules.js"
 	grep -nF "sourceVersion !== sourceCreate.version" "$VIEW_DIR/rules.js"
 	grep -nF "uci.add('qddns', 'source', sectionId)" "$VIEW_DIR/rules.js"
 	grep -nF "uci.set('qddns', sectionId, 'type', sourceData.type)" "$VIEW_DIR/rules.js"
@@ -359,6 +371,9 @@ check_rule_wizard() {
 	grep -nF "this.renderWizardSelect(sources, _('No sources available'), _('Unnamed source'))" "$VIEW_DIR/rules.js"
 	grep -nF "probeSourceDraft: function(source)" "$VIEW_DIR/shared.js"
 	grep -nF "probe_source_draft" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "probe_rule_source" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "probe_source_for_rule_draft" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF "probe_interface" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF '"probe_source_draft"' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/acl.d/luci-app-qddns.json"
 	python3 - <<'PYEOF'
 import os
@@ -431,8 +446,10 @@ if "function interfaceRank(name)" in shared or "isLikelyWanInterfaceName" in sha
     raise SystemExit('rule wizard must not guess WAN/upstream interfaces from interface names')
 if "return left.name.localeCompare(right.name);" not in shared:
     raise SystemExit('rule wizard interface list must use stable name sorting without WAN heuristics')
-if "sourceInterface: this.renderWizardInterfaceSelect(data?.catalog)" not in modal:
+if "sourceInterface: this.renderWizardInterfaceSelect(data?.catalog, true)" not in modal:
     raise SystemExit('rule wizard must render the source interface from the full catalog')
+if "probeInterface: this.renderWizardInterfaceSelect(data?.catalog, false)" not in modal:
+    raise SystemExit('rule wizard must render the public probe interface from the full catalog')
 if "new ui.Dropdown([], choices" not in rules or "dropdown.classList.add('qddns-rule-wizard-interface-select')" not in rules:
     raise SystemExit('rule wizard source interface must use LuCI Dropdown styling instead of a raw multi-select')
 if ".modal.qddns-rule-wizard-dialog{align-items:stretch;width:var(--qddns-rule-wizard-width);max-width:94vw;max-height:calc(100vh - var(--qddns-space-4));overflow:auto}" not in rules:
@@ -576,7 +593,7 @@ for required_reset in [
 ]:
     if required_reset not in reset_block:
         raise SystemExit(f'rule wizard must not retain old source-type state: missing {required_reset}')
-if "const sourceOptions = ['family', 'address', 'interface', 'duid', 'iaid', 'mac', 'lease_file', 'hostname_hint', 'prefix_filter'];" not in rules:
+if "const sourceOptions = ['family', 'address', 'interface', 'duid', 'iaid', 'mac', 'lease_file', 'hostname_hint', 'prefix_filter', 'probe_url'];" not in rules:
     raise SystemExit('new source wizard must clear options that are hidden by the current source type')
 if 'uci.save()' in save_block:
     raise SystemExit('new source wizard must probe a draft source before staging it, not uci.save before probing')
@@ -603,7 +620,7 @@ if "method: 'probe_source_draft'" not in shared:
     raise SystemExit('shared RPC must expose draft source probing')
 if 'writefile(draft_probe_config' not in rpcd or "sources probe ${draft_probe_source_id}" not in rpcd:
     raise SystemExit('rpcd must probe draft source through a temporary qddns config')
-if "readfile('/etc/config/qddns')" in rpcd or 'writefile(draft_probe_config, source_config)' not in rpcd:
+if "readfile('/etc/config/qddns')" in rpcd or 'writefile(draft_probe_config, source_config +' not in rpcd:
     raise SystemExit('rpcd draft probe must not copy provider secrets into the temporary qddns config')
 if '${mktemp_cmd} ${draft_probe_config_template}' not in rpcd or "/tmp/qddns-luci-source-probe.conf" in rpcd:
     raise SystemExit('rpcd draft probe must use a unique temporary config path')
@@ -615,7 +632,7 @@ if "draft_source_option('lease_file', req.args.lease_file)" in rpcd or "draft_so
     raise SystemExit('rpcd draft probe must not pass arbitrary lease_file paths into qddnsctl')
 if '2>&1' not in rpcd or "return { ok: false, error: output || 'command failed' }" not in rpcd:
     raise SystemExit('rpcd must preserve qddnsctl probe error text for LuCI instead of dropping stderr')
-if 'list_interfaces' not in rpcd or "ip_cmd} -o link show" not in rpcd:
+if 'list_interfaces' not in rpcd or 'exec_json("interfaces")' not in rpcd:
     raise SystemExit('rpcd must expose interface choices for the rule wizard')
 if '(?:' in rpcd:
     raise SystemExit('rpcd ucode must not use unsupported non-capturing regex groups')
@@ -626,15 +643,28 @@ if source_family.index("section.type == 'dhcpv6_duid' || section.type == 'dhcpv6
     raise SystemExit('rpcd source_family must force DHCPv6 sources to ipv6 before honoring stale family options')
 if "sourceCreate.clean = false;" not in save_block or "sourceCreate.data = null;" not in save_block or "setEffectiveSource('', sourceData.name || _('Unnamed source'))" not in save_block:
     raise SystemExit('new source wizard must clear stale draft probe cache after a failed reprobe')
+repo_root = root.parents[1]
+leases = Path(repo_root, 'qddns/src/leases.rs').read_text()
+daemon = Path(repo_root, 'qddns/src/daemon.rs').read_text()
+for required_lease_bridge in [
+    "function list_dhcpv6_leases(mode)",
+    'mode = mode == "mac" ? "mac" : "duid";',
+    'return exec_json(`leases ${mode}`) || { ok: true, leases: [] };',
+    "list_dhcpv6_leases: {",
+    "return list_dhcpv6_leases(req.args.mode || 'duid');",
+]:
+    if required_lease_bridge not in rpcd:
+        raise SystemExit(f'rpcd DHCPv6 lease list must delegate to qddnsctl leases: missing {required_lease_bridge}')
 for required_interface_merge in [
-	    'interfaces: []',
-	    'push_unique(entry.interfaces, fields[1])',
-	    'push_unique(entry.interfaces, fields[2])',
-	    "entry.host_interface = join(',', entry.interfaces)",
-	    'delete entry.interfaces',
-	]:
-    if required_interface_merge not in rpcd:
-        raise SystemExit(f'rpcd DHCPv6 lease candidates must preserve multi-interface choices: missing {required_interface_merge}')
+    'pub interfaces: Vec<String>',
+    'fn push_interface(&mut self, iface: &str)',
+    'entry.push_interface(fields[1]);',
+    'entry.push_interface(&n.interface);',
+]:
+    if required_interface_merge not in leases:
+        raise SystemExit(f'qddnsctl lease candidates must preserve multi-interface choices: missing {required_interface_merge}')
+if '"host_interface": e.interfaces.join(",")' not in daemon:
+    raise SystemExit('qddnsctl leases must expose merged LAN host interfaces as host_interface')
 update_source_mode = modal[modal.index('function updateSourceMode()'):modal.index('function renderSummaryRow')]
 saved_mode_branch = update_source_mode[update_source_mode.index('} else {'):]
 if 'sourceCreate.version++' not in saved_mode_branch:
@@ -657,7 +687,7 @@ for required_clear in [
 ]:
     if required_clear not in catch_block:
         raise SystemExit('new source wizard must clear stale probed source state after a draft probe exception')
-for field in ["this.renderWizardField(_('Record type')", "this.renderWizardField(_('Provider')", "this.renderWizardField(_('Source')", "this.renderWizardField(_('Zone')", "this.renderWizardField(_('Record name')"]:
+for field in ["this.renderWizardField(_('Record type')", "this.renderWizardField(_('Provider')", "this.renderWizardField(_('Source')", "this.renderWizardField(_('Domain')"]:
     if modal.count(field) != 1:
         raise SystemExit(f'{field} must appear exactly once as a field in the modal wizard')
 if modal.index("this.renderWizardField(_('Source')") > modal.index("this.renderWizardField(_('Record type')"):
@@ -665,7 +695,7 @@ if modal.index("this.renderWizardField(_('Source')") > modal.index("this.renderW
 if "fields.source.focus" not in modal:
     raise SystemExit('source field must receive initial focus')
 PYEOF
-	grep -nF "m.section(form.GridSection, 'rule', _('Rule List'), _('Rule references use the latest saved providers and sources loaded with this page. Save and reload after adding referenced providers or sources on the settings page.'))" "$VIEW_DIR/rules.js"
+	grep -nF "s = m.section(form.GridSection, 'rule', _('Rule List'))" "$VIEW_DIR/rules.js"
 	! grep -nF "this.renderWizardField(_('Rule name'), fields.name)" "$VIEW_DIR/rules.js"
 	! grep -nF "name: E('input'" "$VIEW_DIR/rules.js"
 	! grep -nF "this.renderWizardField(_('TTL'), fields.ttl)" "$VIEW_DIR/rules.js"
@@ -711,9 +741,55 @@ check_settings_source_probe_previewability() {
 	grep -nF "isProbeableSourceType: function(sourceType)" "$VIEW_DIR/shared.js"
 	grep -nF "if (!qddns.isProbeableSourceType(src.type))" "$VIEW_DIR/settings.js"
 	grep -nF "qddns.renderBadge(_('Not previewable in LuCI'), 'warning')" "$VIEW_DIR/settings.js"
-	grep -nF "probeButton.disabled = true;" "$VIEW_DIR/settings.js"
 	grep -nF "probeButton.disabled = !qddns.isProbeableSourceType(this.getSourceType(sectionId, optionSet));" "$VIEW_DIR/settings.js"
+	grep -nF "_('Probe source IP to preview the current form values.')" "$VIEW_DIR/settings.js"
+	grep -nF "qddns.probeSourceDraft(this.buildSourceDraftData(sectionId, optionSet))" "$VIEW_DIR/settings.js"
+	grep -nF "sourceRuleProbeInterface: function(sourceId)" "$VIEW_DIR/settings.js"
+	grep -nF "writeRuleProbeInterfaceForSource: function(sourceId, sourceType, value)" "$VIEW_DIR/settings.js"
+	grep -nF "clearRuleProbeInterfaceForSource: function(sourceId)" "$VIEW_DIR/settings.js"
+	grep -nF "qddns.probeSourceForRuleDraft(src.id, this.sourceRuleProbeInterface(src.id))" "$VIEW_DIR/settings.js"
+	grep -nF "o = s.option(widgets.DeviceSelect, 'probe_interface', _('Public probe outbound interface')" "$VIEW_DIR/settings.js"
+	grep -nF "_('Choose the WAN/upstream interface used by this source IP preview and by the single rule referencing this source; empty uses the system default route.')" "$VIEW_DIR/settings.js"
+	grep -nF "this.sourceDhcpv6Options.probeInterface = o" "$VIEW_DIR/settings.js"
+	grep -nF "sourceData.probeInterface = sourceType === 'public_probe' ? this.getSourceOptionValue(optionSet?.probeInterface, sectionId) : '';" "$VIEW_DIR/settings.js"
+	grep -nF "return viewRef.sourceRuleProbeInterface(sectionId);" "$VIEW_DIR/settings.js"
+	grep -nF "viewRef.writeRuleProbeInterfaceForSource(sectionId, sourceType, value);" "$VIEW_DIR/settings.js"
+	grep -nF "o.write = function(sectionId, value) {" "$VIEW_DIR/settings.js"
+	grep -nF "uci.unset('qddns', sectionId, 'probe_interface')" "$VIEW_DIR/settings.js"
 	! grep -nF "isProbeableSourceType: function(sourceType)" "$VIEW_DIR/rules.js" "$VIEW_DIR/settings.js"
+	python3 - <<'PYEOF'
+import os
+from pathlib import Path
+
+settings = Path(os.environ['VIEW_DIR'], 'settings.js').read_text()
+source_start = settings.index("s = m.section(form.GridSection, 'source'")
+provider_start = settings.index("s = m.section(form.GridSection, 'provider'", source_start)
+source_block = settings[source_start:provider_start]
+probe_start = source_block.index("o = s.option(widgets.DeviceSelect, 'probe_interface'")
+probe_end = source_block.index("o = s.option(form.Value, 'script'", probe_start)
+probe_block = source_block[probe_start:probe_end]
+if "o.depends('type', 'public_probe')" not in probe_block:
+    raise SystemExit('settings source library public probe interface must only show for public_probe')
+if 'o.multiple = false;' not in probe_block or 'o.noaliases = true;' not in probe_block or 'o.nocreate = true;' not in probe_block:
+    raise SystemExit('settings source library public probe interface must match single WAN/upstream selector behavior')
+if 'o.cfgvalue = function(sectionId, value)' not in probe_block or 'return viewRef.sourceRuleProbeInterface(sectionId);' not in probe_block:
+    raise SystemExit('settings source library public probe interface must read the rule-level value for sources created by the wizard')
+if 'viewRef.writeRuleProbeInterfaceForSource(sectionId, sourceType, value);' not in probe_block:
+    raise SystemExit('settings source library public probe interface must write back to the single referencing rule-level value')
+source_rule_start = settings.index('sourceRuleProbeInterface: function(sourceId)')
+write_rule_start = settings.index('writeRuleProbeInterfaceForSource: function(sourceId')
+clear_rule_start = settings.index('clearRuleProbeInterfaceForSource: function(sourceId)')
+source_rule_block = settings[source_rule_start:write_rule_start]
+write_rule_block = settings[write_rule_start:clear_rule_start]
+if 'const rules = this.rulesReferencingSource(sourceId);' not in source_rule_block or 'if (rules.length !== 1)' not in source_rule_block:
+    raise SystemExit('settings source library must only display a probe_interface value when exactly one rule references the source')
+if 'const rules = this.rulesReferencingSource(sourceId);' not in write_rule_block or 'if (rules.length !== 1)' not in write_rule_block:
+    raise SystemExit('settings source library must not batch-overwrite probe_interface when multiple rules reference the same source')
+if "SOURCE_OPTION_FIELDS = ['family', 'address', 'interface', 'duid', 'iaid', 'mac', 'lease_file', 'hostname_hint', 'prefix_filter', 'probe_url', 'script']" not in settings:
+    raise SystemExit('probe_interface must remain transient and out of source UCI option cleanup')
+if "public_probe: ['family', 'probe_url']" not in settings:
+    raise SystemExit('probe_interface must remain rule-level/transient, not a persisted source field')
+PYEOF
 }
 
 check_name_visible_numeric_hidden_ui() {
@@ -806,8 +882,10 @@ PYEOF
 	grep -nF "o.value(provider.id, provider.name || _('Unnamed provider'))" "$VIEW_DIR/rules.js"
 	grep -nF "o.value(source.id, source.name || _('Unnamed source'))" "$VIEW_DIR/rules.js"
 	grep -nF "this.getRuleLabel(rule)" "$VIEW_DIR/rules.js"
-	grep -nF "this.getSourceLabel(rule.source)" "$VIEW_DIR/rules.js"
-	grep -nF "this.getProviderLabel(rule.provider)" "$VIEW_DIR/rules.js"
+	grep -nF "getSourceLabel: function(sourceId)" "$VIEW_DIR/rules.js"
+	grep -nF "getProviderLabel: function(providerId)" "$VIEW_DIR/rules.js"
+	grep -nF "viewRef.getSourceLabel(source)" "$VIEW_DIR/rules.js"
+	grep -nF "viewRef.getProviderLabel(provider)" "$VIEW_DIR/rules.js"
 	grep -nF "choices.push({ value: rule.id, label: _('Rule') + ': ' + this.getRuleLabel(rule) })" "$VIEW_DIR/logs.js"
 	grep -nF "name: section.name || null" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "this.ruleLabel(item.id)" "$VIEW_DIR/overview.js"
@@ -932,7 +1010,7 @@ for name, block in [('_source_ip', source_ip_cfg), ('_dhcpv6_status', dhcpv6_cfg
 PYEOF
 	grep -nF "s.option(form.DummyValue, '_source_ip', _('Source IP'))" "$VIEW_DIR/settings.js"
 	grep -nF "o = s.option(form.Value, 'address', _('Address')); o.modalonly = true; o.depends('type', 'local_addr')" "$VIEW_DIR/settings.js"
-	grep -nF "_('Save and reload to read updated source IP.')" "$VIEW_DIR/settings.js"
+	grep -nF "_('Probe source IP to preview the current form values.')" "$VIEW_DIR/settings.js"
 	grep -nF "_('Unable to read source IP.')" "$VIEW_DIR/settings.js"
 	! grep -nF "o.value('dhcpv6_mac', _('DHCPv6 MAC'))" "$VIEW_DIR/settings.js"
 	! grep -nF "_('Read current DHCPv6 lease candidates, then choose one to fill the MAC source fields.')" "$VIEW_DIR/settings.js"
@@ -950,57 +1028,36 @@ check_dhcpv6_lease_fill_backend() {
 		grep -nF "function source_family(section)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 		grep -nF "family: source_family(section)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 		grep -nF "section.type == 'dhcpv6_duid' || section.type == 'dhcpv6_mac'" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "const dhcpv4_lease_file = '/tmp/dhcp.leases';" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "const dhcpv6_lease_file = '/tmp/odhcpd.leases';" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "const dhcpv6_lease_max_bytes = 262144;" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "const dhcpv6_lease_max_entries = 64;" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "const dhcpv6_lease_max_prefixes = 8;" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "function list_dhcpv6_leases(mode)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "function is_public_ipv6(address)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "let first = substr(address || '', 0, 1);" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "(first == '2' || first == '3')" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-		! grep -nF "substr(address, 0, 2) == '2'" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-		! grep -nF "substr(address, 0, 2) == '3'" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-		grep -nF "function read_limited_regular_file(path, max_bytes)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-		grep -nF "info.type != 'file'" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-		grep -nF "file.read(max_bytes + 1)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-		grep -nF "function add_dhcpv4_lease_entries(entries)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-		grep -nF "read_limited_regular_file(dhcpv4_lease_file, dhcpv6_lease_max_bytes)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-		grep -nF "function add_ipv4_neighbor_entries(entries)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF -- "-4 neigh show" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "push_unique(entry.ipv4, address)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "add_ipv4_neighbor_entries(entries)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "function is_private_ipv4(address)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "substr(address, 0, 3) == '10.'" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "substr(address, 0, 4) == '172.'" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "substr(address, 0, 8) == '192.168.'" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF 'mode = mode == "mac" ? "mac" : "duid";' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
+	grep -nF 'return exec_json(`leases ${mode}`) || { ok: true, leases: [] };' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	! grep -nF "ubus.call('luci-rpc', 'getHostHints')" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	! grep -nF "function dhcpv6_prefix_filter" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	! grep -nF "split(prefixes[0]" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	! grep -nF "entry.prefix_filter =" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "function add_ndp_entries(entries)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "const ip_cmd = '/sbin/ip';" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF -- "-6 neigh show" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "push_unique(entry.prefixes" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "function dhcpv6_duid_mac(duid)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "let mac = dhcpv6_duid_mac(fields[2]);" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "source_type == 'dhcpv6_mac'" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-		grep -nF "return substr(content, 0, max_bytes)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-		grep -nF "length(keys(entries)) >= dhcpv6_lease_max_entries" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-		grep -nF "length(prefixes) >= dhcpv6_lease_max_prefixes" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-		grep -nF "read_limited_regular_file(dhcpv6_lease_file, dhcpv6_lease_max_bytes)" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "list_dhcpv6_leases: {" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "args: { mode: 'mode' }" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF "return list_dhcpv6_leases(req.args.mode || 'duid');" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "if (mode == 'mac')" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "delete entry.duid;" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "delete entry.iaid;" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
-	grep -nF "delete entry.lease_file;" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	grep -nF '"list_dhcpv6_leases"' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/acl.d/luci-app-qddns.json"
 	! grep -nF '"luci-rpc": [ "getHostHints" ]' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/acl.d/luci-app-qddns.json"
-	grep -nF '"/tmp/dhcp.leases": [ "read" ]' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/acl.d/luci-app-qddns.json"
-	grep -nF '"/tmp/odhcpd.leases": [ "read" ]' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/acl.d/luci-app-qddns.json"
-	grep -nF '"/sbin/ip": [ "exec" ]' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/acl.d/luci-app-qddns.json"
+	grep -nF '"/usr/bin/qddnsctl": [ "exec" ]' "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/acl.d/luci-app-qddns.json"
+	grep -nF '"leases" => Commands::Leases' "$ROOT_DIR/qddns/src/cli.rs"
+	grep -nF 'pub fn list_leases_cmd(config_path: &str, mode: &str) -> Result<()> {' "$ROOT_DIR/qddns/src/daemon.rs"
+	grep -nF '"host_interface": e.interfaces.join(",")' "$ROOT_DIR/qddns/src/daemon.rs"
+	grep -nF 'if lease_mode == crate::leases::LeaseMode::Duid {' "$ROOT_DIR/qddns/src/daemon.rs"
+	grep -nF 'const DHCPV4_LEASE_FILE: &str = "/tmp/dhcp.leases";' "$ROOT_DIR/qddns/src/leases.rs"
+	grep -nF 'const DHCPV6_LEASE_FILE: &str = "/tmp/odhcpd.leases";' "$ROOT_DIR/qddns/src/leases.rs"
+	grep -nF 'const MAX_ENTRIES: usize = 64;' "$ROOT_DIR/qddns/src/leases.rs"
+	grep -nF 'const MAX_PREFIXES_PER_ENTRY: usize = 8;' "$ROOT_DIR/qddns/src/leases.rs"
+	grep -nF 'pub interfaces: Vec<String>' "$ROOT_DIR/qddns/src/leases.rs"
+	grep -nF 'fn push_interface(&mut self, iface: &str)' "$ROOT_DIR/qddns/src/leases.rs"
+	grep -nF 'entry.push_interface(fields[1]);' "$ROOT_DIR/qddns/src/leases.rs"
+	grep -nF 'entry.push_interface(&n.interface);' "$ROOT_DIR/qddns/src/leases.rs"
+	grep -nF 'if mode == LeaseMode::Mac {' "$ROOT_DIR/qddns/src/leases.rs"
+	grep -nF 'e.duid = None;' "$ROOT_DIR/qddns/src/leases.rs"
+	grep -nF 'e.iaid = None;' "$ROOT_DIR/qddns/src/leases.rs"
+	grep -nF 'e.lease_file = None;' "$ROOT_DIR/qddns/src/leases.rs"
+	grep -nF '.args(["-4", "neigh", "show"])' "$ROOT_DIR/qddns/src/network.rs"
+	grep -nF 'let mut args = vec!["-6", "neigh", "show"];' "$ROOT_DIR/qddns/src/network.rs"
+	grep -nF 'pub fn is_public_ipv6(addr: &str) -> bool {' "$ROOT_DIR/qddns/src/network.rs"
+	grep -nF 'pub fn is_private_ipv4(addr: &str) -> bool {' "$ROOT_DIR/qddns/src/network.rs"
 	! grep -nF "req.args.lease" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 	! grep -nF "req.args.path" "$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc"
 }
@@ -1014,6 +1071,7 @@ config = Path('$ROOT_DIR/qddns/src/config.rs').read_text()
 rpcd = Path('$ROOT_DIR/applications/luci-app-qddns/root/usr/share/rpcd/ucode/qddns.uc').read_text()
 settings = Path('$VIEW_DIR/settings.js').read_text()
 rules = Path('$VIEW_DIR/rules.js').read_text()
+daemon = Path('$ROOT_DIR/qddns/src/daemon.rs').read_text()
 for bad in [
     'addr.to_string().starts_with',
     '.to_string().starts_with(prefix)',
@@ -1038,7 +1096,7 @@ if 'for prefix in interface_wan_source_ipv6_prefixes(iface)?' not in source or '
     raise SystemExit('source.rs must merge multi-selected WAN source prefixes and only fail when all selected interfaces lack public route source prefixes')
 if "lease?.interface" in settings or "lease?.interface" in rules:
     raise SystemExit('lease cards must not write or display LAN host interfaces as source interface values')
-if 'host_interface' not in rpcd or 'host_interface' not in settings or 'host_interface' not in rules:
+if '"host_interface": e.interfaces.join(",")' not in daemon or 'host_interface' not in settings or 'host_interface' not in rules:
     raise SystemExit('lease cards must expose LAN host interfaces separately from source WAN interfaces')
 if 'fn command_output_with_timeout' not in source or 'SOURCE_COMMAND_TIMEOUT' not in source:
     raise SystemExit('source.rs must bound source subprocess execution')
@@ -1163,7 +1221,8 @@ check_name_visible_numeric_hidden_po() {
 		'Loading...' \
 		'Source IP is still loading.' \
 		'Unable to read source IP.' \
-		'Save and reload to read updated source IP.' \
+		'Probe source IP to preview the current form values.' \
+			'Choose the WAN/upstream interface used by this source IP preview and by the single rule referencing this source; empty uses the system default route.' \
 		'Provider, source, zone, and record name are required.' \
 		'Record type must match the selected source address family.' \
 		'Enable after creation' \

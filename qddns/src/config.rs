@@ -216,6 +216,7 @@ pub struct RuleConfig {
     pub enabled: bool,
     pub provider: ConfigText,
     pub source: ConfigText,
+    pub probe_interface: Option<ConfigText>,
     pub record_type: RecordType,
     pub zone: ConfigText,
     pub record_name: ConfigText,
@@ -371,6 +372,19 @@ impl Config {
                         )));
                     }
                 }
+            }
+
+            if let Some(interface) = rule
+                .probe_interface
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+            {
+                validate_interface_name(interface).map_err(|_| {
+                    Error::new(format!(
+                        "rule.{rule_id}.probe_interface invalid interface name"
+                    ))
+                })?;
             }
         }
 
@@ -547,6 +561,7 @@ impl Config {
                                 &section.name,
                             )?,
                             source: get_required_string(&section.options, "source", &section.name)?,
+                            probe_interface: get_string(&section.options, "probe_interface"),
                             record_type: RecordType::parse(&get_required_string(
                                 &section.options,
                                 "record_type",
@@ -699,6 +714,7 @@ const RULE_OPTIONS: &[&str] = &[
     "enabled",
     "provider",
     "source",
+    "probe_interface",
     "record_type",
     "zone",
     "record_name",
@@ -867,6 +883,19 @@ fn validate_optional_url(path: &str, value: Option<&str>) -> Result<()> {
         Err(Error::new(format!(
             "{path} has unsupported URL scheme; only http:// and https:// are accepted"
         )))
+    }
+}
+
+fn validate_interface_name(iface: &str) -> Result<()> {
+    if iface.is_empty() || iface.len() > 64 {
+        return Err(Error::new("invalid interface name"));
+    }
+    if iface.bytes().all(|byte| {
+        byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'.' | b':' | b'@' | b'-')
+    }) {
+        Ok(())
+    } else {
+        Err(Error::new("invalid interface name"))
     }
 }
 

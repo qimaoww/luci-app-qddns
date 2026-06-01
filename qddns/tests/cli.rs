@@ -173,6 +173,62 @@ config rule 'home'
 }
 
 #[test]
+fn qddnsctl_rules_probe_source_uses_rule_context() {
+    let server = match MockHttpServer::try_single_response(200, "203.0.113.49\n") {
+        Ok(server) => server,
+        Err(err) if err.kind() == std::io::ErrorKind::PermissionDenied => {
+            eprintln!("local TCP bind unavailable in this sandbox; skipping rule source probe CLI test");
+            return;
+        }
+        Err(err) => panic!("bind mock server: {err}"),
+    };
+    let temp = TempDir::new("qddns-cli-probe-source");
+    let config_path = temp.path().join("qddns.conf");
+    fs::write(
+        &config_path,
+        format!(
+            r#"
+config qddns 'main'
+
+config source 'probe'
+    option type 'public_probe'
+    option family 'ipv4'
+    option probe_url '{}'
+
+config rule 'home'
+    option enabled '1'
+    option provider 'draft'
+    option source 'probe'
+    option record_type 'A'
+    option zone 'example.com'
+    option record_name 'home'
+    option probe_interface 'qddns-invalid-probe-interface'
+"#,
+            server.url("/probe")
+        ),
+    )
+    .unwrap();
+
+    let output = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()))
+        .args(["run", "--quiet", "--bin", "qddnsctl", "--", "--config"])
+        .arg(config_path.as_os_str())
+        .args(["rules", "probe-source", "home"])
+        .output()
+        .unwrap();
+
+    assert!(
+        !output.status.success(),
+        "A public probe must bind the configured rule interface: {output:?}"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("qddns-invalid-probe-interface"),
+        "unexpected stderr: {stderr}"
+    );
+    assert_eq!(server.requests().len(), 0);
+}
+
+#[test]
 fn qddnsctl_rule_status_matches_runtime_status_contract() {
     let temp = TempDir::new("qddns-cli-test");
     let config_path = temp.path().join("qddns.conf");
