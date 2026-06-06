@@ -1110,6 +1110,10 @@ if 'fs::read_to_string(lease_file).unwrap_or_default()' in source:
     raise SystemExit('MAC source must not hide DHCPv6 lease file read errors')
 if 'Err(err) if explicit_lease_file.is_some() => return Err(err)' not in source:
     raise SystemExit('MAC source must reject explicit DHCPv6 lease_file errors before NDP fallback')
+if 'read_dhcpv6_lease_file_or_empty_default' not in source or 'dhcpv6_lease_reader_treats_missing_default_as_empty' not in source:
+    raise SystemExit('MAC source must allow missing default /tmp/odhcpd.leases before NDP/EUI-64 fallback')
+if 'dhcpv6_lease_reader_rejects_missing_custom_files' not in source:
+    raise SystemExit('MAC source must still reject missing custom DHCPv6 lease files')
 if 'let opened_metadata = file' not in source or '.metadata()' not in source or 'opened_metadata.file_type().is_file()' not in source:
     raise SystemExit('source.rs must verify DHCPv6 lease file type after opening the file handle')
 for blocked in ['path.starts_with("/dev")', 'path.starts_with("/proc")', 'path.starts_with("/sys")']:

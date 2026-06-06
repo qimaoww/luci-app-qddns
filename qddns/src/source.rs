@@ -11,6 +11,7 @@ use crate::config::{AddressFamily, RuleConfig, SourceConfig, SourceKind};
 use crate::error::{Error, Result};
 use crate::http::{HttpClient, HttpRequest, RetryPolicy};
 
+const DHCPV6_LEASE_FILE: &str = "/tmp/odhcpd.leases";
 const DHCPV6_LEASE_MAX_BYTES: u64 = 262_144;
 const SOURCE_COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -116,7 +117,7 @@ fn resolve_dhcpv6_duid(
     let iaid = iaid.ok_or_else(|| Error::new(format!("source '{}' missing iaid", source.name)))?;
     let ifaces = required_dhcpv6_interfaces(source, interface)?;
     let explicit_lease_file = lease_file.map(str::trim).filter(|value| !value.is_empty());
-    let lease_file = explicit_lease_file.unwrap_or("/tmp/odhcpd.leases");
+    let lease_file = explicit_lease_file.unwrap_or(DHCPV6_LEASE_FILE);
 
     let content = read_dhcpv6_lease_file(lease_file)?;
     let wan_source_prefixes = interfaces_wan_source_ipv6_prefixes(source, &ifaces)?;
@@ -173,11 +174,11 @@ fn resolve_dhcpv6_mac(
     let normalized_mac = normalize_mac(mac)?;
     let ifaces = required_dhcpv6_interfaces(source, interface)?;
     let explicit_lease_file = lease_file.map(str::trim).filter(|value| !value.is_empty());
-    let lease_file = explicit_lease_file.unwrap_or("/tmp/odhcpd.leases");
+    let lease_file = explicit_lease_file.unwrap_or(DHCPV6_LEASE_FILE);
 
     let mut matches = Vec::<IpAddr>::new();
 
-    let lease_error = match read_dhcpv6_lease_file(lease_file) {
+    let lease_error = match read_dhcpv6_mac_lease_file(lease_file) {
         Ok(content) => {
             for line in content.lines() {
                 let line = line.trim();
@@ -286,6 +287,29 @@ fn read_dhcpv6_lease_file(lease_file: &str) -> Result<String> {
     }
 
     Ok(content)
+}
+
+fn read_dhcpv6_mac_lease_file(lease_file: &str) -> Result<String> {
+    read_dhcpv6_lease_file_or_empty_default(lease_file, DHCPV6_LEASE_FILE)
+}
+
+fn read_dhcpv6_lease_file_or_empty_default(
+    lease_file: &str,
+    default_lease_file: &str,
+) -> Result<String> {
+    if lease_file == default_lease_file
+        && matches!(
+            fs::metadata(lease_file),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound
+        )
+    {
+        return Ok(String::new());
+    }
+
+    match read_dhcpv6_lease_file(lease_file) {
+        Ok(content) => Ok(content),
+        Err(err) => Err(err),
+    }
 }
 
 fn collect_public_ipv6_candidates(fields: &[&str], matches: &mut Vec<IpAddr>) {
@@ -1209,6 +1233,33 @@ mod tests {
         let _ = fs::remove_file(&link_path);
         let _ = fs::remove_file(&lease_path);
         assert_eq!(content, "# lease\n");
+    }
+
+    #[test]
+    fn dhcpv6_lease_reader_treats_missing_default_as_empty() {
+        let path = temp_path("missing-default");
+        let _ = fs::remove_file(&path);
+
+        let content =
+            read_dhcpv6_lease_file_or_empty_default(path.to_str().unwrap(), path.to_str().unwrap())
+                .expect("missing default DHCPv6 lease file should behave like an empty lease file");
+
+        assert_eq!(content, "");
+    }
+
+    #[test]
+    fn dhcpv6_lease_reader_rejects_missing_custom_files() {
+        let path = temp_path("missing-custom");
+        let _ = fs::remove_file(&path);
+
+        let err =
+            read_dhcpv6_lease_file_or_empty_default(path.to_str().unwrap(), "/tmp/odhcpd.leases")
+                .expect_err("missing custom DHCPv6 lease files must stay hard failures");
+
+        assert!(
+            err.to_string().contains("failed to read lease file"),
+            "unexpected error: {err}"
+        );
     }
 
     #[cfg(unix)]
